@@ -1,0 +1,16 @@
+# Secrets
+.env
+
+# Build output
+build/
+bin/
+out/
+.gradle/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
