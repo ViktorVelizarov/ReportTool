@@ -1,8 +1,8 @@
 package report;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
 import java.net.Socket;
@@ -15,22 +15,32 @@ import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.time.Instant;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 
-/** Client for the OpenRemote manager's external service registry, authenticated as a Keycloak service user. */
-final class RegistryClient {
+/**
+ * Authenticated JSON client for the OpenRemote manager REST API ({@code /api/{realm}/...}).
+ *
+ * <p>Authenticates as a Keycloak service user (client credentials) and caches the access token until shortly
+ * before it expires.
+ */
+final class ManagerClient {
+
+    static final ObjectMapper MAPPER = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final long TOKEN_REFRESH_MARGIN_SECONDS = 10;
 
     private final Config config;
     private final HttpClient http;
+    private String token;
+    private Instant tokenExpiry = Instant.MIN;
 
-    RegistryClient(Config config) {
+    ManagerClient(Config config) {
         this.config = config;
         HttpClient.Builder builder = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
@@ -43,22 +53,15 @@ final class RegistryClient {
         this.http = builder.build();
     }
 
-    /** Registers the service and returns the manager's description of it, including the {@code instanceId}. */
-    JsonNode register(ObjectNode service) throws IOException, InterruptedException {
-        return api("POST", "/service", service);
-    }
-
-    void heartbeat(String serviceId, String instanceId) throws IOException, InterruptedException {
-        api("PUT", "/service/" + serviceId + "/" + instanceId, null);
-    }
-
-    void deregister(String serviceId, String instanceId) throws IOException, InterruptedException {
-        api("DELETE", "/service/" + serviceId + "/" + instanceId, null);
-    }
-
-    private JsonNode api(String method, String path, ObjectNode body) throws IOException, InterruptedException {
+    /**
+     * Calls {@code /api/{realm}{path}}; a non-null body is sent as JSON. Returns the parsed JSON response, or null
+     * if it was empty.
+     *
+     * @throws HttpStatusException on a non-2xx response
+     */
+    JsonNode request(String method, String path, Object body) throws IOException, InterruptedException {
         HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(config.managerUrl() + "/api/" + config.realm() + path))
-                .header("Authorization", "Bearer " + fetchToken());
+                .header("Authorization", "Bearer " + token());
         if (body != null) {
             request.header("Content-Type", "application/json")
                     .method(method, HttpRequest.BodyPublishers.ofByteArray(MAPPER.writeValueAsBytes(body)));
@@ -68,15 +71,24 @@ final class RegistryClient {
         return send(request);
     }
 
-    private String fetchToken() throws IOException, InterruptedException {
+    private synchronized String token() throws IOException, InterruptedException {
+        if (Instant.now().isBefore(tokenExpiry)) {
+            return token;
+        }
         String form = "grant_type=client_credentials"
                 + "&client_id=" + URLEncoder.encode(config.clientId(), StandardCharsets.UTF_8)
                 + "&client_secret=" + URLEncoder.encode(config.clientSecret(), StandardCharsets.UTF_8);
         String url = config.keycloakUrl() + "/realms/" + config.realm() + "/protocol/openid-connect/token";
-        HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(url))
+        JsonNode response = send(HttpRequest.newBuilder(URI.create(url))
                 .header("Content-Type", "application/x-www-form-urlencoded")
-                .POST(HttpRequest.BodyPublishers.ofString(form));
-        return send(request).get("access_token").asText();
+                .POST(HttpRequest.BodyPublishers.ofString(form)));
+        if (response == null || !response.hasNonNull("access_token")) {
+            throw new IOException("Keycloak response contains no access_token");
+        }
+        token = response.get("access_token").asText();
+        long lifetime = response.path("expires_in").asLong(0);
+        tokenExpiry = Instant.now().plusSeconds(Math.max(0, lifetime - TOKEN_REFRESH_MARGIN_SECONDS));
+        return token;
     }
 
     /** Sends the request; returns the parsed JSON body, or null for an empty one. */
@@ -105,22 +117,6 @@ final class RegistryClient {
             return context;
         } catch (GeneralSecurityException e) {
             throw new IllegalStateException(e);
-        }
-    }
-
-    /** A non-2xx response. */
-    @SuppressWarnings("serial")
-    static final class HttpStatusException extends IOException {
-        final int status;
-
-        HttpStatusException(int status, byte[] body) {
-            super("HTTP " + status + " '" + preview(body) + "'");
-            this.status = status;
-        }
-
-        private static String preview(byte[] body) {
-            String text = new String(body, StandardCharsets.UTF_8);
-            return text.length() > 200 ? text.substring(0, 200) : text;
         }
     }
 }

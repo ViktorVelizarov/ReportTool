@@ -1,28 +1,24 @@
 package report;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 /**
- * Minimal OpenRemote external service: serves a page and keeps a lease on the manager registry.
- *
- * <p>See README.md for the settings. Use the Keycloak URL the manager advertises at /api/master/info: the manager
- * only accepts tokens whose issuer matches its authServerUrl.
+ * Minimal OpenRemote external service: serves a page and live OpenRemote data, and keeps a lease on the manager
+ * registry. See README.md for the settings.
  */
 public final class ReportService {
 
     private static final String SERVICE_ID = "report-service";
-    private static final int HEARTBEAT_SECONDS = 20; // the manager expires a lease after 60s without a heartbeat
+    private static final Duration HEARTBEAT = Duration.ofSeconds(20);
     private static final DateTimeFormatter NOW_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private static final String PAGE = """
@@ -47,77 +43,31 @@ public final class ReportService {
             return;
         }
 
-        HttpServer server = startPageServer(config.port());
-        CountDownLatch stop = new CountDownLatch(1);
-        RegistryClient registry = new RegistryClient(config);
-        Thread heartbeat = new Thread(() -> keepRegistered(registry, config, stop), "registry-heartbeat");
-        heartbeat.start();
+        ManagerClient manager = new ManagerClient(config);
+        HttpServer server = startServer(config.port(), new ApiEndpoints(new AssetClient(manager)));
+        ServiceRegistration registration = new ServiceRegistration(manager, describeService(config), HEARTBEAT);
+        registration.start();
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            stop.countDown();
-            try {
-                heartbeat.join();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+            registration.stop();
             server.stop(0);
         }));
         System.out.println("listening on http://localhost:" + config.port() + "/");
     }
 
-    /** Registers, then heartbeats until {@code stop} is released; re-registers if the manager forgot us; deregisters on exit. */
-    private static void keepRegistered(RegistryClient registry, Config config, CountDownLatch stop) {
-        String instanceId = null;
-        while (stop.getCount() > 0) {
-            try {
-                if (instanceId == null) {
-                    instanceId = register(registry, config);
-                } else {
-                    registry.heartbeat(SERVICE_ID, instanceId);
-                }
-            } catch (RegistryClient.HttpStatusException e) {
-                System.out.println("registry call failed: " + e.getMessage());
-                if (e.status == 404) { // registry is in memory, so a manager restart forgets us
-                    instanceId = null;
-                }
-            } catch (InterruptedException e) {
-                break;
-            } catch (Exception e) {
-                System.out.println("registry call failed: " + e);
-            }
-            try {
-                stop.await(HEARTBEAT_SECONDS, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                break;
-            }
-        }
-        if (instanceId != null) {
-            try {
-                registry.deregister(SERVICE_ID, instanceId);
-                System.out.println("deregistered");
-            } catch (Exception e) {
-                System.out.println("deregister failed: " + e);
-            }
-        }
-    }
-
-    private static String register(RegistryClient registry, Config config) throws IOException, InterruptedException {
-        JsonNode service = registry.register(new ObjectMapper().createObjectNode()
+    private static ObjectNode describeService(Config config) {
+        return ManagerClient.MAPPER.createObjectNode()
                 .put("serviceId", SERVICE_ID)
                 .put("label", "Reports")
                 .put("icon", "file-chart")
                 .put("version", "0.1.0")
                 .put("homepageUrl", "http://localhost:" + config.port() + "/")
-                .put("status", "AVAILABLE"));
-        String instanceId = service.get("instanceId").asText();
-        System.out.println("registered " + SERVICE_ID + " instanceId=" + instanceId
-                + " realm=" + service.get("realm").asText());
-        return instanceId;
+                .put("status", "AVAILABLE");
     }
 
-    private static HttpServer startPageServer(int port) throws IOException {
+    private static HttpServer startServer(int port, ApiEndpoints api) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("0.0.0.0", port), 0);
-        server.setExecutor(Executors.newCachedThreadPool());
+        server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.createContext("/", exchange -> {
             try (exchange) {
                 if (!"GET".equals(exchange.getRequestMethod())) {
@@ -132,6 +82,7 @@ public final class ReportService {
                 exchange.getResponseBody().write(body);
             }
         });
+        api.register(server);
         server.start();
         return server;
     }

@@ -22,16 +22,20 @@ record Config(
 
     /** @throws IllegalArgumentException if a required setting is missing or invalid */
     static Config load() throws IOException {
-        Map<String, String> file = Map.of();
-        if (Files.isRegularFile(ENV_FILE)) {
-            file = parseDotEnv(Files.readAllLines(ENV_FILE));
-            System.out.println("loaded " + file.size() + " settings from " + ENV_FILE.toAbsolutePath());
-        }
-        Map<String, String> dotenv = file;
+        Map<String, String> dotenv = readDotEnv();
         return from(name -> {
             String value = System.getenv(name);
             return value != null ? value : dotenv.get(name);
         });
+    }
+
+    private static Map<String, String> readDotEnv() throws IOException {
+        if (!Files.isRegularFile(ENV_FILE)) {
+            return Map.of();
+        }
+        Map<String, String> values = parseDotEnv(Files.readAllLines(ENV_FILE));
+        System.out.println("loaded " + values.size() + " settings from " + ENV_FILE.toAbsolutePath());
+        return values;
     }
 
     static Config from(UnaryOperator<String> env) {

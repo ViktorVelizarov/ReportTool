@@ -42,6 +42,15 @@ use the same host name for `OR_KEYCLOAK` that the manager and Keycloak are confi
 Or build a start script with `./gradlew installDist` and run `build/install/report-service/bin/report-service`.
 The page is served at `http://localhost:5000/`. Stop with Ctrl-C to deregister cleanly.
 
+## Live OpenRemote data
+
+The service reads live data from the manager's REST API and exposes it as read-only JSON. The service user needs
+the `read:assets` role. Errors from the manager are returned as `502` with `{"error": "..."}`.
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /assets` | Assets in the realm, oldest first, without attributes. Optional query parameters: `type` (asset type name, subtypes included), `limit` (default: all), `offset`. Returns `{"total": <matching assets>, "assets": [{id, name, type, realm, parentId, path, createdOn, version, accessPublicRead}]}`. |
+
 ## Test
 
 ```
@@ -50,6 +59,9 @@ The page is served at `http://localhost:5000/`. Stop with Ctrl-C to deregister c
 
 ## Layout
 
-- `ReportService` - entry point: heartbeat loop and the page server
-- `RegistryClient` - authenticates with Keycloak and calls the manager's `/api/{realm}/service` endpoints
+- `ReportService` - entry point: wiring, the page server and the shutdown hook
+- `ServiceRegistration` - registers, heartbeats and deregisters in the manager's `/api/{realm}/service` registry
+- `ApiEndpoints` - the read-only JSON endpoints above
+- `AssetClient` / `Asset` - reads assets from the manager's `/api/{realm}/asset` API
+- `ManagerClient` - authenticated manager REST client (Keycloak service user login, token caching)
 - `Config` - environment / `.env` settings
