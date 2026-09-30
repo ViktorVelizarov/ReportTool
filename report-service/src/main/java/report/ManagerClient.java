@@ -61,7 +61,7 @@ final class ManagerClient {
      *
      * @throws HttpStatusException on a non-2xx response
      */
-    JsonNode request(String method, String path, Object body) throws IOException, InterruptedException {
+    JsonNode request(String method, String path, JsonNode body) throws IOException, InterruptedException {
         String url = config.managerUrl() + "/api/" + config.realm() + path;
         HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(url))
                 .header("Authorization", "Bearer " + token());

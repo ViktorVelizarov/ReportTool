@@ -46,6 +46,7 @@ final class FakeManager implements AutoCloseable {
     private final List<String> calls = new CopyOnWriteArrayList<>();
     private final List<String> authHeaders = new CopyOnWriteArrayList<>();
     private final Map<String, JsonNode> lastBodies = new ConcurrentHashMap<>();
+    private final Map<String, String> lastQueries = new ConcurrentHashMap<>();
     private final Map<String, String> responses = new ConcurrentHashMap<>();
     private final Map<String, Integer> failures = new ConcurrentHashMap<>();
 
@@ -95,6 +96,11 @@ final class FakeManager implements AutoCloseable {
         return lastBodies.get(call);
     }
 
+    /** The raw query string of the most recent {@code call}. */
+    String lastQuery(String call) {
+        return lastQueries.get(call);
+    }
+
     /** Polls until the condition holds; fails after 5 seconds. */
     static void await(BooleanSupplier condition) throws InterruptedException {
         for (int i = 0; i < 250 && !condition.getAsBoolean(); i++) {
@@ -115,6 +121,9 @@ final class FakeManager implements AutoCloseable {
         byte[] body = exchange.getRequestBody().readAllBytes();
         if (body.length > 0) {
             lastBodies.put(call, ManagerClient.MAPPER.readTree(body));
+        }
+        if (exchange.getRequestURI().getRawQuery() != null) {
+            lastQueries.put(call, exchange.getRequestURI().getRawQuery());
         }
         authHeaders.add(exchange.getRequestHeaders().getFirst("Authorization"));
         calls.add(call);

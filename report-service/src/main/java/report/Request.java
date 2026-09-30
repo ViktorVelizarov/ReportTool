@@ -1,12 +1,15 @@
 package report;
 
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * A GET request routed by {@link Router}: the path parameters (the {@code {name}} parts of the route) and the query
  * parameters. Invalid parameters are reported to the caller as {@link ApiException} 400.
  */
 final class Request {
+
+    private static final Pattern NON_NEGATIVE_INT = Pattern.compile("\\d{1,9}");
 
     private final Map<String, String> pathParams;
     private final Map<String, String> queryParams;
@@ -26,21 +29,23 @@ final class Request {
         return value == null || value.isEmpty() ? null : value;
     }
 
-    /** An integer query parameter between {@code min} and {@code max} (inclusive), or {@code fallback} if absent. */
-    int intQuery(String name, int fallback, int min, int max) {
+    String requiredQuery(String name) {
         String value = query(name);
         if (value == null) {
-            return fallback;
+            throw new ApiException(400, name + " is required");
         }
-        String message = name + " must be an integer between " + min + " and " + max;
-        try {
-            int parsed = Integer.parseInt(value);
-            if (parsed < min || parsed > max) {
-                throw new ApiException(400, message);
-            }
-            return parsed;
-        } catch (NumberFormatException e) {
-            throw new ApiException(400, message);
+        return value;
+    }
+
+    /** A non-negative integer query parameter, or 0 if it is absent. */
+    int nonNegativeIntQuery(String name) {
+        String value = query(name);
+        if (value == null) {
+            return 0;
         }
+        if (!NON_NEGATIVE_INT.matcher(value).matches()) {
+            throw new ApiException(400, name + " must be a non-negative integer");
+        }
+        return Integer.parseInt(value);
     }
 }

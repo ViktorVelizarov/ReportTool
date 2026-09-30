@@ -44,7 +44,7 @@ public final class ReportService {
         }
 
         ManagerClient manager = new ManagerClient(config);
-        HttpServer server = startServer(config.port(), new ApiEndpoints(new AssetClient(manager)));
+        HttpServer server = startServer(config.port(), new ApiEndpoints(manager));
         ServiceRegistration registration = new ServiceRegistration(manager, describeService(config), HEARTBEAT);
         registration.start();
 
