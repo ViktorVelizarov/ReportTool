@@ -17,6 +17,7 @@ final class ServiceRegistration {
 
     private final ManagerClient manager;
     private final ObjectNode service;
+    private final String serviceId;
     private final Duration heartbeat;
     private final CountDownLatch stopped = new CountDownLatch(1);
     private final Thread thread = new Thread(this::run, "service-registration");
@@ -25,6 +26,7 @@ final class ServiceRegistration {
     ServiceRegistration(ManagerClient manager, ObjectNode service, Duration heartbeat) {
         this.manager = manager;
         this.service = service;
+        this.serviceId = service.get("serviceId").asText();
         this.heartbeat = heartbeat;
     }
 
@@ -74,13 +76,13 @@ final class ServiceRegistration {
     private String register() throws Exception {
         JsonNode registered = manager.request("POST", "/service", service);
         String instanceId = registered.get("instanceId").asText();
-        System.out.println("registered " + service.get("serviceId").asText() + " instanceId=" + instanceId
+        System.out.println("registered " + serviceId + " instanceId=" + instanceId
                 + " realm=" + registered.get("realm").asText());
         return instanceId;
     }
 
     private String instancePath(String instanceId) {
-        return "/service/" + service.get("serviceId").asText() + "/" + instanceId;
+        return "/service/" + serviceId + "/" + instanceId;
     }
 
     /** Waits one heartbeat interval; returns true if stopped meanwhile. */

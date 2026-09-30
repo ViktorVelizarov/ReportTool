@@ -1,9 +1,12 @@
 package report;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.util.List;
+import java.util.Map;
 
 /**
- * An OpenRemote asset without its attributes (those are added in a later step).
+ * An OpenRemote asset.
  *
  * @param id               unique asset ID
  * @param name             display name
@@ -14,6 +17,7 @@ import java.util.List;
  * @param createdOn        creation time, Unix milliseconds
  * @param version          optimistic locking version, incremented on every update
  * @param accessPublicRead whether anonymous users may read this asset
+ * @param attributes       attributes by name; left out of the JSON when they were not loaded
  */
 record Asset(
         String id,
@@ -24,4 +28,5 @@ record Asset(
         List<String> path,
         Long createdOn,
         Long version,
-        Boolean accessPublicRead) { }
+        Boolean accessPublicRead,
+        @JsonInclude(JsonInclude.Include.NON_NULL) Map<String, Attribute> attributes) { }

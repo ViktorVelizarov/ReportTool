@@ -16,15 +16,28 @@ import java.util.function.BooleanSupplier;
 
 /**
  * A fake Keycloak + OpenRemote manager for the master realm. Every API call is recorded as {@code "METHOD /path"}
- * (the path is relative to {@code /api/master}); the response is what {@link #respond} set, else 200 with no body.
+ * (the path is relative to {@code /api/master}, without the query); the response is what {@link #respond} set, else
+ * 200 with no body.
  */
 final class FakeManager implements AutoCloseable {
 
+    static final String ASSET_ID = "7A6p4AnLTkKxJUCQAAABAA";
+    static final String OTHER_ASSET_ID = "6aH4yP9qom0LMlpa27Bqr5";
+
+    /** One asset with a temperature attribute that stores data points. */
+    static final String ASSET = """
+            {"id":"%s","name":"Room","type":"RoomAsset","realm":"master","parentId":null,"path":["%s"],
+             "createdOn":1000,"version":3,"accessPublicRead":false,
+             "attributes":{"temperature":{"name":"temperature","type":"number","value":21.5,"timestamp":1700000000000,
+               "meta":{"units":["celsius"],"storeDataPoints":true}}},
+             "somethingNew":true}""".formatted(ASSET_ID, ASSET_ID);
+
+    /** Two assets, the second without attributes. */
     static final String ASSETS = """
-            [{"id":"a1","name":"Room","type":"RoomAsset","realm":"master","parentId":null,"path":["a1"],
-              "createdOn":1000,"version":3,"accessPublicRead":false,"attributes":{"ignored":{}}},
-             {"id":"a2","name":"Sensor","type":"ThingAsset","realm":"master","parentId":"a1","path":["a1","a2"],
-              "createdOn":2000,"version":1,"accessPublicRead":true}]""";
+            [%s,
+             {"id":"%s","name":"Sensor","type":"ThingAsset","realm":"master","parentId":"%s","path":["%s","%s"],
+              "createdOn":2000,"version":1,"accessPublicRead":true}]""".formatted(
+                    ASSET, OTHER_ASSET_ID, ASSET_ID, ASSET_ID, OTHER_ASSET_ID);
 
     private static final String API = "/api/master";
 
@@ -38,20 +51,19 @@ final class FakeManager implements AutoCloseable {
 
     FakeManager() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/auth/realms/master/protocol/openid-connect/token", exchange ->
-                reply(exchange, 200, "{\"access_token\":\"token" + tokenCalls.incrementAndGet() + "\",\"expires_in\":60}"));
+        server.createContext("/auth/realms/master/protocol/openid-connect/token", exchange -> reply(
+                exchange, 200, "{\"access_token\":\"token" + tokenCalls.incrementAndGet() + "\",\"expires_in\":60}"));
         server.createContext(API, this::handleApi);
         server.start();
     }
 
-    Config config() {
-        String url = "http://127.0.0.1:" + server.getAddress().getPort();
-        return Config.from(Map.of(
-                "OR_CLIENT_ID", "id", "OR_CLIENT_SECRET", "secret", "OR_MANAGER", url, "OR_KEYCLOAK", url + "/auth")::get);
-    }
-
     ManagerClient client() {
-        return new ManagerClient(config());
+        String url = "http://127.0.0.1:" + server.getAddress().getPort();
+        return new ManagerClient(Config.from(Map.of(
+                "OR_CLIENT_ID", "id",
+                "OR_CLIENT_SECRET", "secret",
+                "OR_MANAGER", url,
+                "OR_KEYCLOAK", url + "/auth")::get));
     }
 
     /** Answers {@code call}, e.g. {@code "POST /asset/count"}, with this JSON body. */

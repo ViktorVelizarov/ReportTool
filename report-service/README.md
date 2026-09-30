@@ -44,12 +44,22 @@ The page is served at `http://localhost:5000/`. Stop with Ctrl-C to deregister c
 
 ## Live OpenRemote data
 
-The service reads live data from the manager's REST API and exposes it as read-only JSON. The service user needs
-the `read:assets` role. Errors from the manager are returned as `502` with `{"error": "..."}`.
+The service reads live data from the manager's REST API and exposes it as read-only JSON, in the service user's realm.
+The service user needs the `read:assets` role. All endpoints are `GET`.
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /assets` | Assets in the realm, oldest first, without attributes. Optional query parameters: `type` (asset type name, subtypes included), `limit` (default: all), `offset`. Returns `{"total": <matching assets>, "assets": [{id, name, type, realm, parentId, path, createdOn, version, accessPublicRead}]}`. |
+| `/assets` | Assets, oldest first. Query parameters (all optional): `type` (asset type name, subtypes included), `attributes` (comma separated attribute names, or `*` for all; default: none), `limit` (default: all), `offset`. Returns `{"total": <matching assets, ignoring limit and offset>, "assets": [...]}`. |
+| `/assets/{id}` | One asset with all its attributes. |
+
+An asset is `{id, name, type, realm, parentId, path, createdOn, version, accessPublicRead, attributes}`, where
+`attributes` is left out when they were not requested. An attribute is `{name, type, value, timestamp, meta}`: its
+value type, current value, when the value was set (Unix milliseconds) and its meta items (e.g. `units`,
+`storeDataPoints`).
+
+Errors are `{"error": "..."}`. `400` is an invalid parameter, `404` an unknown path or asset, and `405` a method other
+than `GET`. `502` means OpenRemote failed or refused the service (for example the service user lacks a role), `503`
+that the request was interrupted and `500` a bug in this service.
 
 ## Test
 
@@ -61,7 +71,8 @@ the `read:assets` role. Errors from the manager are returned as `502` with `{"er
 
 - `ReportService` - entry point: wiring, the page server and the shutdown hook
 - `ServiceRegistration` - registers, heartbeats and deregisters in the manager's `/api/{realm}/service` registry
-- `ApiEndpoints` - the read-only JSON endpoints above
-- `AssetClient` / `Asset` - reads assets from the manager's `/api/{realm}/asset` API
+- `ApiEndpoints` - the JSON endpoints above: input validation and the mapping to `AssetClient`
+- `Router` / `Request` / `ApiException` - the small GET router behind them, and its error handling
+- `AssetClient` / `Asset` / `Attribute` - read assets from the manager's `/api/{realm}/asset` API
 - `ManagerClient` - authenticated manager REST client (Keycloak service user login, token caching)
 - `Config` - environment / `.env` settings

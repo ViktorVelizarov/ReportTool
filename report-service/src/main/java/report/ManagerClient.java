@@ -1,5 +1,6 @@
 package report;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,7 +31,8 @@ import javax.net.ssl.X509ExtendedTrustManager;
  */
 final class ManagerClient {
 
-    static final ObjectMapper MAPPER = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    static final ObjectMapper MAPPER =
+            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
     private static final long TOKEN_REFRESH_MARGIN_SECONDS = 10;
@@ -60,7 +62,8 @@ final class ManagerClient {
      * @throws HttpStatusException on a non-2xx response
      */
     JsonNode request(String method, String path, Object body) throws IOException, InterruptedException {
-        HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(config.managerUrl() + "/api/" + config.realm() + path))
+        String url = config.managerUrl() + "/api/" + config.realm() + path;
+        HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(url))
                 .header("Authorization", "Bearer " + token());
         if (body != null) {
             request.header("Content-Type", "application/json")
@@ -69,6 +72,21 @@ final class ManagerClient {
             request.method(method, HttpRequest.BodyPublishers.noBody());
         }
         return send(request);
+    }
+
+    /**
+     * Maps a manager response to a type. A response of the wrong shape is an {@link IOException}, like any other bad
+     * answer from the manager.
+     */
+    static <T> T convert(JsonNode response, TypeReference<T> type) throws IOException {
+        if (response == null) {
+            throw new IOException("Empty response from OpenRemote");
+        }
+        try {
+            return MAPPER.convertValue(response, type);
+        } catch (IllegalArgumentException e) {
+            throw new IOException("Unexpected response format from OpenRemote", e);
+        }
     }
 
     private synchronized String token() throws IOException, InterruptedException {
@@ -93,7 +111,8 @@ final class ManagerClient {
 
     /** Sends the request; returns the parsed JSON body, or null for an empty one. */
     private JsonNode send(HttpRequest.Builder request) throws IOException, InterruptedException {
-        HttpResponse<byte[]> response = http.send(request.timeout(TIMEOUT).build(), HttpResponse.BodyHandlers.ofByteArray());
+        HttpResponse<byte[]> response =
+                http.send(request.timeout(TIMEOUT).build(), HttpResponse.BodyHandlers.ofByteArray());
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw new HttpStatusException(response.statusCode(), response.body());
         }

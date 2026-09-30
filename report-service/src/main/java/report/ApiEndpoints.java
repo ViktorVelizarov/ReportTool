@@ -1,17 +1,19 @@
 package report;
 
-import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.IOException;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
-import java.util.LinkedHashMap;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
+import java.util.regex.Pattern;
 
-/** Read-only JSON endpoints that expose live OpenRemote data through this service. */
+/** The read-only JSON endpoints that expose live OpenRemote data through this service. */
 final class ApiEndpoints {
+
+    // The asset ID goes into a manager URL, so it is checked strictly, with OpenRemote's own rule
+    // (Constants.ASSET_ID_REGEXP). Type and attribute names are word characters, as in AttributeRef.
+    private static final Pattern ASSET_ID = Pattern.compile("[0-9A-Za-z]{22}");
+    private static final Pattern NAME = Pattern.compile("\\w+");
 
     private final AssetClient assets;
 
@@ -20,81 +22,51 @@ final class ApiEndpoints {
     }
 
     void register(HttpServer server) {
-        route(server, "/assets", this::listAssets);
+        Router router = new Router();
+        router.get("/assets", this::listAssets);
+        router.get("/assets/{id}", this::getAsset);
+        router.register(server);
     }
 
-    /** {@code GET /assets?type=&limit=&offset=} : asset identities, without attributes. */
-    private Object listAssets(Map<String, String> params) throws IOException, InterruptedException {
-        String type = params.get("type");
-        int limit = intParam(params, "limit");
-        int offset = intParam(params, "offset");
-        return new AssetList(assets.count(type), assets.list(type, limit, offset));
+    /**
+     * {@code GET /assets?type=&attributes=&limit=&offset=}. {@code attributes} is a comma separated list of
+     * attribute names to include, or {@code *} for all of them; without it no attributes are included.
+     */
+    private Object listAssets(Request request) throws IOException, InterruptedException {
+        String type = request.query("type") == null ? null : name(request.query("type"), "type");
+        List<String> attributes = attributeSelection(request.query("attributes"));
+        int limit = request.intQuery("limit", 0, 0, Integer.MAX_VALUE);
+        int offset = request.intQuery("offset", 0, 0, Integer.MAX_VALUE);
+        return new AssetList(assets.count(type), assets.list(type, attributes, limit, offset));
     }
 
     /** @param total number of assets matching the filter, ignoring limit and offset */
     private record AssetList(int total, List<Asset> assets) { }
 
-    @FunctionalInterface
-    private interface Route {
-        Object handle(Map<String, String> params) throws IOException, InterruptedException;
+    /** {@code GET /assets/{id}}: the asset with all its attributes. */
+    private Object getAsset(Request request) throws IOException, InterruptedException {
+        return assets.get(assetId(request.path("id"))).orElseThrow(() -> new ApiException(404, "asset not found"));
     }
 
-    private static void route(HttpServer server, String path, Route route) {
-        server.createContext(path, exchange -> {
-            try (exchange) {
-                if (!exchange.getRequestURI().getPath().equals(path)) {
-                    respond(exchange, 404, Map.of("error", "not found"));
-                } else if (!"GET".equals(exchange.getRequestMethod())) {
-                    exchange.getResponseHeaders().set("Allow", "GET");
-                    respond(exchange, 405, Map.of("error", "method not allowed"));
-                } else {
-                    try {
-                        respond(exchange, 200, route.handle(params(exchange)));
-                    } catch (IllegalArgumentException e) {
-                        respond(exchange, 400, Map.of("error", e.getMessage()));
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        respond(exchange, 503, Map.of("error", "interrupted"));
-                    } catch (IOException e) {
-                        System.out.println("GET " + path + " failed: " + e);
-                        respond(exchange, 502, Map.of("error", "OpenRemote request failed: " + e.getMessage()));
-                    }
-                }
-            }
-        });
+    /** The attributes to load: none if not given, all (null) for {@code *}, else the listed names. */
+    private static List<String> attributeSelection(String value) {
+        if (value == null) return List.of();
+        if (value.equals("*")) return null;
+        return Arrays.stream(value.split(",", -1)).map(attribute -> name(attribute, "attribute name")).toList();
     }
 
-    private static void respond(HttpExchange exchange, int status, Object body) throws IOException {
-        byte[] json = ManagerClient.MAPPER.writeValueAsBytes(body);
-        exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
-        exchange.sendResponseHeaders(status, json.length);
-        exchange.getResponseBody().write(json);
+    private static String assetId(String value) {
+        return check(ASSET_ID, value, "asset id");
     }
 
-    private static Map<String, String> params(HttpExchange exchange) {
-        Map<String, String> params = new LinkedHashMap<>();
-        String query = exchange.getRequestURI().getRawQuery();
-        if (query != null) {
-            for (String pair : query.split("&")) {
-                int eq = pair.indexOf('=');
-                String name = eq < 0 ? pair : pair.substring(0, eq);
-                String value = eq < 0 ? "" : pair.substring(eq + 1);
-                params.put(URLDecoder.decode(name, StandardCharsets.UTF_8), URLDecoder.decode(value, StandardCharsets.UTF_8));
-            }
+    private static String name(String value, String what) {
+        return check(NAME, value, what);
+    }
+
+    private static String check(Pattern pattern, String value, String what) {
+        if (value == null || !pattern.matcher(value).matches()) {
+            throw new ApiException(400, "invalid " + what);
         }
-        return params;
-    }
-
-    /** A non-negative integer parameter, 0 when absent. */
-    private static int intParam(Map<String, String> params, String name) {
-        String value = params.get(name);
-        if (value == null || value.isEmpty()) return 0;
-        try {
-            int parsed = Integer.parseInt(value);
-            if (parsed < 0) throw new IllegalArgumentException(name + " must not be negative");
-            return parsed;
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(name + " must be an integer");
-        }
+        return value;
     }
 }

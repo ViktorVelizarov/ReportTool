@@ -49,12 +49,14 @@ record Config(
                 Boolean.parseBoolean(optional(env, "OR_INSECURE_TLS", "false")));
     }
 
-    /** Parses {@code NAME=value} lines; blank lines, {@code #} comments, {@code export} and surrounding quotes are handled. */
+    /**
+     * Parses {@code NAME=value} lines; blank lines, {@code #} comments, {@code export} and surrounding quotes are
+     * handled.
+     */
     static Map<String, String> parseDotEnv(List<String> lines) {
         Map<String, String> values = new LinkedHashMap<>();
         for (String raw : lines) {
-            String line = raw.strip();
-            if (line.startsWith("﻿")) line = line.substring(1);
+            String line = raw.replace("\uFEFF", "").strip(); // a byte order mark may start the file
             if (line.startsWith("export ")) line = line.substring(7).stripLeading();
             int eq = line.indexOf('=');
             if (line.startsWith("#") || eq <= 0) continue;
