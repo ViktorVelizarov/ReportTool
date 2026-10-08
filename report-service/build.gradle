@@ -2,7 +2,7 @@ plugins {
     id 'application'
 }
 
-group = 'report'
+group = 'com.example'
 version = '0.1.0'
 
 repositories {
@@ -11,6 +11,8 @@ repositories {
 
 dependencies {
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.21.5'
+    implementation 'org.slf4j:slf4j-api:2.0.17'
+    runtimeOnly 'ch.qos.logback:logback-classic:1.5.18'
 
     testImplementation platform('org.junit:junit-bom:5.11.4')
     testImplementation 'org.junit.jupiter:junit-jupiter'
@@ -22,10 +24,26 @@ tasks.withType(JavaCompile).configureEach {
     options.compilerArgs << '-Xlint:all'
 }
 
+processResources {
+    // Puts the project version into build-info.properties, which is where the service reads its version from.
+    def projectVersion = project.version
+    inputs.property('version', projectVersion)
+    filesMatching('build-info.properties') {
+        expand(version: projectVersion)
+    }
+
+    // The web interface is the frontend folder next to this project; the service serves it from the classpath.
+    from('../frontend') {
+        include 'index.html', 'css/**', 'js/**', 'vendor/**'
+        exclude '**/README.md'
+        into 'static'
+    }
+}
+
 tasks.named('test') {
     useJUnitPlatform()
 }
 
 application {
-    mainClass = 'report.ReportService'
+    mainClass = 'com.example.reportservice.ReportService'
 }
