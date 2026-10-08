@@ -1,0 +1,161 @@
+/*
+ * The texts of the builder. The keys and the English texts are those of OpenRemote (the or.json of the manager's
+ * shared locales), so the ported code asks for the same keys; the texts under "report." are new. i18next.t has the call
+ * signature of the i18next library that OpenRemote uses; there is one language. This module needs no browser: the
+ * <or-translate> element is in i18n.js. Original texts: Copyright 2026, OpenRemote Inc., AGPL-3.0-or-later
+ * (https://github.com/openremote/openremote).
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+const EN = {
+  absolute: 'Absolute',
+  algorithmMethod: 'Method per interval',
+  allAssets: 'All assets',
+  allAssetsofType: 'All assets of this type',
+  asset: 'Asset',
+  assetName: 'Asset name',
+  assetType: 'Asset type',
+  assets: 'Assets',
+  attribute: 'Attribute',
+  attributes: 'Attributes',
+  brokenReference: 'Broken Reference',
+  cancel: 'Cancel',
+  close: 'Close',
+  decimals: 'Decimals',
+  delete: 'Delete',
+  deselect: 'Deselect',
+  display: 'Display',
+  errorOccurred: 'An error has occurred',
+  last: 'Last',
+  layout: 'Layout',
+  linkedAssets: 'Linked assets',
+  loading: 'Loading...',
+  max: 'Max',
+  min: 'Min',
+  name: 'Name',
+  next: 'Next',
+  noAttributeConnected: 'No attribute connected',
+  noAttributesConnected: 'No attributes connected',
+  noAttributesToShow: 'No attributes found',
+  none: 'None',
+  ok: 'OK',
+  percentage: 'Percentage',
+  prefixDefault: 'Default prefix',
+  save: 'Save',
+  screen: 'Screen',
+  search: 'Search',
+  selectAttribute: 'Select attribute',
+  settings: 'Settings',
+  this: 'Current',
+  threshold: 'Threshold',
+  thresholds: 'Thresholds',
+  time: 'Time',
+  timeframe: 'Timeframe',
+  timeframeDefault: 'Default timeframe',
+  values: 'Values',
+  withInterval: 'With interval',
+  yAxis: 'Y-axis',
+  couldNotRetrieveAttribute: 'Could not retrieve attribute information',
+
+  // time windows and intervals
+  '60minutes': '60 minutes',
+  hour: 'Hour',
+  '6hours': '6 hours',
+  '24hours': '24 hours',
+  day: 'Day',
+  '7days': '7 days',
+  week: 'Week',
+  '30days': '30 days',
+  month: 'Month',
+  '90days': '90 days',
+  '6months': '6 months',
+  '365days': '365 days',
+  year: 'Year',
+  AVG: 'Average (mean)',
+  MIN: 'Minimum',
+  MAX: 'Maximum',
+  intervalByauto: 'Auto',
+  intervalByhour: 'Per hour',
+  intervalByday: 'Per day',
+  intervalByweek: 'Per week',
+  intervalBymonth: 'Per month',
+  intervalByyear: 'Per year',
+  intervalBy1minute: 'Per minute',
+  intervalBy5minutes: 'Per 5 minutes',
+  intervalBy15minutes: 'Per 15 minutes',
+  intervalBy30minutes: 'Per 30 minutes',
+  methodAvgAttributes: 'Average',
+  methodCountAttributes: 'Count',
+  methodDifferenceAttributes: 'Difference',
+  methodMaxAttributes: 'Maximum',
+  methodMedianAttributes: 'Median',
+  methodMinAttributes: 'Minimum',
+  methodModeAttributes: 'Mode',
+  methodSumAttributes: 'Sum',
+
+  'configuration.mapSettings': 'Map settings',
+  'filter.assetTypeLabel': 'Asset type',
+  'filter.attributeLabel': 'Attribute',
+
+  'dashboard.attributeAlreadyAdded': 'This attribute is already added.',
+  'dashboard.axisConfig': 'Axis Configuration',
+  'dashboard.barColor': 'Bar color',
+  'dashboard.center': 'Center',
+  'dashboard.extendData': 'Extend latest datapoint',
+  'dashboard.faint': 'Faint',
+  'dashboard.fill': 'Fill',
+  'dashboard.imageSettings': 'Image Settings',
+  'dashboard.imageUrl': 'Image URL',
+  'dashboard.leftAxis': 'Left axis',
+  'dashboard.lineColor': 'Line color',
+  'dashboard.markerCoordinates': 'Marker Coordinates',
+  'dashboard.maxScreenWidth': 'Max screen width',
+  'dashboard.noImageSelected': 'No image selected',
+  'dashboard.numberOfColumns': 'Number of columns',
+  'dashboard.numberOfRows': 'Number of rows',
+  'dashboard.onScreenMyBoardShould': 'On a {{size}} screen my board should:',
+  'dashboard.replaceAttribute': 'Replace attribute',
+  'dashboard.rightAxis': 'Right axis',
+  'dashboard.setToMobilePreset': 'Set Mobile Preset',
+  'dashboard.showGeoJson': 'Show GeoJSON overlay',
+  'dashboard.showLabels': 'Show labels',
+  'dashboard.showLegend': 'Show legend',
+  'dashboard.showUnits': 'Show units',
+  'dashboard.showValueAs': 'Show value as',
+  'dashboard.smooth': 'Smooth',
+  'dashboard.stepped': 'Stepped',
+  'dashboard.tableSettings': 'Table settings',
+  'dashboard.toggleAxis': 'Toggle axis',
+  'dashboard.toggleStackView': 'Use stacked chart',
+  'dashboard.widgetTooSmall': 'Widget is too small.',
+  'dashboard.widgets': 'Widgets',
+  'dashboard.zoom': 'Zoom',
+
+  // the labels that OpenRemote translates for asset types; the other types are shown by their name as a sentence
+  'label.asset.ElectricityProducerSolarAsset': 'PV solar asset',
+  'label.asset.ElectricityProducerWindAsset': 'Wind turbine asset',
+
+  // dashboard texts that OpenRemote keeps in the manager's own locale file
+  'dashboard.presets.wrap_to_single_column': 'Wrap to single column',
+  'dashboard.presets.keep_layout': 'Keep layout',
+  'dashboard.presets.block_device': 'Block this device',
+  'dashboard.size.mobile': 'Mobile',
+
+  // texts of the report builder itself
+  'report.followReport': 'Use the report time frame',
+  'report.followReportHint': 'The widget shows the time frame of the report.',
+  'report.dropWidgetsHere': 'Drag a widget from the sidebar onto the report',
+  'report.noAssetsOfType': 'No assets of this type',
+  'report.noDataPoints': 'No data points in this time frame',
+  'report.rowsOfRows': '{{from}}-{{to}} of {{total}}',
+};
+
+/** The text for a key; {{name}} in the text is replaced by options.name. A key without text is shown as it is. */
+function translate(key, options = {}) {
+  const text = EN[key];
+  if (text === undefined) return options.defaultValue ?? key;
+  return text.replace(/\{\{(\w+)\}\}/g, (_, name) => String(options[name] ?? ''));
+}
+
+export const i18next = { t: translate };

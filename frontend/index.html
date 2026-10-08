@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Report Studio</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/app.css">
+  <script type="importmap">{ "imports": { "lit": "./vendor/lit.js" } }</script>
+  <script src="vendor/gridstack-all.js"></script>
+  <script src="vendor/echarts.min.js"></script>
+  <script src="vendor/gauge.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="3" y="12" width="4" height="9" rx="1"/>
+        <rect x="10" y="6" width="4" height="15" rx="1"/>
+        <rect x="17" y="3" width="4" height="18" rx="1"/>
+      </svg>
+      <span class="brand-name">Report Studio</span>
+    </div>
+    <div class="topbar-tags">
+      <span class="pill pill-realm" id="realm" title="The realm of OpenRemote that this report is about" hidden></span>
+      <span class="pill" title="The generated text, the exports, the schedules and the saved reports are still mock">
+        Prototype
+      </span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="workspace">
+      <div class="toolbar" id="toolbar"></div>
+      <article class="paper" id="paper">
+        <or-dashboard-preview id="preview"></or-dashboard-preview>
+      </article>
+    </section>
+    <or-dashboard-sidebar id="sidebar" aria-label="Widgets and settings"></or-dashboard-sidebar>
+  </main>
+
+  <div id="toasts" aria-live="polite"></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
