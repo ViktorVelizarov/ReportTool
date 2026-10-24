@@ -10,7 +10,7 @@ taken unchanged from its npm package, except where the table says otherwise.
 | `gridstack-css.js` | The stylesheet of GridStack as a module, for the shadow roots of the builder | `gridstack` 12.4.2 | MIT |
 | `echarts.min.js` | [Apache ECharts](https://echarts.apache.org), draws the line, bar and KPI charts; the library Insights uses | `echarts` 6.1.0 | Apache-2.0 (header of the file), see `echarts.min.js.NOTICE.txt` |
 | `gauge.min.js` | [gauge.js](https://bernii.github.io/gauge.js/), draws the gauge; the library OpenRemote's or-gauge uses | `gaugeJS` 1.3.9 | MIT, see `gauge.min.js.LICENSE.txt` |
-| `or-vaadin.js` | The form controls of OpenRemote's component library that the settings of the builder use (`or-vaadin-text-field`, `-number-field`, `-select`, `-toggle`, `-button` and `-multi-select-combo-box`), with the Vaadin components and the copy of Lit that they are made of | `@openremote/or-vaadin-components` 1.32.2, `@vaadin/*` 25.3.4, `lit` 3.3.3 | AGPL-3.0-or-later (OpenRemote), Apache-2.0 (Vaadin), BSD-3-Clause (Lit); the notices are at the end of the file |
+| `or-vaadin.js` | The controls of OpenRemote's component library that the page uses (`or-vaadin-badge`, `-button`, `-menu-bar`, `-multi-select-combo-box`, `-number-field`, `-select`, `-text-field` and `-toggle`), with the Vaadin components and the copy of Lit that they are made of | `@openremote/or-vaadin-components` 1.32.2, `@vaadin/*` 25.3.4, `lit` 3.3.3 | AGPL-3.0-or-later (OpenRemote), Apache-2.0 (Vaadin), BSD-3-Clause (Lit); the notices are at the end of the file |
 | `or-theme.css` | OpenRemote's theme: its colours (`--or-color-*`), the Vaadin Lumo variables they are mapped on (`--lumo-*`) and the styles of the controls | `@openremote/theme` 1.32.2, `@vaadin/vaadin-lumo-styles` 25.3.4 | AGPL-3.0-or-later (OpenRemote), Apache-2.0 (Vaadin); the notices are at the end of the file |
 | `fonts/Inter-*.woff2` | Inter regular, medium, semi-bold and bold, the font of the theme | `inter-ui` 4.1.1 | SIL OFL 1.1, see `fonts/LICENSE.txt` |
 
@@ -36,9 +36,9 @@ How each file is made:
 
   and add three small files next to `node_modules/`:
 
-  - `entry.js` has one line for each control: `import '@openremote/or-vaadin-components/or-vaadin-button';`, and the
-    same for `or-vaadin-multi-select-combo-box`, `or-vaadin-number-field`, `or-vaadin-select`, `or-vaadin-text-field`
-    and `or-vaadin-toggle`.
+  - `entry.js` has one line for each control: `import '@openremote/or-vaadin-components/or-vaadin-badge';`, and the
+    same for `or-vaadin-button`, `or-vaadin-menu-bar`, `or-vaadin-multi-select-combo-box`, `or-vaadin-number-field`,
+    `or-vaadin-select`, `or-vaadin-text-field` and `or-vaadin-toggle`.
   - `theme.css` is `@import "@openremote/theme/default.css";`.
   - `inter.css` has a rule for each of the weights 400 (`Inter-Regular`), 500 (`Inter-Medium`), 600 (`Inter-SemiBold`)
     and 700 (`Inter-Bold`), like this one. It stands in for `inter-ui/inter.css`, which the theme imports and which

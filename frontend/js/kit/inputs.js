@@ -1,9 +1,9 @@
 /**
- * The form controls of the settings panels. The text, number and select fields, the toggle, the button and the
- * multi-select combo box are OpenRemote's own: or-vaadin-text-field, or-vaadin-select and the others come from the
- * component library, bundled in vendor/or-vaadin.js and styled by vendor/or-theme.css, and the ported panels use them
- * as they are. This file has the two small controls that the library does not have: a loading indicator and a colour
- * input.
+ * The controls of the settings panels and of the top of the page. The text, number and select fields, the toggle, the
+ * button, the multi-select combo box, the menu bar and the badge are OpenRemote's own: or-vaadin-text-field,
+ * or-vaadin-select and the others come from the component library, bundled in vendor/or-vaadin.js and styled by
+ * vendor/or-theme.css, and the ported panels use them as they are. This file has the two small controls that the
+ * library does not have: a loading indicator and a colour input.
  */
 
 import { css, html, live } from 'lit';

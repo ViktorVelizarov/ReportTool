@@ -55,12 +55,19 @@ The widget types are line chart, bar chart, KPI, gauge, table, map and image. Th
   refreshes, and the preview sizes for phones and tablets.
 
 The builder uses parts of OpenRemote's component library: form fields, tabs, dialogs, the attribute picker,
-translations and icons. The form fields of its settings (text field, number field, select, toggle, button and
-multi-select combo box) are OpenRemote's own `or-vaadin-*` components, bundled in `vendor/or-vaadin.js`, and the page
-takes its colours, font, radii and shadows from OpenRemote's theme, `vendor/or-theme.css`. `js/kit/` has small
-stand-ins, with the same names, properties and events, for what is not bundled yet: tabs, dialogs, the attribute
-picker, translations, icons, the loading indicator and the colour input. The calls the widgets make to the manager are
-answered by `js/data/asset-service.js`, with the data of the realm from the report service.
+translations and icons. The text field, number field, select, toggle, button, multi-select combo box, menu bar and
+badge are OpenRemote's own `or-vaadin-*` components, bundled in `vendor/or-vaadin.js`: the settings of the builder and
+the top of the page are made of them, and the page takes its colours, font, radii and shadows from OpenRemote's theme,
+`vendor/or-theme.css`. `js/kit/` has small stand-ins, with the same names, properties and events, for what is not
+bundled yet: tabs, dialogs, the attribute picker, translations, icons, the loading indicator and the colour input. The
+calls the widgets make to the manager are answered by `js/data/asset-service.js`, with the data of the realm from the
+report service.
+
+The top of the page is made after the header of an asset in OpenRemote's manager: the name of the report with the realm
+and a "Prototype" badge, and the buttons that save it and switch between editing and previewing it (in the manager,
+"Modify" and "view"). A bar below it has the time frame, the saved reports, the schedule, the text and the export. The
+page has no navigation bar or logo of its own, because the manager shows it in its Services page, under its own
+navigation.
 
 ### License
 
@@ -117,10 +124,10 @@ widget; a clean document is a job for the PDF export.
 - `js/model/` - the report apart from the page: time frames, statistics, the figures of the widgets for the text
   (`report.js`), the questions for the AI (`instructions.js`), the prompt they make (`prompt.js`), the text templates,
   the schedule (`schedule.js`), formatting and file names.
-- `js/ui/` - the page around the builder: the toolbar, the paper (cover, text blocks, widget descriptions), the review
-  blocks, menus, dialogs (a question, the schedule, and the instructions for the AI), messages and icons, and the
-  message for a page that cannot start. `js/dom.js` has the helpers they build the page with; nothing is built with
-  `innerHTML`.
+- `js/ui/` - the page around the builder: the header and the toolbar, the paper (cover, text blocks, widget
+  descriptions), the review blocks, dialogs (a question, the schedule, and the instructions for the AI), messages and
+  icons, and the message for a page that cannot start. `js/dom.js` has the helpers they build the page with; nothing is
+  built with `innerHTML`.
 - `js/kit/` - the stand-ins for the components of OpenRemote that are not bundled, see above, and the texts
   (`texts.js`) and icons (`mdi-icons.js`) of the page. An icon that the page does not have shows as the icon of an
   unknown type.

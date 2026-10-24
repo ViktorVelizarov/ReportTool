@@ -1,21 +1,20 @@
-/** The bar above the report: its name, editing or previewing, the time frame, saved reports, text and export. */
+/** The row of actions above the report: its time frame, the saved reports, its schedule, the text and the export. */
 
 import { downloadsOf } from '../builder/service/widget-specs.js';
 import { h, onChange, replaceChildren } from '../dom.js';
+import '../kit/inputs.js';
 import { generateText } from '../model/ai.js';
 import { exportFileName } from '../model/exports.js';
 import { plural } from '../model/format.js';
 import { PERIODS } from '../model/periods.js';
 import { describeSchedule } from '../model/schedule.js';
 import {
-  approveAllBlocks, countApproved, countDrafts, finishGenerating, loadReport, newReport, removeAllBlocks, saveReport,
-  setEditMode, setInstructions, setName, setPeriod, startGenerating,
+  approveAllBlocks, countApproved, countDrafts, finishGenerating, loadReport, newReport, removeAllBlocks,
+  setInstructions, setPeriod, startGenerating,
 } from '../state.js';
 import { ask } from './dialog.js';
 import { mockExport } from './export.js';
-import { icon } from './icons.js';
 import { openInstructions } from './instructions.js';
-import { menuButton } from './menu.js';
 import { openSchedule } from './schedule.js';
 import { showToast } from './toast.js';
 
@@ -26,37 +25,32 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 const periodLabel = id => PERIODS.find(period => period.id === id).label;
 
+/** The menu of the time frames, with a tick at the one of the report. */
+function periodItems(store) {
+  const { periodId } = store.get();
+  return PERIODS.map(period => ({
+    text: period.label,
+    checked: period.id === periodId,
+    onSelect: () => store.update(state => setPeriod(state, period.id)),
+  }));
+}
+
+/** The menu of the saved reports: a new report, and the saved ones, with a tick at the one that is open. */
 function savedItems(store) {
   const state = store.get();
+  const open = state.name.trim();
   return [
-    {
-      label: 'New report',
-      hint: 'Start from an empty page',
-      icon: 'plus',
-      onSelect: () => store.update(newReport),
-    },
+    { text: 'New report', onSelect: () => store.update(newReport) },
+    ...(state.saved.length > 0 ? [{ component: 'hr' }] : []),
     ...state.saved.map(report => ({
-      label: report.name,
-      hint: [periodLabel(report.periodId), plural(report.template.widgets.length, 'widget'),
-        report.schedule?.enabled && 'Scheduled'].filter(Boolean).join(' · '),
-      icon: 'file-document-outline',
-      checked: report.name === state.name.trim(),
+      text: report.name,
+      checked: report.name === open,
       onSelect: () => {
         store.update(current => loadReport(current, report.id));
         showToast(`Opened “${report.name}”`);
       },
     })),
   ];
-}
-
-/** Saves the report under its name, which replaces a saved report with the same name. */
-export function saveCurrent(store) {
-  if (!store.get().template.widgets.length) return;
-  const before = store.get().saved.length;
-  store.update(saveReport);
-  const state = store.get();
-  const name = state.name.trim() || 'Untitled report';
-  showToast(`${state.saved.length > before ? 'Saved' : 'Updated'} “${name}”`, { tone: 'success' });
 }
 
 /** Has the text written for the figures of the report, after the author instructed the AI; the author reviews it. */
@@ -103,77 +97,61 @@ function exportFiles(store, kind) {
     ` with ${plural(count, kind === 'png' ? 'image' : 'table')}`);
 }
 
+/** The menu of the export; an item that cannot be used says in its text what it needs. */
 function exportItems(store) {
   const { widgets } = store.get().template;
   const kinds = new Set(widgets.flatMap(widget => downloadsOf(widget.widgetTypeId)));
   const empty = widgets.length === 0;
   return [
     {
-      label: 'PDF report',
-      hint: empty ? 'Add at least one widget' : 'The widgets and the approved text',
-      icon: 'file-pdf-box',
+      text: empty ? 'PDF report (add a widget first)' : 'PDF report',
       disabled: empty,
       onSelect: () => exportPdf(store),
     },
     {
-      label: 'CSV data',
-      hint: kinds.has('csv') ? 'The data of the table widgets' : 'Needs a table widget',
-      icon: 'table-large',
+      text: kinds.has('csv') ? 'CSV data' : 'CSV data (needs a table widget)',
       disabled: !kinds.has('csv'),
       onSelect: () => exportFiles(store, 'csv'),
     },
     {
-      label: 'PNG images',
-      hint: kinds.has('png') ? 'One image for each chart and gauge' : 'Needs a line chart, bar chart or gauge',
-      icon: 'image-outline',
+      text: kinds.has('png') ? 'PNG images' : 'PNG images (needs a line chart, bar chart or gauge)',
       disabled: !kinds.has('png'),
       onSelect: () => exportFiles(store, 'png'),
     },
   ];
 }
 
+/** A button that opens a menu, as OpenRemote's menu bar does. The item that is chosen runs its onSelect. */
+function menuButton(title) {
+  const bar = h('or-vaadin-menu-bar', { theme: 'dropdown-indicators', title });
+  bar.addEventListener('item-selected', event => event.detail.value.onSelect?.());
+  return {
+    bar,
+    show: (label, items) => { bar.items = [{ text: label, children: items }]; },
+  };
+}
+
 export function mountToolbar(root, store) {
-  const name = h('input', {
-    type: 'text',
-    class: 'name-input',
-    maxlength: 80,
-    placeholder: 'Report name',
-    'aria-label': 'Report name',
-    oninput: event => store.update(state => setName(state, event.target.value)),
-  });
-  const modes = [[true, 'Edit', 'pencil'], [false, 'Preview', 'eye-outline']].map(([editMode, label, iconName]) =>
-    h('button', {
-      type: 'button',
-      class: 'segment',
-      'aria-pressed': 'false',
-      onclick: () => store.update(state => setEditMode(state, editMode)),
-    }, icon(iconName, 16), label));
-  const period = h('select', {
-    class: 'select period-select',
-    'aria-label': 'Time frame',
-    title: 'Time frame of the report',
-    onchange: event => store.update(state => setPeriod(state, event.target.value)),
-  }, PERIODS.map(item => h('option', { value: item.id }, item.label)));
-  const saveButton = h('button', { type: 'button', class: 'btn', onclick: () => saveCurrent(store) },
-    icon('content-save-outline'), 'Save');
-  const scheduleButton = h('button', { type: 'button', class: 'btn', onclick: () => openSchedule(store) });
-  const generateButton = h('button', {
-    type: 'button',
-    class: 'btn primary',
+  const periodMenu = menuButton('Time frame of the report');
+  const savedMenu = menuButton('Reports that were saved');
+  const exportMenu = menuButton('Download the report');
+  // A disabled button does not react to the pointer, so its explanation is the title of the element around it
+  const scheduleButton = h('or-vaadin-button', { onclick: () => openSchedule(store) });
+  const scheduleTip = h('span', { class: 'tip' }, scheduleButton);
+  const generateButton = h('or-vaadin-button', {
     onclick: () => openInstructions(store, input => generate(store, input)),
   });
-  replaceChildren(root,
-    name,
-    h('div', { class: 'toolbar-actions' },
-      h('div', { class: 'segmented', role: 'group', 'aria-label': 'Mode' }, modes),
-      period,
-      menuButton({ label: 'Saved reports', iconName: 'folder-outline', items: () => savedItems(store) }),
-      saveButton,
-      scheduleButton,
-      h('div', { class: 'toolbar-group' },
-        h('span', { class: 'divider', 'aria-hidden': 'true' }),
-        generateButton,
-        menuButton({ label: 'Export', iconName: 'download', items: () => exportItems(store) }))));
+  const generateTip = h('span', { class: 'tip' }, generateButton);
+  replaceChildren(root, periodMenu.bar, savedMenu.bar, scheduleTip, generateTip, exportMenu.bar);
+
+  // The menus are made again only when what they show changes, not at every letter typed in the name
+  const drawPeriod = onChange(state => state.periodId, state => periodMenu.show(periodLabel(state.periodId),
+    periodItems(store)));
+  const savedKey = state => `${state.saved.map(report => `${report.id}:${report.name}`)}#${
+    state.saved.find(report => report.name === state.name.trim())?.id}`;
+  const drawSaved = onChange(savedKey, () => savedMenu.show('Saved reports', savedItems(store)));
+  const exportKey = state => state.template.widgets.map(widget => widget.widgetTypeId).join();
+  const drawExport = onChange(exportKey, () => exportMenu.show('Export', exportItems(store)));
 
   const scheduleOf = state => (state.schedule?.enabled ? describeSchedule(state.schedule) : '');
   const buttonsKey = state => `${state.ai?.status}|${state.template.widgets.length === 0}|${scheduleOf(state)}`;
@@ -181,24 +159,23 @@ export function mountToolbar(root, store) {
     const status = state.ai?.status;
     const empty = state.template.widgets.length === 0;
     const scheduled = scheduleOf(state);
-    saveButton.disabled = empty;
     scheduleButton.disabled = empty;
-    scheduleButton.title = empty ? 'Add at least one widget first' : scheduled || 'Send this report automatically';
-    scheduleButton.classList.toggle('scheduled', Boolean(scheduled));
-    replaceChildren(scheduleButton, icon('calendar-clock'), scheduled ? 'Scheduled' : 'Schedule');
+    scheduleButton.setAttribute('theme', scheduled ? 'success' : '');
+    scheduleButton.textContent = scheduled ? 'Scheduled' : 'Schedule';
+    scheduleTip.title = empty ? 'Add at least one widget first' : scheduled || 'Send this report automatically';
     generateButton.disabled = empty || status === 'loading';
-    generateButton.title = empty
+    generateButton.textContent = status === 'loading'
+      ? 'Writing text…'
+      : status === 'ready' ? 'Regenerate text' : 'Generate text';
+    generateTip.title = empty
       ? 'Add at least one widget first'
       : 'Tell the AI what this report shows and what to look out for';
-    generateButton.classList.toggle('busy', status === 'loading');
-    replaceChildren(generateButton, icon('creation'),
-      status === 'loading' ? 'Writing text…' : status === 'ready' ? 'Regenerate text' : 'Generate text');
   });
 
   function render(state) {
-    if (name.value !== state.name) name.value = state.name;
-    period.value = state.periodId;
-    modes.forEach((button, index) => button.setAttribute('aria-pressed', String(state.editMode === (index === 0))));
+    drawPeriod(state);
+    drawSaved(state);
+    drawExport(state);
     drawButtons(state);
   }
 
