@@ -4,9 +4,10 @@ import { realmOf } from './data/realm.js';
 import { ReportContext } from './data/report-context.js';
 import { createStore, initialState } from './state.js';
 import { mountBuilder } from './ui/builder.js';
+import { mountHeader, saveCurrent } from './ui/header.js';
 import { mountPaper } from './ui/paper.js';
 import { showStartupError } from './ui/startup-error.js';
-import { mountToolbar, saveCurrent } from './ui/toolbar.js';
+import { mountToolbar } from './ui/toolbar.js';
 import { widgetTools } from './ui/widget-tools.js';
 
 /** The moment the report is made for. Normally now; ?asOf=2026-10-04T12:00:00Z fixes it, for repeatable screenshots. */
@@ -14,13 +15,6 @@ function reportMoment() {
   const raw = new URLSearchParams(location.search).get('asOf');
   const moment = raw && (Date.parse(raw) || Number(raw));
   return Number.isFinite(moment) && moment > 0 ? moment : Date.now();
-}
-
-/** Shows the realm that the report is about, when the address names one. */
-function showRealm(realm) {
-  const tag = document.getElementById('realm');
-  tag.textContent = `Realm: ${realm}`;
-  tag.hidden = false;
 }
 
 async function start() {
@@ -35,6 +29,7 @@ async function start() {
 
   const store = createStore(initialState(reportMoment()));
 
+  mountHeader(document.getElementById('header'), store);
   mountToolbar(document.getElementById('toolbar'), store);
   mountPaper(document.getElementById('paper'), store);
   mountBuilder({
@@ -47,7 +42,6 @@ async function start() {
 }
 
 ReportContext.realm = realmOf(location);
-if (ReportContext.realm) showRealm(ReportContext.realm);
 
 // Before the builder elements draw for the first time: the widget browser lists the types that are registered then
 registerWidgetTypes();
