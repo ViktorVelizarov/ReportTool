@@ -56,14 +56,16 @@ The widget types are line chart, bar chart, KPI, gauge, table, map and image. Th
 
 The builder uses parts of OpenRemote's component library: form fields, tabs, dialogs, the attribute picker,
 translations and icons. The text field, number field, text area, select, toggle, checkbox, radio button, button,
-multi-select combo box, menu bar, badge, dialog and confirm dialog are OpenRemote's own `or-vaadin-*` components,
-bundled in `vendor/or-vaadin.js`: the settings of the builder, the top of the page and the dialogs are made of them, and
-the page takes its colours, font, radii and shadows from OpenRemote's theme, `vendor/or-theme.css`. A message (saved,
-exported, failed) is a notification of Vaadin, which the library has no component for, in the colours of that theme.
-`js/kit/` has small stand-ins, with the same names, properties and events, for what is not bundled yet: tabs, the
-attribute picker, translations, icons, the loading indicator and the colour input. Its `OrMwcDialog`, which the pickers
-of the builder use, draws an `or-vaadin-dialog`. The calls the widgets make to the manager are answered by
-`js/data/asset-service.js`, with the data of the realm from the report service.
+multi-select combo box, menu bar, badge, dialog and confirm dialog are OpenRemote's own `or-vaadin-*` components, and
+so are the scheduler (`or-scheduler`), `<or-translate>` and the `i18next` that it uses: all of them are bundled in
+`vendor/or-vaadin.js`. The settings of the builder, the top of the page and the dialogs are made of them, and the page
+takes its colours, font, radii and shadows from OpenRemote's theme, `vendor/or-theme.css`. A message (saved, exported,
+failed) is a notification of Vaadin, which the library has no component for, in the colours of that theme. `js/kit/`
+has small stand-ins, with the same names, properties and events, for what is not bundled yet: tabs, the attribute
+picker, icons, the loading indicator and the colour input; it also gives `i18next` the texts of the page
+(`js/kit/i18n.js`). Its `OrMwcDialog`, which the pickers of the builder use, draws an `or-vaadin-dialog`. The calls the
+widgets make to the manager are answered by `js/data/asset-service.js`, with the data of the realm from the report
+service.
 
 The top of the page is made after the header of an asset in OpenRemote's manager: the name of the report with the realm
 and a "Prototype" badge, and the buttons that save it and switch between editing and previewing it (in the manager,
@@ -95,7 +97,7 @@ closed repository. The alternative is a builder of our own that is written witho
 | Review | Generated text starts as a draft. Approve, edit or remove each block; a PDF only includes approved text. The "AI" tag marks drafts only: an approved block, the preview and the printed report do not show it |
 | Export | The PDF, CSV and PNG buttons show progress and the name of the file, but create nothing |
 | Saved reports | Kept in memory only, and a reload forgets them. The studio opens with an empty report. A saved report keeps its answers to the two questions |
-| Schedule | A dialog sets when the report is made by itself (daily, weekly or monthly), the report admin, whose email address is required and who gets a reminder on every day the report is made, to check it first, who gets the report by email, with which subject and message (with the placeholders `{report}`, `{period}` and `{date}`, filled in for every report) and as which files, and shows the next reports with the subject of the next email. It is kept with the saved report, in memory; nothing is made or sent |
+| Schedule | A dialog sets when the report is made by itself, in OpenRemote's own scheduler (`or-scheduler`: once, or repeating every so many days, weeks, months or years, on days of the week or of the month, until a date or for a number of times), the report admin, whose email address is required and who gets a reminder on every day the report is made, to check it first, who gets the report by email, with which subject and message (with the placeholders `{report}`, `{period}` and `{date}`, filled in for every report) and as which files, and shows the next reports with the subject of the next email. When is an event of OpenRemote's calendar (`start`, `end` and a recurrence rule), the format that the manager uses. It is kept with the saved report, in memory; nothing is made or sent |
 
 What the live data looks like on the page:
 
@@ -125,7 +127,7 @@ widget; a clean document is a job for the PDF export.
   time frame) that the widgets read when they fetch data.
 - `js/model/` - the report apart from the page: time frames, statistics, the figures of the widgets for the text
   (`report.js`), the questions for the AI (`instructions.js`), the prompt they make (`prompt.js`), the text templates,
-  the schedule (`schedule.js`), formatting and file names.
+  the schedule (`schedule.js`, which finds the dates of a repeat with `vendor/rrule.js`), formatting and file names.
 - `js/ui/` - the page around the builder: the header and the toolbar, the paper (cover, text blocks, widget
   descriptions), the review blocks, dialogs (a question, the schedule, and the instructions for the AI), messages and
   icons, and the message for a page that cannot start. `js/dom.js` has the helpers they build the page with; nothing is
@@ -159,9 +161,10 @@ syntax.
 - Saved reports are stored by the service. A template is the same JSON as an Insights dashboard.
 - A schedule is stored by the service with its report. A job in the service makes the report when it is due and mails
   it and the reminder to the report admin, which needs a mail server and a time zone for the schedule (the dialog uses
-  the one of the browser). Whether the report waits for the admin before it goes out is still to be decided. Generated
-  text has nobody to approve it when nobody is there, so it has to stay out of a scheduled report or go out marked as
-  a draft; that is still to be decided.
+  the one of the browser, and the rule is about the wall clock of that zone, also when summer time starts). The start
+  of the event is when the first report is made; its end is not used. Whether the report waits for the admin before it
+  goes out is still to be decided. Generated text has nobody to approve it when nobody is there, so it has to stay out
+  of a scheduled report or go out marked as a draft; that is still to be decided.
 - The service gives every point of a range, at most 100,000. An endpoint that averages per interval would send far less
   for a long time frame of an attribute that changes often.
 - The attribute picker reads all assets of a realm at once. For a large realm it needs a tree of the assets that loads

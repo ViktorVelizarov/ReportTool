@@ -1,14 +1,14 @@
 /*
  * The texts of the builder. The keys and the English texts are those of OpenRemote (the or.json of the manager's
- * shared locales), so the ported code asks for the same keys; the texts under "report." are new. i18next.t has the call
- * signature of the i18next library that OpenRemote uses; there is one language. This module needs no browser: the
- * <or-translate> element is in i18n.js. Original texts: Copyright 2026, OpenRemote Inc., AGPL-3.0-or-later
- * (https://github.com/openremote/openremote).
+ * shared locales), so the ported code asks for the same keys; the texts under "report." are new. The page shows them
+ * with OpenRemote's own i18next and <or-translate>, which i18n.js sets up with these texts. The i18next here has the
+ * call signature of that library and one language, and needs no browser, for the code that the tests run. Original
+ * texts: Copyright 2026, OpenRemote Inc., AGPL-3.0-or-later (https://github.com/openremote/openremote).
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-const EN = {
+export const EN = {
   absolute: 'Absolute',
   algorithmMethod: 'Method per interval',
   allAssets: 'All assets',
@@ -142,6 +142,106 @@ const EN = {
   'dashboard.presets.block_device': 'Block this device',
   'dashboard.size.mobile': 'Mobile',
 
+  // the texts of OpenRemote's scheduler (or-scheduler), which also writes the recurrence rules out in words (rrule.*)
+﻿  scheduleActivity: 'Schedule Activity',
+  planPeriod: 'Plan an occurrence',
+  planRecurrence: 'Plan a repeating occurrence',
+  activeFromTo: 'Active from {{start}} to {{end}}',
+  fromTo: 'from {{start}} to {{end}}',
+  fromToDays: 'from {{start}} to {{end}}',
+  fromToDays_one: 'from {{start}} to 1 day later at {{end}}',
+  fromToDays_other: 'from {{start}} to {{days}} days later at {{end}}',
+  forDays: 'for 1 day',
+  forDays_other: 'for {{days}} days',
+  period: 'Period',
+  allDay: 'All day',
+  to: 'to',
+  from: 'from',
+  never: 'Never',
+  cancel: 'Cancel',
+  monday: 'Monday',
+  tuesday: 'Tuesday',
+  wednesday: 'Wednesday',
+  thursday: 'Thursday',
+  friday: 'Friday',
+  saturday: 'Saturday',
+  sunday: 'Sunday',
+  january: 'January',
+  february: 'February',
+  march: 'March',
+  april: 'April',
+  may: 'May',
+  june: 'June',
+  july: 'July',
+  august: 'August',
+  september: 'September',
+  october: 'October',
+  november: 'November',
+  december: 'December',
+  'schedule.count_one': 'occurrence',
+  'schedule.count_other': 'occurrences',
+  'schedule.delete': 'Delete schedule',
+  'schedule._ends': 'Ends',
+  'schedule.ends.until': 'On',
+  'schedule.ends.count': 'After',
+  'schedule.repeat': 'Repeat every',
+  'schedule.repeatOn': 'Repeat on',
+  'schedule.save': 'Save schedule',
+  'schedule.type': 'Schedule type',
+  'rrule.and': 'and',
+  'rrule.at': 'at',
+  'rrule.day': 'day',
+  'rrule.days': 'days',
+  'rrule.every': 'every',
+  'rrule.for': 'for',
+  'rrule.hour': 'hour',
+  'rrule.hours': 'hours',
+  'rrule.in': 'in',
+  'rrule.last': 'last',
+  'rrule.minute': 'minute',
+  'rrule.minutes': 'minutes',
+  'rrule.month': 'month',
+  'rrule.months': 'months',
+  'rrule.nd': 'nd',
+  'rrule.on': 'on',
+  'rrule.on the': 'on the',
+  'rrule.or': 'or',
+  'rrule.rd': 'rd',
+  'rrule.st': 'st',
+  'rrule.th': 'th',
+  'rrule.the': 'the',
+  'rrule.time': 'time',
+  'rrule.times': 'times',
+  'rrule.until': 'until',
+  'rrule.week': 'week',
+  'rrule.weekday': 'weekday',
+  'rrule.weekdays': 'weekdays',
+  'rrule.weeks': 'weeks',
+  'rrule.year': 'year',
+  'rrule.years': 'years',
+  'rrule.frequency.YEARLY_one': 'Year',
+  'rrule.frequency.YEARLY_other': 'Years',
+  'rrule.frequency.MONTHLY_one': 'Month',
+  'rrule.frequency.MONTHLY_other': 'Months',
+  'rrule.frequency.WEEKLY_one': 'Week',
+  'rrule.frequency.WEEKLY_other': 'Weeks',
+  'rrule.frequency.DAILY_one': 'Day',
+  'rrule.frequency.DAILY_other': 'Days',
+  'rrule.frequency.HOURLY_one': 'Hour',
+  'rrule.frequency.HOURLY_other': 'Hours',
+  'rrule.frequency.MINUTELY_one': 'Minute',
+  'rrule.frequency.MINUTELY_other': 'Minutes',
+  'rrule.frequency.SECONDLY_one': 'Second',
+  'rrule.frequency.SECONDLY_other': 'Seconds',
+  'rrule.bymonth': 'Months',
+  'rrule.byweekno': 'Weeks',
+  'rrule.byyearday': 'Days of year',
+  'rrule.bymonthday': 'Days of month',
+  'rrule.byweekday': 'Weekdays',
+  'rrule.byhour': 'Hours',
+  'rrule.byminute': 'Minutes',
+  'rrule.bysecond': 'Seconds',
+
   // texts of the report builder itself
   'report.followReport': 'Use the report time frame',
   'report.followReportHint': 'The widget shows the time frame of the report.',
@@ -149,13 +249,18 @@ const EN = {
   'report.noAssetsOfType': 'No assets of this type',
   'report.noDataPoints': 'No data points in this time frame',
   'report.rowsOfRows': '{{from}}-{{to}} of {{total}}',
+  'report.scheduleTitle': 'Report schedule',
+  'report.notScheduled': 'Not scheduled',
 };
 
-/** The text for a key; {{name}} in the text is replaced by options.name. A key without text is shown as it is. */
+/**
+ * The text for a key; {{name}} in the text is replaced by options.name, or stays as it is when there is no such option,
+ * as i18next does. A key without text is shown as it is.
+ */
 function translate(key, options = {}) {
   const text = EN[key];
   if (text === undefined) return options.defaultValue ?? key;
-  return text.replace(/\{\{(\w+)\}\}/g, (_, name) => String(options[name] ?? ''));
+  return text.replace(/\{\{(\w+)\}\}/g, (placeholder, name) => (name in options ? String(options[name]) : placeholder));
 }
 
 export const i18next = { t: translate };
