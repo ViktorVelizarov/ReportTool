@@ -1,24 +1,19 @@
 /**
- * <or-translate value="key"></or-translate> shows the text of a key, as OpenRemote's element of that name does. The
- * texts, and the i18next that the ported code asks for them with, are in texts.js, which needs no browser; they are
- * also exported from here for the code of the page.
+ * OpenRemote's i18next and its <or-translate> element, which the bundle in vendor/ has, because the scheduler needs
+ * them, set up with the texts of texts.js. <or-translate value="key"> shows the text of a key, and the ported code asks
+ * for texts with i18next.t, as in OpenRemote.
  */
 
-import { html, LitElement } from 'lit';
-import { i18next } from './texts.js';
+import { i18next } from '../../vendor/or-vaadin.js';
+import { EN } from './texts.js';
+
+i18next.init({
+  lng: 'en',
+  initAsync: false, // the texts are here already, so the first one can be asked for at once
+  keySeparator: false, // the keys of texts.js are flat: 'dashboard.zoom' is one key
+  nsSeparator: false,
+  interpolation: { escapeValue: false }, // what is shown is escaped by Lit
+  resources: { en: { translation: EN } },
+});
 
 export { i18next };
-
-export class OrTranslate extends LitElement {
-  static properties = { value: { type: String } };
-
-  createRenderRoot() {
-    return this; // no shadow root: the text takes the style of where it is put, and it can be slotted
-  }
-
-  render() {
-    return html`${i18next.t(this.value ?? '')}`;
-  }
-}
-
-customElements.define('or-translate', OrTranslate);

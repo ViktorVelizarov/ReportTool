@@ -46,7 +46,11 @@ h1, h2, h3, p { margin: 0; }
 /* Not the input of a Vaadin field (it has a slot): the field gives that its own colours, also for a placeholder */
 button, input:not([slot]), select, textarea:not([slot]) { font: inherit; color: inherit; }
 button { cursor: pointer; }
-:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+/* The controls of OpenRemote draw their own ring, also around their input */
+:is(button, a, input, select, textarea):focus-visible:not([slot]) {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
 [hidden] { display: none !important; }
 .icon { flex: none; }
 
@@ -116,39 +120,6 @@ or-dashboard-sidebar {
 .btn-sm { height: 28px; padding: 0 10px; gap: 5px; font-size: 13px; }
 .btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
 .btn.ghost:hover:not(:disabled) { border-color: transparent; background: #eaeef2; color: var(--ink); }
-
-.select {
-  height: 36px;
-  padding: 0 8px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: var(--surface);
-  font-weight: 600;
-}
-
-.segmented {
-  display: inline-flex;
-  padding: 2px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: var(--wash);
-}
-
-.segment {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 6px;
-  background: none;
-  color: var(--muted);
-  font-weight: 600;
-}
-
-.segment:hover { color: var(--ink); }
-.segment[aria-pressed="true"] { background: var(--surface); box-shadow: var(--shadow); color: var(--ink); }
 
 /* The top of the page: what the report is called, and what can be done with it */
 
@@ -328,241 +299,36 @@ or-vaadin-confirm-dialog::part(overlay) { min-width: min(36rem, 90vw); }
 /* The content of the dialogs of OpenRemote: its sections are white cards on the green-grey of the dialog */
 .dialog-body { display: grid; gap: var(--lumo-space-m); width: min(600px, 80vw); }
 .dialog-text { color: var(--muted); font-size: var(--lumo-font-size-s); }
-.dialog-card { padding: var(--lumo-space-m); border-radius: var(--radius); background: var(--surface); }
+.dialog-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--lumo-space-s);
+  padding: var(--lumo-space-m);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.dialog-card > h4 { margin: 0; }
 .dialog-error { color: var(--or-color-text-error); }
 /* The button that leaves the dialog is at the left, the one that goes on is at the right */
 .dialog-footer { display: flex; flex: 1; justify-content: space-between; gap: var(--lumo-space-s); }
+.dialog-footer-end { display: flex; align-items: center; gap: var(--lumo-space-s); }
 
-/* The schedule of a report, which still is a dialog of its own */
-.dialog {
-  width: min(460px, calc(100vw - 32px));
-  padding: 22px 24px;
-  border: 0;
-  border-radius: 14px;
-  box-shadow: var(--shadow-lg);
-  color: var(--ink);
-}
-.dialog::backdrop { background: rgba(16, 24, 40, 0.45); }
-.dialog h2 { margin-bottom: 8px; font-size: 18px; }
-.dialog p { color: var(--muted); line-height: 1.55; }
-.dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 20px; }
-.schedule-dialog { width: min(600px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
-/* A tall form scrolls on its own, so that the buttons below it stay in view */
-.schedule-dialog[open] { display: flex; flex-direction: column; }
-.schedule-form { flex: 1 1 auto; min-height: 0; margin: 0 -24px; padding: 0 24px 2px; overflow-y: auto; }
-.schedule-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
-.schedule-head > .icon { margin-top: 2px; color: var(--green-strong); }
-.schedule-head h2 { margin-bottom: 2px; }
-
-.switch-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--wash);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.switch-text { display: flex; flex: 1; justify-content: space-between; gap: 12px; }
-.switch-state { color: var(--muted); }
-
-.switch {
-  appearance: none;
-  position: relative;
-  flex: none;
-  width: 38px;
-  height: 22px;
-  margin: 0;
-  border-radius: 999px;
-  background: var(--line-strong);
-  cursor: pointer;
-  transition: background 0.12s;
-}
-
-.switch::after {
-  content: "";
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: var(--shadow);
-  transition: transform 0.12s;
-}
-
-.switch:checked { background: var(--green-fill); }
-.switch:checked::after { transform: translateX(16px); }
-
-.field {
-  display: grid;
-  grid-template-columns: 110px minmax(0, 1fr);
-  gap: 6px 16px;
-  align-items: start;
-  padding: 8px 0;
-}
-.field-label { padding-top: 8px; color: var(--muted); font-size: 13px; font-weight: 600; }
-.field-body { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-width: 0; }
-.hint { color: var(--muted); font-size: 12.5px; }
-.static { display: inline-flex; align-items: center; min-height: 36px; font-weight: 600; }
-
-.input {
-  height: 36px;
-  padding: 0 8px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: var(--surface);
-  font-weight: 600;
-}
-
-.input.wide { flex: 1 1 100%; font-weight: 400; }
-.input[aria-invalid="true"] { border-color: var(--amber-line); }
-.hint.wide { flex: 1 1 100%; }
-
-.textarea {
-  flex: 1 1 100%;
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: var(--surface);
-  line-height: 1.5;
-  resize: vertical;
-}
-
-.input:focus-visible, .textarea:focus-visible {
-  border-color: var(--green);
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(77, 157, 42, 0.18);
-}
-
-.insert-row { display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: center; gap: 6px; }
-
-.day-toggles { display: flex; flex-wrap: wrap; gap: 6px; }
-
-.day-toggle {
-  min-width: 48px;
-  height: 34px;
-  padding: 0 8px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--muted);
-  font-weight: 600;
-}
-
-.day-toggle:hover { background: var(--wash); color: var(--ink); }
-.day-toggle[aria-pressed="true"] {
-  border-color: var(--green);
-  background: var(--green-tint);
-  color: var(--green-strong);
-}
-
-.chips {
-  display: flex;
-  flex: 1 1 100%;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  min-height: 40px;
-  padding: 4px 6px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: var(--surface);
-  cursor: text;
-}
-
-.chips:focus-within { border-color: var(--green); box-shadow: 0 0 0 3px rgba(77, 157, 42, 0.18); }
-.chips.invalid { border-color: var(--amber-line); }
-.chips-list { display: contents; }
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 28px;
-  padding: 0 4px 0 10px;
-  border: 1px solid var(--green-line);
-  border-radius: 999px;
-  background: var(--green-tint);
-  color: #26521a;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.chip-remove {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: none;
-  color: inherit;
-}
-
-.chip-remove:hover { background: rgba(16, 24, 40, 0.1); }
-.chips-input { flex: 1 1 160px; min-width: 120px; height: 28px; border: 0; background: none; }
-.chips-input:focus-visible { outline: none; }
-.field-error { flex: 1 1 100%; color: var(--amber-ink); font-size: 12.5px; }
-
-.checks { display: flex; flex-wrap: wrap; gap: 8px 20px; padding-top: 6px; }
-.check { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; }
-.check input { margin: 3px 0 0; accent-color: var(--green-fill); }
-.check small { display: block; color: var(--muted); font-size: 12px; }
-.check:has(input:disabled) { color: var(--muted); cursor: not-allowed; }
-
-.schedule-preview {
-  margin-top: 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--green-line);
-  border-radius: 10px;
-  background: var(--green-tint);
-  color: #26521a;
-}
-
-.schedule-preview[data-tone="paused"] { border-color: var(--line); background: var(--wash); color: var(--muted); }
-.schedule-preview[data-tone="problem"] {
-  border-color: var(--amber-line);
-  background: var(--amber-tint);
-  color: var(--amber-ink);
-}
-
-.schedule-preview p { color: inherit; }
-.preview-title { display: flex; align-items: flex-start; gap: 8px; font-weight: 650; }
-.preview-title .icon { margin-top: 1px; }
-.preview-title small { margin-left: 8px; font-size: 12.5px; font-weight: 500; opacity: 0.8; }
-.preview-text { margin-top: 2px; }
-.preview-kicker {
-  margin-top: 10px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  opacity: 0.8;
-}
-
-.runs { margin: 4px 0 0; padding: 0; list-style: none; }
-.runs li {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 2px 12px;
-  padding: 6px 0;
-  border-top: 1px solid var(--green-line);
-}
-
-.runs li:first-child { border-top: 0; }
+/* The dialog for the schedule of a report: cards in two columns, as OpenRemote's dialog for sending a notification */
+.schedule-body { width: min(960px, 80vw); }
+.schedule-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--lumo-space-m); }
+.dialog-column { display: grid; align-content: start; gap: var(--lumo-space-m); min-width: 0; }
+.dialog-card or-scheduler { display: block; }
+/* The addresses are typed, there is nothing to choose from */
+.schedule-body or-vaadin-multi-select-combo-box::part(toggle-button) { display: none; }
+.insert-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lumo-space-xs); }
+.schedule-preview { display: grid; gap: var(--lumo-space-xs); }
+.schedule-preview p { margin: 0; }
+.runs { margin: 0; padding-left: var(--lumo-space-l); }
 .run-when { font-weight: 600; }
-.run-covers { font-size: 13px; opacity: 0.85; }
-.dialog-note { margin-top: 12px; font-size: 12.5px; }
-.dialog-actions .remove { margin-right: auto; }
+
+@media (max-width: 800px) {
+  .schedule-columns { grid-template-columns: minmax(0, 1fr); }
+}
 
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
 
@@ -576,8 +342,6 @@ or-vaadin-confirm-dialog::part(overlay) { min-width: min(36rem, 90vw); }
 @media (max-width: 700px) {
   .paper { padding: 24px 18px 18px; }
   .cover h1 { font-size: 24px; }
-  .field { grid-template-columns: minmax(0, 1fr); }
-  .field-label { padding-top: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
