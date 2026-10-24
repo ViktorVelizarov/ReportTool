@@ -63,7 +63,7 @@ async function generate(store, { instructions, report }) {
   } catch (error) {
     console.error(error);
     store.update(removeAllBlocks);
-    showToast('The text could not be written. Try again.', { tone: 'warning' });
+    showToast('The text could not be written. Try again.', { tone: 'error' });
   }
 }
 
@@ -74,14 +74,11 @@ async function exportPdf(store) {
       title: 'Some generated text is not approved',
       text: `${plural(drafts, 'text block')} still ${drafts === 1 ? 'waits' : 'wait'} for your approval. `
         + 'Text that is not approved cannot go into the report.',
-      actions: [
-        { label: 'Cancel', value: 'cancel' },
-        { label: 'Export without it', value: 'without' },
-        { label: 'Approve all and export', value: 'approve', primary: true },
-      ],
+      confirm: 'Approve all and export',
+      reject: 'Export without it',
     });
-    if (choice === 'approve') store.update(approveAllBlocks);
-    else if (choice !== 'without') return;
+    if (choice === 'confirm') store.update(approveAllBlocks);
+    else if (choice !== 'reject') return;
   }
   const state = store.get();
   mockExport(exportFileName(state.name, state.asOf, 'pdf'),
