@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
-  addRecipients, availableFormats, describeDelivery, describeSchedule, monthDayLabel, newSchedule, nextRuns,
-  scheduleProblem,
+  addRecipients, availableFormats, describeDelivery, describeSchedule, fillPlaceholders, monthDayLabel, newSchedule,
+  nextRuns, PLACEHOLDERS, scheduleProblem,
 } from '../js/model/schedule.js';
 
 process.env.TZ = 'UTC';
@@ -18,9 +18,18 @@ const stamps = runs => runs.map(run => run.toISOString().slice(0, 16).replace('T
 // Sunday 4 October 2026, 15:30
 const NOW = new Date('2026-10-04T15:30:00Z');
 
-test('a new schedule is on, weekly on Monday at 08:00, for a PDF, and has nobody to send to yet', () => {
+test('a new schedule is on, weekly on Monday at 08:00, for a PDF, and has no admin or recipients yet', () => {
   assert.deepEqual(newSchedule(), {
-    enabled: true, frequency: 'weekly', weekdays: [1], dayOfMonth: 1, time: '08:00', recipients: [], formats: ['pdf'],
+    enabled: true,
+    frequency: 'weekly',
+    weekdays: [1],
+    dayOfMonth: 1,
+    time: '08:00',
+    admin: '',
+    recipients: [],
+    subject: '{report}: {period}',
+    message: 'Hello,\n\nattached is the {report} for {period}.\n\nThis email was sent automatically by Report Studio.',
+    formats: ['pdf'],
   });
   assert.notEqual(newSchedule().weekdays, newSchedule().weekdays, 'every schedule has lists of its own');
 });
@@ -110,13 +119,42 @@ test('addresses are taken from a text with spaces, commas or semicolons, and dou
   assert.deepEqual(addRecipients(['anna@example.com'], '  '), { recipients: ['anna@example.com'], rejected: [] });
 });
 
-test('a schedule can only be saved with a time, a day, a recipient and a file', () => {
-  const ready = { ...weekly([1]), recipients: ['ops@example.com'] };
+test('a schedule can only be saved with a time, a day, a report admin, a recipient, a subject and a file', () => {
+  const ready = { ...weekly([1]), admin: 'admin@example.com', recipients: ['ops@example.com'] };
   assert.equal(scheduleProblem(ready), null);
 
   assert.equal(scheduleProblem({ ...ready, time: '' }), 'Set the time of day.');
   assert.equal(scheduleProblem({ ...ready, weekdays: [] }), 'Choose at least one day of the week.');
+  assert.equal(scheduleProblem({ ...ready, admin: '' }), 'Enter the email address of the report admin.');
+  assert.equal(scheduleProblem({ ...ready, admin: 'admin@example' }),
+    'admin@example is not a valid email address for the report admin.');
   assert.equal(scheduleProblem({ ...ready, recipients: [] }), 'Add at least one recipient.');
+  assert.equal(scheduleProblem({ ...ready, subject: '  ' }), 'Write a subject for the email.');
   assert.equal(scheduleProblem({ ...ready, formats: [] }), 'Choose at least one file to send.');
   assert.equal(scheduleProblem({ ...ready, frequency: 'daily', weekdays: [] }), null, 'daily needs no weekday');
+  assert.equal(scheduleProblem({ ...ready, message: '' }), null, 'the message may be empty');
+});
+
+const REPORT_MADE = {
+  name: 'Irrigation report',
+  period: { start: new Date('2026-09-28T00:00:00Z'), end: new Date('2026-10-04T23:59:59Z') },
+  run: new Date('2026-10-05T08:00:00Z'),
+};
+
+test('the placeholders of the email are filled in for the report that is made', () => {
+  assert.equal(fillPlaceholders('{report}: {period}', REPORT_MADE), 'Irrigation report: 28 Sept – 4 Oct 2026');
+  assert.equal(fillPlaceholders('Made {date}: {report}, {report}!', REPORT_MADE),
+    'Made 5 Oct 2026: Irrigation report, Irrigation report!');
+  const untouched = '{unknown} {constructor} {} {report';
+  assert.equal(fillPlaceholders(untouched, REPORT_MADE), untouched);
+  assert.equal(fillPlaceholders('', REPORT_MADE), '');
+});
+
+test('every placeholder that can be inserted is filled in, and the first email uses only those', () => {
+  for (const { id } of PLACEHOLDERS) {
+    assert.notEqual(fillPlaceholders(`{${id}}`, REPORT_MADE), `{${id}}`, id);
+  }
+  const { subject, message } = newSchedule();
+  const used = [...`${subject}${message}`.matchAll(/\{(\w+)\}/g)].map(match => match[1]);
+  assert.ok(used.length > 0 && used.every(id => PLACEHOLDERS.some(placeholder => placeholder.id === id)));
 });

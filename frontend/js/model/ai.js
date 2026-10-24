@@ -1,19 +1,15 @@
 /**
  * Mock of the AI text layer: it writes the text from templates, using the same figures the widgets show, so every
- * number in it matches the report. A real version would send the report data to an LLM instead.
+ * number in it matches the report. A real version would send the prompt of prompt.js to an LLM instead. Until then the
+ * text does not depend on what the author told the AI.
  */
 
-import { formatDate, formatDateTime, formatNumber, formatRange, formatValue } from './format.js';
+import { formatDate, formatDateTime, formatNumber, formatRange, formatValue, listNames } from './format.js';
 import { previousRange } from './periods.js';
 import { percentChange } from './stats.js';
 
 const MAX_FINDINGS = 3;
 const NOTHING_CONNECTED = 'No data is connected to this widget yet.';
-
-function listNames(names) {
-  if (names.length <= 3) return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0];
-  return `${names.slice(0, 3).join(', ')} and ${names.length - 3} more`;
-}
 
 const entriesOf = widget => widget.entries ?? [];
 

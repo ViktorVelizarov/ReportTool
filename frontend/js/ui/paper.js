@@ -80,6 +80,7 @@ export function mountPaper(root, store) {
   }
 
   function render(state) {
+    root.dataset.mode = state.editMode ? 'edit' : 'preview';
     drawCover(state);
     const ordered = descriptionViews(state.template.widgets);
     const reordered = ordered.length !== shownViews.length || ordered.some((view, index) => view !== shownViews[index]);
