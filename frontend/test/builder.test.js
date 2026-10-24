@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { DashboardKeyEmitter } from '../js/builder/or-dashboard-keyhandler.js';
 import { DashboardService } from '../js/builder/service/dashboard-service.js';
 import { downloadsOf, WIDGET_SPECS } from '../js/builder/service/widget-specs.js';
 import { BAR_METHODS, bucketLabel, bucketStart, nextBucket } from '../js/builder/util/bar-chart-data.js';
@@ -141,6 +142,62 @@ test('a marker has the colour of its value, and grey without one', () => {
   assert.equal(markerColor({ valueType: 'text', value: 'Fault', textColors: [['Fault', '#ef5350']] }), '#ef5350');
   assert.equal(markerColor({ valueType: 'text', value: 'Unknown', textColors: [] }), grey);
   assert.equal(markerColor({ valueType: 'number', value: null, thresholds }), grey);
+});
+
+// --- the keys of the builder ---
+
+const element = (localName, isField = false) => ({ localName, matches: () => isField });
+
+/** The emitter with a listener for each of its events, and a way to press a key on a path of elements. */
+function emitterWithKeys() {
+  let onKeyDown;
+  globalThis.window = {
+    addEventListener(type, listener) {
+      assert.equal(type, 'keydown');
+      onKeyDown = listener;
+    },
+  };
+  const emitter = new DashboardKeyEmitter();
+  delete globalThis.window;
+  const heard = [];
+  for (const name of ['delete', 'deselect', 'save']) emitter.addListener(name, () => heard.push(name));
+  const press = (key, path, ctrlKey = false) =>
+    onKeyDown({ key, ctrlKey, composedPath: () => path, preventDefault() {} });
+  return { heard, press };
+}
+
+test('Delete and Escape are for the widget, unless a field, a dialog or a menu has the key', () => {
+  const { heard, press } = emitterWithKeys();
+  const page = [element('div'), element('body')];
+
+  press('Escape', page);
+  press('Delete', page);
+  press('a', page);
+  assert.deepEqual(heard.splice(0), ['deselect', 'delete']);
+
+  const inside = [
+    [element('input', true), ...page],
+    [element('button'), element('dialog'), ...page],
+    [element('button'), element('or-vaadin-dialog'), ...page],
+    [element('div'), element('vaadin-dialog-overlay'), ...page],
+    [element('button'), element('or-vaadin-confirm-dialog'), ...page],
+    [element('div'), element('vaadin-menu-bar-overlay'), ...page],
+  ];
+  for (const path of inside) {
+    press('Escape', path);
+    press('Delete', path);
+  }
+  assert.deepEqual(heard.splice(0), []);
+});
+
+test('Ctrl+S saves wherever the focus is', () => {
+  const { heard, press } = emitterWithKeys();
+  const field = element('input', true);
+
+  press('s', [field], true);
+  press('s', [element('or-vaadin-dialog')], true);
+  press('s', [field]);
+  assert.deepEqual(heard, ['save', 'save']);
 });
 
 // --- dashboards and widget types ---

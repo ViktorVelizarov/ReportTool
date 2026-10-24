@@ -322,17 +322,16 @@ export class BarChartSettings extends WidgetSettings {
   /** A dialog with a check box for every method; the attribute gets a bar for each method that is checked. */
   openAlgorithmMethodsDialog(attributeRef) {
     const { attributeSettings } = this.widgetConfig;
-    const selected = new Set(BAR_METHOD_KEYS.filter(key => hasRef(attributeSettings[key], attributeRef)));
+    let selected = BAR_METHOD_KEYS.filter(key => hasRef(attributeSettings[key], attributeRef));
     showDialog(new OrMwcDialog()
       .setHeading(i18next.t('algorithmMethod'))
       .setContent(html`
-        <div id="method-creator" style="display: flex; flex-direction: column; min-width: 260px;">
-          ${BAR_METHOD_KEYS.map(key => html`
-            <label style="display: flex; align-items: center; gap: 10px; padding: 6px 0; cursor: pointer;">
-              <input type="checkbox" .checked=${selected.has(key)}
-                @change=${event => { if (event.target.checked) selected.add(key); else selected.delete(key); }} />
-              ${i18next.t(key)}
-            </label>`)}
+        <div class="dialog-card" style="min-width: 260px;">
+          <or-vaadin-checkbox-group theme="vertical" .value=${selected}
+            @value-changed=${event => { selected = event.detail.value; }}>
+            ${BAR_METHOD_KEYS.map(key => html`
+              <or-vaadin-checkbox value=${key} label=${i18next.t(key)}></or-vaadin-checkbox>`)}
+          </or-vaadin-checkbox-group>
         </div>`)
       .setActions([
         { actionName: 'cancel', content: 'cancel', default: true },

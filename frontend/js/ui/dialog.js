@@ -1,29 +1,33 @@
-/** A modal question with a few answers. */
+/** A modal question, in OpenRemote's confirm dialog. */
 
 import { h } from '../dom.js';
-
-let counter = 0;
+import '../kit/inputs.js';
 
 /**
- * Asks the question and resolves with the value of the chosen action, or null when the dialog is dismissed with
- * Escape. actions: [{ label, value, primary? }]
+ * Asks the question. Resolves with 'confirm' or 'reject' when the user chooses the button with the text confirm or
+ * reject, and with null when the dialog is cancelled, by its Cancel button or with Escape. Without a reject text there
+ * is no third button.
  */
-export function ask({ title, text, actions }) {
+export function ask({ title, text, confirm, reject }) {
   return new Promise(resolve => {
-    const titleId = `dialog-title-${++counter}`;
-    const dialog = h('dialog', { class: 'dialog', 'aria-labelledby': titleId },
-      h('h2', { id: titleId }, title),
-      h('p', null, text),
-      h('div', { class: 'dialog-actions' }, actions.map(action => h('button', {
-        type: 'button',
-        class: action.primary ? 'btn primary' : 'btn',
-        onclick: () => dialog.close(action.value),
-      }, action.label))));
-    dialog.addEventListener('close', () => {
+    const dialog = h('or-vaadin-confirm-dialog', {
+      'cancel-button-visible': true,
+      'reject-button-visible': Boolean(reject),
+    });
+    dialog.header = title;
+    dialog.message = text;
+    dialog.confirmText = confirm;
+    dialog.rejectText = reject;
+    dialog.cancelTheme = 'tertiary';
+    dialog.rejectTheme = 'tertiary';
+    let answer = null;
+    dialog.addEventListener('confirm', () => { answer = 'confirm'; });
+    dialog.addEventListener('reject', () => { answer = 'reject'; });
+    dialog.addEventListener('closed', () => {
       dialog.remove();
-      resolve(dialog.returnValue || null);
+      resolve(answer);
     });
     document.body.append(dialog);
-    dialog.showModal();
+    dialog.open();
   });
 }

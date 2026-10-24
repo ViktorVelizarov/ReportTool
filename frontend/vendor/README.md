@@ -10,8 +10,8 @@ taken unchanged from its npm package, except where the table says otherwise.
 | `gridstack-css.js` | The stylesheet of GridStack as a module, for the shadow roots of the builder | `gridstack` 12.4.2 | MIT |
 | `echarts.min.js` | [Apache ECharts](https://echarts.apache.org), draws the line, bar and KPI charts; the library Insights uses | `echarts` 6.1.0 | Apache-2.0 (header of the file), see `echarts.min.js.NOTICE.txt` |
 | `gauge.min.js` | [gauge.js](https://bernii.github.io/gauge.js/), draws the gauge; the library OpenRemote's or-gauge uses | `gaugeJS` 1.3.9 | MIT, see `gauge.min.js.LICENSE.txt` |
-| `or-vaadin.js` | The controls of OpenRemote's component library that the page uses (`or-vaadin-badge`, `-button`, `-menu-bar`, `-multi-select-combo-box`, `-number-field`, `-select`, `-text-field` and `-toggle`), with the Vaadin components and the copy of Lit that they are made of | `@openremote/or-vaadin-components` 1.32.2, `@vaadin/*` 25.3.4, `lit` 3.3.3 | AGPL-3.0-or-later (OpenRemote), Apache-2.0 (Vaadin), BSD-3-Clause (Lit); the notices are at the end of the file |
-| `or-theme.css` | OpenRemote's theme: its colours (`--or-color-*`), the Vaadin Lumo variables they are mapped on (`--lumo-*`) and the styles of the controls | `@openremote/theme` 1.32.2, `@vaadin/vaadin-lumo-styles` 25.3.4 | AGPL-3.0-or-later (OpenRemote), Apache-2.0 (Vaadin); the notices are at the end of the file |
+| `or-vaadin.js` | The controls of OpenRemote's component library that the page uses (`or-vaadin-badge`, `-button`, `-checkbox`, `-checkbox-group`, `-confirm-dialog`, `-dialog`, `-menu-bar`, `-multi-select-combo-box`, `-number-field`, `-radio-group`, `-select`, `-text-area`, `-text-field` and `-toggle`) and Vaadin's notification, which the library has no version of, with the Vaadin components and the copy of Lit that they are made of | `@openremote/or-vaadin-components` 1.32.2, `@vaadin/*` 25.3.4, `lit` 3.3.3 | AGPL-3.0-or-later (OpenRemote), Apache-2.0 (Vaadin), BSD-3-Clause (Lit); the notices are at the end of the file |
+| `or-theme.css` | OpenRemote's theme: its colours (`--or-color-*`), the Vaadin Lumo variables they are mapped on (`--lumo-*`) and the styles of the controls and of the notification | `@openremote/theme` 1.32.2, `@vaadin/vaadin-lumo-styles` 25.3.4 | AGPL-3.0-or-later (OpenRemote), Apache-2.0 (Vaadin); the notices are at the end of the file |
 | `fonts/Inter-*.woff2` | Inter regular, medium, semi-bold and bold, the font of the theme | `inter-ui` 4.1.1 | SIL OFL 1.1, see `fonts/LICENSE.txt` |
 
 How each file is made:
@@ -27,19 +27,31 @@ How each file is made:
 - `gridstack-css.js` is `export default "<the content of dist/gridstack.min.css>";` with a comment line on top.
 - `echarts.min.js` is `dist/echarts.min.js` of `echarts`, which sets `window.echarts`.
 - `gauge.min.js` is `dist/gauge.min.js` of `gaugeJS`, which sets `window.Gauge`.
-- `or-vaadin.js`, `or-theme.css` and `fonts/` are built from the packages that OpenRemote publishes. In an empty folder
-  `work/`, install them:
+- `or-vaadin.js`, `or-theme.css` and `fonts/` are built from the packages that OpenRemote publishes, and from Vaadin's
+  notification, which neither the library nor the theme has anything for. In an empty folder `work/`, install them:
 
   ```
-  npm install --ignore-scripts @openremote/or-vaadin-components@1.32.2 @openremote/theme@1.32.2
+  npm install --ignore-scripts @openremote/or-vaadin-components@1.32.2 @openremote/theme@1.32.2 \
+    @vaadin/notification@25.3.4
   ```
 
-  and add three small files next to `node_modules/`:
+  and add four small files next to `node_modules/`:
 
   - `entry.js` has one line for each control: `import '@openremote/or-vaadin-components/or-vaadin-badge';`, and the
-    same for `or-vaadin-button`, `or-vaadin-menu-bar`, `or-vaadin-multi-select-combo-box`, `or-vaadin-number-field`,
-    `or-vaadin-select`, `or-vaadin-text-field` and `or-vaadin-toggle`.
-  - `theme.css` is `@import "@openremote/theme/default.css";`.
+    same for `or-vaadin-button`, `or-vaadin-checkbox`, `or-vaadin-checkbox-group`, `or-vaadin-confirm-dialog`,
+    `or-vaadin-dialog`, `or-vaadin-menu-bar`, `or-vaadin-multi-select-combo-box`, `or-vaadin-number-field`,
+    `or-vaadin-radio-group` (which brings the radio button), `or-vaadin-select`, `or-vaadin-text-area`,
+    `or-vaadin-text-field` and `or-vaadin-toggle`, and a last line `import '@vaadin/notification';`.
+  - `theme.css` is `@import "@openremote/theme/default.css";` and, on the next line,
+    `@import "@vaadin/vaadin-lumo-styles/components/notification.css";`.
+  - `core.js` stands in for `@openremote/core`, the runtime of the manager, which a bundle for this page does not want.
+    The dialogs of the library import it for their `showDialog` and `showConfirmDialog` helpers, which the page does
+    not call, and those use one function of it:
+
+    ```
+    export const Util = { generateUniqueUUID: () => crypto.randomUUID() };
+    ```
+
   - `inter.css` has a rule for each of the weights 400 (`Inter-Regular`), 500 (`Inter-Medium`), 600 (`Inter-SemiBold`)
     and 700 (`Inter-Bold`), like this one. It stands in for `inter-ui/inter.css`, which the theme imports and which
     declares all 18 files of Inter, the thin and italic ones too.
@@ -60,15 +72,13 @@ How each file is made:
 
   ```
   esbuild entry.js --bundle --format=esm --minify --legal-comments=eof --banner:js="$BANNER" \
-    --outfile=out/or-vaadin.js
+    --alias:@openremote/core=./core.js --outfile=out/or-vaadin.js
   esbuild theme.css --bundle --minify --legal-comments=eof --banner:css="$BANNER" \
     --alias:inter-ui/inter.css=./inter.css --loader:.woff2=file --asset-names=fonts/[name] --outfile=out/or-theme.css
   ```
 
   `out/or-vaadin.js`, `out/or-theme.css` and `out/fonts/` go into this folder, and `LICENSE.txt` of `inter-ui` becomes
   `fonts/LICENSE.txt`. The controls bring their own copy of Lit, which does not interact with `lit.js`. The other
-  controls of the library are left out until the page uses them. Some of them (`or-vaadin-dialog`,
-  `or-vaadin-confirm-dialog`) import `@openremote/core`, the runtime of the manager, which a bundle for this page does
-  not want.
+  controls of the library are left out until the page uses them.
 
 To update one, replace the file in the same way and run the frontend tests and the page.

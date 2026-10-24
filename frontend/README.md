@@ -55,13 +55,15 @@ The widget types are line chart, bar chart, KPI, gauge, table, map and image. Th
   refreshes, and the preview sizes for phones and tablets.
 
 The builder uses parts of OpenRemote's component library: form fields, tabs, dialogs, the attribute picker,
-translations and icons. The text field, number field, select, toggle, button, multi-select combo box, menu bar and
-badge are OpenRemote's own `or-vaadin-*` components, bundled in `vendor/or-vaadin.js`: the settings of the builder and
-the top of the page are made of them, and the page takes its colours, font, radii and shadows from OpenRemote's theme,
-`vendor/or-theme.css`. `js/kit/` has small stand-ins, with the same names, properties and events, for what is not
-bundled yet: tabs, dialogs, the attribute picker, translations, icons, the loading indicator and the colour input. The
-calls the widgets make to the manager are answered by `js/data/asset-service.js`, with the data of the realm from the
-report service.
+translations and icons. The text field, number field, text area, select, toggle, checkbox, radio button, button,
+multi-select combo box, menu bar, badge, dialog and confirm dialog are OpenRemote's own `or-vaadin-*` components,
+bundled in `vendor/or-vaadin.js`: the settings of the builder, the top of the page and the dialogs are made of them, and
+the page takes its colours, font, radii and shadows from OpenRemote's theme, `vendor/or-theme.css`. A message (saved,
+exported, failed) is a notification of Vaadin, which the library has no component for, in the colours of that theme.
+`js/kit/` has small stand-ins, with the same names, properties and events, for what is not bundled yet: tabs, the
+attribute picker, translations, icons, the loading indicator and the colour input. Its `OrMwcDialog`, which the pickers
+of the builder use, draws an `or-vaadin-dialog`. The calls the widgets make to the manager are answered by
+`js/data/asset-service.js`, with the data of the realm from the report service.
 
 The top of the page is made after the header of an asset in OpenRemote's manager: the name of the report with the realm
 and a "Prototype" badge, and the buttons that save it and switch between editing and previewing it (in the manager,
@@ -141,7 +143,8 @@ npm test
 
 Uses the built-in test runner of Node.js (developed with Node 24); there is nothing to install. The tests cover the
 state, the report model, the prompt and the text, the schedule, the data layer, and the parts of the builder that need
-no browser: time windows, bar chart intervals and methods, the map, and the widget types with their default configs.
+no browser: time windows, bar chart intervals and methods, the map, the keys, and the widget types with their default
+configs.
 The data layer is tested against a fake of the service (`test/helpers/service.js`) that has the asset model and a few
 assets in the JSON that the service gives, with generated data points, and records every call; `test/helpers/` also
 has the report that the tests of the report and the state use. The modules that need a browser are checked for valid

@@ -43,7 +43,8 @@ body {
 }
 
 h1, h2, h3, p { margin: 0; }
-button, input, select, textarea { font: inherit; color: inherit; }
+/* Not the input of a Vaadin field (it has a slot): the field gives that its own colours, also for a placeholder */
+button, input:not([slot]), select, textarea:not([slot]) { font: inherit; color: inherit; }
 button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 [hidden] { display: none !important; }
@@ -309,79 +310,49 @@ or-dashboard-preview { display: block; margin: 0 -5px; }
 
 /* Messages and dialogs */
 
-#toasts {
-  position: fixed;
-  right: 20px;
-  bottom: 20px;
-  z-index: 100;
-  display: grid;
-  gap: 8px;
-  width: min(400px, calc(100vw - 40px));
-  pointer-events: none;
+/* The content of a message, which Vaadin's notification shows in the theme of OpenRemote */
+.toast { display: flex; align-items: center; gap: var(--lumo-space-m); }
+.toast-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+/* On a coloured card, the close button has the colour of the text, not the green of a tertiary button */
+vaadin-notification-card:is([theme~='success'], [theme~='error']) .toast or-vaadin-button {
+  --vaadin-button-tertiary-text-color: currentColor;
 }
 
-.toast {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: #1d2733;
-  box-shadow: var(--shadow-lg);
-  color: #fff;
-  pointer-events: auto;
-  animation: toast-in 0.2s ease-out;
-}
+/* OpenRemote's theme makes a dialog as wide as the window, and a dialog sets its own limit, as the scheduler does with
+   max-width; here the width of a dialog is that of its content */
+or-vaadin-dialog::part(overlay) { max-width: fit-content; }
 
-.toast.leaving { opacity: 0; transform: translateY(6px); transition: opacity 0.2s, transform 0.2s; }
-.toast-icon {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.14);
-}
-.toast-success .toast-icon { background: var(--green-fill); }
-.toast-warning .toast-icon { background: #e3a21a; }
-.toast-body { flex: 1; min-width: 0; }
-.toast-text { overflow-wrap: anywhere; }
-.toast-bar { height: 3px; margin-top: 8px; overflow: hidden; border-radius: 2px; background: rgba(255, 255, 255, 0.2); }
-.toast-bar span {
-  display: block;
-  width: 0;
-  height: 100%;
-  background: var(--green);
-  animation: fill 1.4s linear forwards;
-}
+/* The confirm dialog is wide enough for three buttons, so that Cancel stands at the left and the others at the right */
+or-vaadin-confirm-dialog::part(overlay) { min-width: min(36rem, 90vw); }
 
-.dialog, .or-dialog {
+/* The content of the dialogs of OpenRemote: its sections are white cards on the green-grey of the dialog */
+.dialog-body { display: grid; gap: var(--lumo-space-m); width: min(600px, 80vw); }
+.dialog-text { color: var(--muted); font-size: var(--lumo-font-size-s); }
+.dialog-card { padding: var(--lumo-space-m); border-radius: var(--radius); background: var(--surface); }
+.dialog-error { color: var(--or-color-text-error); }
+/* The button that leaves the dialog is at the left, the one that goes on is at the right */
+.dialog-footer { display: flex; flex: 1; justify-content: space-between; gap: var(--lumo-space-s); }
+
+/* The schedule of a report, which still is a dialog of its own */
+.dialog {
+  width: min(460px, calc(100vw - 32px));
   padding: 22px 24px;
   border: 0;
   border-radius: 14px;
   box-shadow: var(--shadow-lg);
   color: var(--ink);
 }
-.dialog { width: min(460px, calc(100vw - 32px)); }
-.dialog::backdrop, .or-dialog::backdrop { background: rgba(16, 24, 40, 0.45); }
+.dialog::backdrop { background: rgba(16, 24, 40, 0.45); }
 .dialog h2 { margin-bottom: 8px; font-size: 18px; }
 .dialog p { color: var(--muted); line-height: 1.55; }
 .dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 20px; }
-
-/* The dialogs of the builder, such as the attribute picker */
-.or-dialog { width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
-.or-dialog-heading { margin-bottom: 16px; font-size: 18px; font-weight: 650; }
-.or-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
-
-/* The schedule of a report */
 .schedule-dialog { width: min(600px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
 /* A tall form scrolls on its own, so that the buttons below it stay in view */
 .schedule-dialog[open] { display: flex; flex-direction: column; }
 .schedule-form { flex: 1 1 auto; min-height: 0; margin: 0 -24px; padding: 0 24px 2px; overflow-y: auto; }
-.schedule-head, .instruct-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
-.schedule-head > .icon, .instruct-head > .icon { margin-top: 2px; color: var(--green-strong); }
-.schedule-head h2, .instruct-head h2 { margin-bottom: 2px; }
+.schedule-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+.schedule-head > .icon { margin-top: 2px; color: var(--green-strong); }
+.schedule-head h2 { margin-bottom: 2px; }
 
 .switch-row {
   display: flex;
@@ -593,18 +564,7 @@ or-dashboard-preview { display: block; margin: 0 -5px; }
 .dialog-note { margin-top: 12px; font-size: 12.5px; }
 .dialog-actions .remove { margin-right: auto; }
 
-/* The instructions for the AI */
-.instruct-dialog { width: min(600px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
-.instruct-form { display: grid; gap: 18px; }
-.question { display: grid; gap: 2px; }
-.question-label { font-weight: 650; }
-.question-hint { margin-bottom: 4px; font-size: 12.5px; }
-.instruct-dialog .field-error { margin-top: 12px; color: var(--amber-ink); }
-
-@keyframes spin { to { transform: rotate(360deg); } }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
-@keyframes fill { to { width: 100%; } }
-@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
 
 /* Smaller windows */
 
@@ -641,7 +601,9 @@ or-dashboard-preview { display: block; margin: 0 -5px; }
 
 @media print {
   body { background: #fff; }
-  .page-head, or-dashboard-sidebar, #toasts, .ai-block-actions, .ai-banner, .status-tag { display: none !important; }
+  .page-head, or-dashboard-sidebar, vaadin-notification-container, .ai-block-actions, .ai-banner, .status-tag {
+    display: none !important;
+  }
   .ai-block[data-state="draft"], .ai-block[data-state="loading"] { display: none !important; }
   .descriptions:not(:has(.ai-block[data-state="approved"])) { display: none !important; }
   .layout { display: block; max-width: none; padding: 0; }

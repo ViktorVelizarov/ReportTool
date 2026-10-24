@@ -40,9 +40,10 @@ const sharedStyles = css`
   .list {
     box-sizing: border-box;
     height: 320px;
+    padding: var(--lumo-space-xs) 0;
     overflow: auto;
-    border: 1px solid #dde3ea;
-    border-radius: 6px;
+    border-radius: var(--radius);
+    background: var(--surface);
   }
 
   .type {
@@ -50,8 +51,7 @@ const sharedStyles = css`
     align-items: center;
     gap: 8px;
     padding: 8px 10px;
-    background: #f7f9fb;
-    border-bottom: 1px solid #eef1f4;
+    background: var(--wash);
     font-weight: 600;
   }
 
@@ -63,7 +63,6 @@ const sharedStyles = css`
     box-sizing: border-box;
     padding: 8px 12px;
     border: 0;
-    border-bottom: 1px solid #f0f2f4;
     background: none;
     font: inherit;
     text-align: left;
@@ -71,28 +70,59 @@ const sharedStyles = css`
   }
 
   .row:hover {
-    background: #f7f9fb;
+    background: var(--wash);
   }
 
   .row.active {
-    background: #eef6e9;
-    font-weight: 600;
+    background: var(--green-tint);
+    color: var(--green-strong);
+  }
+
+  .choice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    cursor: pointer;
+  }
+
+  .choice or-vaadin-checkbox,
+  .choice vaadin-radio-button {
+    flex: 1;
   }
 
   .empty {
     padding: 16px;
-    color: #6b7280;
+    color: var(--muted);
   }
 
   .units {
-    margin-left: auto;
     padding: 1px 8px;
     border-radius: 10px;
-    background: #eef6e9;
-    color: #2c5e17;
+    background: var(--green-tint);
+    color: var(--green-strong);
     font-size: 12px;
   }
 `;
+
+/** A click on the row, but not on the box or the label of the control, chooses as well. */
+function chooseFromRow(event) {
+  if (event.composedPath().some(node => node.localName === 'input' || node.localName === 'label')) return;
+  event.currentTarget.firstElementChild.inputElement.click();
+}
+
+/** A row with a checkbox when several can be chosen, or a radio button when only one can, and the units if any. */
+function choice(multi, name, label, checked, onChange, units) {
+  const control = multi
+    ? html`<or-vaadin-checkbox label=${label} .checked=${checked} @change=${onChange}></or-vaadin-checkbox>`
+    : html`<vaadin-radio-button name=${name} label=${label} .checked=${checked}
+      @change=${onChange}></vaadin-radio-button>`;
+  return html`
+    <div class="choice" @click=${chooseFromRow}>
+      ${control}
+      ${units ? html`<span class="units">${units}</span>` : nothing}
+    </div>`;
+}
 
 const refKey = ref => `${ref.id}\u0000${ref.name}`;
 
@@ -138,7 +168,7 @@ class AssetAttributePickerContent extends OrElement {
       gap: 4px;
       padding: 2px 4px 2px 10px;
       border-radius: 12px;
-      background: #eef6e9;
+      background: var(--green-tint);
       font-size: 13px;
     }
 
@@ -213,13 +243,9 @@ class AssetAttributePickerContent extends OrElement {
   _attributesTemplate(asset) {
     if (!asset) return html`<div class="empty">${i18next.t('noAttributesToShow')}</div>`;
     const label = attribute => getAttributeLabel(attribute, undefined, false);
-    return this._choosable(asset).sort(sortByString(label)).map(attribute => html`
-      <label class="row">
-        <input type=${this.multi ? 'checkbox' : 'radio'} name="attribute"
-          .checked=${this._isSelected(asset.id, attribute.name)} @change=${() => this._toggle(asset, attribute)} />
-        <span>${label(attribute)}</span>
-        ${attribute.meta?.units ? html`<span class="units">${resolveUnits(attribute.meta.units)}</span>` : nothing}
-      </label>`);
+    return this._choosable(asset).sort(sortByString(label)).map(attribute =>
+      choice(this.multi, 'attribute', label(attribute), this._isSelected(asset.id, attribute.name),
+        () => this._toggle(asset, attribute), attribute.meta?.units && resolveUnits(attribute.meta.units)));
   }
 
   render() {
@@ -241,7 +267,7 @@ class AssetAttributePickerContent extends OrElement {
               <button class="row ${asset.id === this._activeId ? 'active' : ''}"
                 @click=${() => { this._activeId = asset.id; }}>${asset.name}</button>`)}`)}
         </div>
-        <div class="list" role="group">${this._attributesTemplate(active)}</div>
+        <div class="list" role=${this.multi ? 'group' : 'radiogroup'}>${this._attributesTemplate(active)}</div>
       </div>
       <div class="chips">
         ${chosen.map(({ ref, text }) => html`
@@ -351,13 +377,10 @@ class AssetSelectorContent extends OrElement {
   render() {
     if (!this._assets) return html`<or-loading-indicator></or-loading-indicator>`;
     return html`
-      <div class="list">
-        ${this._assets.length ? this._assets.map(asset => html`
-          <label class="row">
-            <input type=${this.multi ? 'checkbox' : 'radio'} name="asset" .checked=${this.selected.includes(asset.id)}
-              @change=${() => this._toggle(asset)} />
-            <span>${asset.name}</span>
-          </label>`) : html`<div class="empty">${i18next.t('report.noAssetsOfType')}</div>`}
+      <div class="list" role=${this.multi ? 'group' : 'radiogroup'}>
+        ${this._assets.length ? this._assets.map(asset =>
+          choice(this.multi, 'asset', asset.name, this.selected.includes(asset.id), () => this._toggle(asset)))
+          : html`<div class="empty">${i18next.t('report.noAssetsOfType')}</div>`}
       </div>
     `;
   }
