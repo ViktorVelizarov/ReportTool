@@ -1,14 +1,16 @@
 /**
- * The dialog in which the schedule of a report is set up: when it is made, what covers it, who gets it and as which
- * files. Only the design is real; saving keeps the schedule with the saved report, and nothing is made or sent.
+ * The dialog in which the schedule of a report is set up: when it is made, what covers it, who is reminded to check it,
+ * who gets it, with which subject and message, and as which files. Only the design is real; saving keeps the schedule with the saved report,
+ * and nothing is made or sent.
  */
 
 import { h, replaceChildren } from '../dom.js';
 import { formatDateTime, formatRange } from '../model/format.js';
 import { resolvePeriod } from '../model/periods.js';
 import {
-  addRecipients, availableFormats, describeDelivery, describeSchedule, FORMATS, FREQUENCIES, MONTH_DAYS, monthDayLabel,
-  newSchedule, nextRuns, scheduleProblem, TIME_ZONE, WEEKDAYS,
+  addRecipients, availableFormats, describeDelivery, describeSchedule, fillPlaceholders, FORMATS, FREQUENCIES, isEmail,
+  MESSAGE_MAX_LENGTH, MONTH_DAYS, monthDayLabel, newSchedule, nextRuns, PLACEHOLDERS, scheduleProblem,
+  SUBJECT_MAX_LENGTH, TIME_ZONE, WEEKDAYS,
 } from '../model/schedule.js';
 import { jsonCopy, saveReport, setSchedule } from '../state.js';
 import { icon } from './icons.js';
@@ -84,6 +86,18 @@ export function openSchedule(store) {
   const weekdayField = field('Days', h('div', { class: 'day-toggles' }, weekdays));
   const monthDayField = field('Day', monthDay);
 
+  // --- The report admin, who is reminded to check every report that is made ---
+  const admin = h('input', {
+    type: 'text',
+    class: 'input wide',
+    placeholder: 'name@company.com',
+    autocomplete: 'off',
+    required: true,
+    'aria-label': 'Email address of the report admin',
+    value: draft.admin,
+    oninput: event => change(() => { draft.admin = event.target.value.trim(); }),
+  });
+
   // --- Recipients ---
   const chips = h('span', { class: 'chips-list' });
   const recipientError = h('p', { class: 'field-error', role: 'alert', hidden: true });
@@ -127,6 +141,48 @@ export function openSchedule(store) {
     recipientInput.focus();
   };
 
+  // --- The email: its subject and message, with placeholders that are filled in for every report ---
+  let lastField = 'message'; // where an inserted placeholder goes: the field that was used last
+  const subject = h('input', {
+    type: 'text',
+    class: 'input wide',
+    maxlength: SUBJECT_MAX_LENGTH,
+    'aria-label': 'Subject of the email',
+    value: draft.subject,
+    oninput: event => change(() => { draft.subject = event.target.value; }),
+    onfocus: () => { lastField = 'subject'; },
+  });
+  const message = h('textarea', {
+    class: 'textarea',
+    rows: 5,
+    maxlength: MESSAGE_MAX_LENGTH,
+    'aria-label': 'Message of the email',
+    value: draft.message,
+    oninput: event => change(() => { draft.message = event.target.value; }),
+    onfocus: () => { lastField = 'message'; },
+  });
+  const emailFields = { subject, message };
+
+  /** The subject of the email that the report made at run is sent with. */
+  const subjectFor = run =>
+    fillPlaceholders(draft.subject, { name: reportName, period: resolvePeriod(state.periodId, run), run });
+
+  function insertPlaceholder(id) {
+    const target = emailFields[lastField];
+    target.setRangeText(`{${id}}`, target.selectionStart, target.selectionEnd, 'end');
+    change(() => { draft[lastField] = target.value; });
+    target.focus();
+  }
+
+  const placeholders = h('div', { class: 'insert-row' },
+    h('span', { class: 'hint' }, 'Insert'),
+    PLACEHOLDERS.map(({ id, label }) => h('button', {
+      type: 'button',
+      class: 'btn btn-sm',
+      title: `Puts {${id}} where you last typed; it is filled in for every email`,
+      onclick: () => insertPlaceholder(id),
+    }, label)));
+
   // --- Files ---
   const formats = FORMATS.map(({ id, label, needs }) => h('label', { class: 'check' },
     h('input', {
@@ -154,12 +210,15 @@ export function openSchedule(store) {
         h('p', { class: 'preview-text' }, 'No report is made or sent until automatic reports are switched on.'));
     } else {
       preview.dataset.tone = 'ok';
+      const runs = nextRuns(draft, new Date(state.asOf));
       replaceChildren(preview,
         h('p', { class: 'preview-title' }, icon('calendar-clock'),
           h('span', null, describeSchedule(draft), ' ', h('small', null, TIME_ZONE))),
         h('p', { class: 'preview-text' }, `Sends ${describeDelivery(draft)}.`),
+        h('p', { class: 'preview-text' }, `Reminds ${draft.admin} to check each report before it is sent.`),
+        runs.length > 0 && h('p', { class: 'preview-text' }, `Subject of the next email: ${subjectFor(runs[0])}`),
         h('p', { class: 'preview-kicker' }, 'Next reports'),
-        h('ol', { class: 'runs' }, nextRuns(draft, new Date(state.asOf)).map(run => {
+        h('ol', { class: 'runs' }, runs.map(run => {
           const { start, end } = resolvePeriod(state.periodId, run);
           return h('li', null,
             h('span', { class: 'run-when' }, formatDateTime(run)),
@@ -176,16 +235,22 @@ export function openSchedule(store) {
       h('div', null,
         h('h2', { id: TITLE_ID }, 'Schedule report'),
         h('p', null, `“${reportName}” is made and emailed automatically.`))),
-    h('label', { class: 'switch-row' }, enabled, h('span', { class: 'switch-text' }, 'Automatic reports', switchState)),
-    field('Repeat', h('div', { class: 'segmented', role: 'group', 'aria-label': 'Repeat' }, frequencies)),
-    weekdayField,
-    monthDayField,
-    field('At', time, h('span', { class: 'hint' }, `Time zone: ${TIME_ZONE}`)),
-    field('Data covers', h('span', { class: 'static' }, resolvePeriod(state.periodId).label),
-      h('span', { class: 'hint' }, 'The time frame of the report')),
-    field('Send to', recipientBox, recipientError),
-    field('Files', h('div', { class: 'checks' }, formats)),
-    preview,
+    h('div', { class: 'schedule-form' },
+      h('label', { class: 'switch-row' }, enabled,
+        h('span', { class: 'switch-text' }, 'Automatic reports', switchState)),
+      field('Repeat', h('div', { class: 'segmented', role: 'group', 'aria-label': 'Repeat' }, frequencies)),
+      weekdayField,
+      monthDayField,
+      field('At', time, h('span', { class: 'hint' }, `Time zone: ${TIME_ZONE}`)),
+      field('Data covers', h('span', { class: 'static' }, resolvePeriod(state.periodId).label),
+        h('span', { class: 'hint' }, 'The time frame of the report')),
+      field('Report admin', admin,
+        h('span', { class: 'hint wide' }, 'Gets a reminder email on every day the report is made, to check it first')),
+      field('Send to', recipientBox, recipientError),
+      field('Subject', subject),
+      field('Message', message, placeholders),
+      field('Files', h('div', { class: 'checks' }, formats)),
+      preview),
     h('p', { class: 'dialog-note' }, `Saving also saves the report. ${DEMO_NOTE}`),
     h('div', { class: 'dialog-actions' },
       state.schedule && h('button', { type: 'button', class: 'btn ghost remove', onclick: removeSchedule },
@@ -227,6 +292,7 @@ export function openSchedule(store) {
           removeRecipient(address);
         },
       }, icon('close', 14)))));
+    admin.setAttribute('aria-invalid', String(draft.admin !== '' && !isEmail(draft.admin)));
     drawPreview();
     save.disabled = scheduleProblem(draft) !== null;
   }

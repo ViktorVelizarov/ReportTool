@@ -5,7 +5,7 @@ import { newSchedule } from '../js/model/schedule.js';
 import {
   addWidget, approveAllBlocks, approveBlock, countApproved, countDrafts, createStore, editBlock, finishGenerating,
   initialState, jsonCopy, loadReport, newReport, removeAllBlocks, removeBlock, removeWidget, saveReport, selectWidget,
-  setEditMode, setName, setPeriod, setSchedule, setTemplate, startGenerating, updateWidget,
+  setEditMode, setInstructions, setName, setPeriod, setSchedule, setTemplate, startGenerating, updateWidget,
 } from '../js/state.js';
 import { REPORT } from './helpers/report.js';
 
@@ -53,6 +53,7 @@ test('the studio opens with an empty report, in edit mode, with no saved reports
   assert.equal(state.editMode, true);
   assert.equal(state.selectedId, undefined);
   assert.equal(state.ai, null);
+  assert.deepEqual(state.instructions, { subject: '', focus: '' });
   assert.equal(state.schedule, null);
   assert.deepEqual(state.saved, []);
   assert.equal(state.asOf, NOW);
@@ -244,6 +245,46 @@ test('a schedule is saved with the report, opened with it, and gone from a new r
   const removed = saveReport(setSchedule(saved, null));
   assert.equal(removed.saved[0].schedule, null);
   assert.equal(loadReport(newReport(removed), 'saved-1').schedule, null);
+});
+
+// --- the instructions for the AI ---
+
+const INSTRUCTIONS = { subject: '  The irrigation of the greenhouse.  ', focus: 'A tank level below 200 l.\n' };
+const ANSWERS = { subject: 'The irrigation of the greenhouse.', focus: 'A tank level below 200 l.' };
+
+test('instructions are kept without the spaces around the answers, and the same ones change nothing', () => {
+  const state = withText();
+
+  const instructed = setInstructions(state, INSTRUCTIONS);
+
+  assert.deepEqual(instructed.instructions, ANSWERS);
+  assert.equal(instructed.ai, state.ai, 'the generated text stays');
+  assert.equal(setInstructions(instructed, ANSWERS), instructed);
+  assert.equal(setInstructions(instructed, INSTRUCTIONS), instructed);
+});
+
+test('instructions stay when the report changes, for the author to correct', () => {
+  const state = setInstructions(withReport(), INSTRUCTIONS);
+  const renamed = changeWidget(state, 'irrigation-1', widget => { widget.displayName = 'Flow'; });
+
+  const changed = setPeriod(setTemplate(state, renamed), 'last30');
+
+  assert.equal(changed.instructions, state.instructions);
+});
+
+test('instructions are saved with the report, opened with it, and gone from a new report', () => {
+  const saved = saveReport(setInstructions(setName(withReport(), 'Weekly'), INSTRUCTIONS));
+  assert.deepEqual(saved.saved[0].instructions, ANSWERS);
+  assert.notEqual(saved.saved[0].instructions, saved.instructions, 'a saved report keeps a copy of its own');
+
+  const empty = newReport(saved);
+  assert.deepEqual(empty.instructions, { subject: '', focus: '' });
+  const opened = loadReport(empty, 'saved-1');
+  assert.deepEqual(opened.instructions, ANSWERS);
+  assert.notEqual(opened.instructions, saved.saved[0].instructions);
+
+  const other = { subject: 'Other.', focus: 'Other too.' };
+  assert.deepEqual(saveReport(setInstructions(saved, other)).saved[0].instructions, other);
 });
 
 // --- generated text ---

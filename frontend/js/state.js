@@ -1,11 +1,13 @@
 /**
  * The report setup and everything that changes it. The actions are pure: they return the new state, or the same state
  * when nothing changes. The setup of a report is its name, its time frame, the template of its widgets, the layout
- * and settings that the dashboard builder edits (see builder/), and its schedule, if it has one.
+ * and settings that the dashboard builder edits (see builder/), what the author told the AI about it, and its
+ * schedule, if it has one.
  */
 
 import { DashboardService } from './builder/service/dashboard-service.js';
 import { objectsEqual } from './data/util.js';
+import { newInstructions } from './model/instructions.js';
 import { PERIODS } from './model/periods.js';
 
 const UNTITLED = 'Untitled report';
@@ -36,6 +38,7 @@ export function initialState(asOf = Date.now()) {
     name: UNTITLED,
     periodId: PERIODS[0].id,
     template: DashboardService.newTemplate(),
+    instructions: newInstructions(), // the answers to the questions of model/instructions.js, saved with the report
     schedule: null, // null | the schedule of model/schedule.js, which is saved with the report
     editMode: true,
     selectedId: undefined, // the id of the widget that is selected in the builder
@@ -94,6 +97,15 @@ export const setName = (state, name) => (name === state.name ? state : { ...stat
 export const setEditMode = (state, editMode) =>
   (editMode === state.editMode ? state : { ...state, editMode, selectedId: editMode ? state.selectedId : undefined });
 
+/**
+ * What the author told the AI about the report, kept without the spaces around the answers. It does not change what
+ * the report shows, and it stays when the report changes: it is for the author to correct.
+ */
+export function setInstructions(state, instructions) {
+  const next = { subject: instructions.subject.trim(), focus: instructions.focus.trim() };
+  return objectsEqual(state.instructions, next) ? state : { ...state, instructions: next };
+}
+
 /** The schedule of the report, or no schedule with null. It does not change what the report shows. */
 export function setSchedule(state, schedule) {
   const next = schedule && jsonCopy(schedule);
@@ -105,6 +117,7 @@ export const newReport = state => ({
   ...state,
   name: UNTITLED,
   template: DashboardService.newTemplate(),
+  instructions: newInstructions(),
   schedule: null,
   selectedId: undefined,
   ai: null,
@@ -121,6 +134,7 @@ export function saveReport(state) {
     name,
     periodId: state.periodId,
     template: jsonCopy(state.template),
+    instructions: { ...state.instructions },
     schedule: state.schedule && jsonCopy(state.schedule),
   };
   const saved = existing ? state.saved.map(item => (item === existing ? report : item)) : [...state.saved, report];
@@ -135,6 +149,7 @@ export function loadReport(state, id) {
     name: report.name,
     periodId: report.periodId,
     template: jsonCopy(report.template),
+    instructions: { ...report.instructions },
     schedule: report.schedule && jsonCopy(report.schedule),
     selectedId: undefined,
     ai: null,

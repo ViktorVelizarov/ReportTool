@@ -6,15 +6,15 @@ import { generateText } from '../model/ai.js';
 import { exportFileName } from '../model/exports.js';
 import { plural } from '../model/format.js';
 import { PERIODS } from '../model/periods.js';
-import { buildReport } from '../model/report.js';
 import { describeSchedule } from '../model/schedule.js';
 import {
   approveAllBlocks, countApproved, countDrafts, finishGenerating, loadReport, newReport, removeAllBlocks, saveReport,
-  setEditMode, setName, setPeriod, startGenerating,
+  setEditMode, setInstructions, setName, setPeriod, startGenerating,
 } from '../state.js';
 import { ask } from './dialog.js';
 import { mockExport } from './export.js';
 import { icon } from './icons.js';
+import { openInstructions } from './instructions.js';
 import { menuButton } from './menu.js';
 import { openSchedule } from './schedule.js';
 import { showToast } from './toast.js';
@@ -59,10 +59,12 @@ export function saveCurrent(store) {
   showToast(`${state.saved.length > before ? 'Saved' : 'Updated'} “${name}”`, { tone: 'success' });
 }
 
-async function generate(store) {
-  store.update(startGenerating);
+/** Has the text written for the figures of the report, after the author instructed the AI; the author reviews it. */
+async function generate(store, { instructions, report }) {
+  store.update(state => startGenerating(setInstructions(state, instructions)));
   try {
-    const [text] = await Promise.all([buildReport(store.get()).then(generateText), wait(WRITING_MS)]);
+    const text = generateText(report);
+    await wait(WRITING_MS);
     store.update(state => finishGenerating(state, text));
   } catch (error) {
     console.error(error);
@@ -155,7 +157,11 @@ export function mountToolbar(root, store) {
   const saveButton = h('button', { type: 'button', class: 'btn', onclick: () => saveCurrent(store) },
     icon('content-save-outline'), 'Save');
   const scheduleButton = h('button', { type: 'button', class: 'btn', onclick: () => openSchedule(store) });
-  const generateButton = h('button', { type: 'button', class: 'btn primary', onclick: () => generate(store) });
+  const generateButton = h('button', {
+    type: 'button',
+    class: 'btn primary',
+    onclick: () => openInstructions(store, input => generate(store, input)),
+  });
   replaceChildren(root,
     name,
     h('div', { class: 'toolbar-actions' },
@@ -181,7 +187,9 @@ export function mountToolbar(root, store) {
     scheduleButton.classList.toggle('scheduled', Boolean(scheduled));
     replaceChildren(scheduleButton, icon('calendar-clock'), scheduled ? 'Scheduled' : 'Schedule');
     generateButton.disabled = empty || status === 'loading';
-    generateButton.title = empty ? 'Add at least one widget first' : '';
+    generateButton.title = empty
+      ? 'Add at least one widget first'
+      : 'Tell the AI what this report shows and what to look out for';
     generateButton.classList.toggle('busy', status === 'loading');
     replaceChildren(generateButton, icon('creation'),
       status === 'loading' ? 'Writing text…' : status === 'ready' ? 'Regenerate text' : 'Generate text');
