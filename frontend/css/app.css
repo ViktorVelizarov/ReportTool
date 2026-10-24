@@ -1,34 +1,35 @@
-/* Report Studio prototype. Colours follow the OpenRemote green. */
+/* Report Studio prototype. The colours, the font, the radii and the shadows are those of the OpenRemote theme, which
+   vendor/or-theme.css defines (--or-color-*, --lumo-*). */
 
 :root {
   color-scheme: light;
-  --green: #4d9d2a;
-  --green-strong: #3b7d1f;
-  --green-fill: #3a8420;
-  --green-tint: #eef6e9;
-  --green-line: #c9e0bc;
-  --ink: #1d2733;
-  --muted: #5d6978;
-  --faint: #6e7a89;
-  --line: #dde3ea;
-  --line-strong: #c6cfda;
-  --page: #f2f4f7;
-  --surface: #ffffff;
-  --wash: #f7f9fb;
-  --amber-ink: #8a4b00;
-  --amber-tint: #fff6e5;
-  --amber-line: #f0d29a;
-  --radius: 10px;
-  --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
-  --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.18);
-  --font: Inter, "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --green: var(--or-color-primary);
+  --green-strong: var(--or-color-text-primary);
+  --green-fill: var(--or-color-primary);
+  --green-tint: var(--or-color-primary-10pct);
+  --green-line: var(--or-color-primary-50pct);
+  --ink: var(--or-color-text-body);
+  --muted: var(--or-color-text-secondary);
+  --faint: var(--or-color-text-tertiary);
+  --line: var(--or-color-contrast-10pct);
+  --line-strong: var(--or-color-contrast-20pct);
+  --page: var(--or-color-contrast-10pct);
+  --surface: var(--or-color-base);
+  --wash: var(--or-color-contrast-5pct);
+  --amber-ink: var(--or-color-text-warning);
+  --amber-tint: var(--or-color-warning-10pct);
+  --amber-line: var(--or-color-warning);
+  --radius: var(--lumo-border-radius-l);
+  --shadow: var(--lumo-box-shadow-xs);
+  --shadow-lg: var(--lumo-box-shadow-l);
+  --font: var(--lumo-font-family);
 
-  /* The theme of OpenRemote, which the dashboard builder and its widgets use */
-  --or-app-color1: #ffffff;
-  --or-app-color2: #f9f9f9;
-  --or-app-color3: #4c4c4c;
-  --or-app-color4: var(--green);
-  --or-app-color5: #cccccc;
+  /* The colours that the dashboard builder and its widgets read, the names of OpenRemote's legacy theme */
+  --or-app-color1: var(--or-color-base);
+  --or-app-color2: var(--or-color-base);
+  --or-app-color3: var(--or-color-text-body);
+  --or-app-color4: var(--or-color-primary);
+  --or-app-color5: var(--or-color-contrast-30pct);
 }
 
 * { box-sizing: border-box; }

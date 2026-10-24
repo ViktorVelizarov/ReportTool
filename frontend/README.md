@@ -55,18 +55,22 @@ The widget types are line chart, bar chart, KPI, gauge, table, map and image. Th
   refreshes, and the preview sizes for phones and tablets.
 
 The builder uses parts of OpenRemote's component library: form fields, tabs, dialogs, the attribute picker,
-translations and icons. `js/kit/` has small stand-ins for them with the same names, properties and events. The calls
-the widgets make to the manager are answered by `js/data/asset-service.js`, with the data of the realm from the report
-service.
+translations and icons. The form fields of its settings (text field, number field, select, toggle, button and
+multi-select combo box) are OpenRemote's own `or-vaadin-*` components, bundled in `vendor/or-vaadin.js`, and the page
+takes its colours, font, radii and shadows from OpenRemote's theme, `vendor/or-theme.css`. `js/kit/` has small
+stand-ins, with the same names, properties and events, for what is not bundled yet: tabs, dialogs, the attribute
+picker, translations, icons, the loading indicator and the colour input. The calls the widgets make to the manager are
+answered by `js/data/asset-service.js`, with the data of the realm from the report service.
 
 ### License
 
 The files in `js/builder/`, `js/data/util.js`, `js/data/time-window.js` and `js/data/units.js`, and the texts in
 `js/kit/texts.js`, are ported from OpenRemote, which is licensed under the **GNU Affero General Public License v3.0 or
-later**. Each of those files says so in its header. **The web interface as a whole is therefore a work based on
-OpenRemote, and it can only be distributed under AGPL-3.0-or-later**: anyone who uses it, also over a network, must be
-able to get its source code. That has to be decided before this code goes into a closed repository. The alternative is
-a builder of our own that is written without OpenRemote's code.
+later**. Each of those files says so in its header. `vendor/or-vaadin.js` and `vendor/or-theme.css` are OpenRemote's
+own components and theme, under the same license, bundled with Vaadin components (Apache-2.0). **The web interface as
+a whole is therefore a work based on OpenRemote, and it can only be distributed under AGPL-3.0-or-later**: anyone who
+uses it, also over a network, must be able to get its source code. That has to be decided before this code goes into a
+closed repository. The alternative is a builder of our own that is written without OpenRemote's code.
 
 ## What is real and what is mock
 
@@ -99,7 +103,8 @@ widget; a clean document is a job for the PDF export.
 
 ## Layout
 
-- `index.html`, `css/app.css` - the page and its styles. The import map in `index.html` points `lit` to
+- `index.html`, `css/app.css` - the page and its styles. `css/app.css` is read after `vendor/or-theme.css` and gets
+  its colours, font, radii and shadows from that theme. The import map in `index.html` points `lit` to
   `vendor/lit.js`.
 - `js/main.js` - starts the page. `js/state.js` - the report (its name, time frame and template, the generated text,
   the saved reports) and the actions that change it, as pure functions.
@@ -116,9 +121,10 @@ widget; a clean document is a job for the PDF export.
   blocks, menus, dialogs (a question, the schedule, and the instructions for the AI), messages and icons, and the
   message for a page that cannot start. `js/dom.js` has the helpers they build the page with; nothing is built with
   `innerHTML`.
-- `js/kit/` - the stand-ins for OpenRemote's components, see above, and the texts (`texts.js`) and icons
-  (`mdi-icons.js`) of the page. An icon that the page does not have shows as the icon of an unknown type.
-- `vendor/` - third-party libraries. `test/` - the tests.
+- `js/kit/` - the stand-ins for the components of OpenRemote that are not bundled, see above, and the texts
+  (`texts.js`) and icons (`mdi-icons.js`) of the page. An icon that the page does not have shows as the icon of an
+  unknown type.
+- `vendor/` - third-party libraries, OpenRemote's components, theme and font included. `test/` - the tests.
 
 ## Test
 

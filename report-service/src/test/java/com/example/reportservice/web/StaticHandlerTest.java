@@ -61,8 +61,8 @@ class StaticHandlerTest {
             }
         }
 
-        List<String> required = List.of("/css/app.css", "/js/main.js", "/vendor/gridstack-all.js",
-                "/vendor/echarts.min.js", "/vendor/gauge.min.js");
+        List<String> required = List.of("/vendor/or-theme.css", "/css/app.css", "/js/main.js",
+                "/vendor/gridstack-all.js", "/vendor/echarts.min.js", "/vendor/gauge.min.js");
         assertTrue(files.containsAll(required), files.toString());
         for (String file : files) {
             HttpResponse<String> response = server.get(file);
@@ -70,6 +70,24 @@ class StaticHandlerTest {
             String type = response.headers().firstValue("Content-Type").orElse("");
             assertTrue(type.startsWith(file.endsWith(".css") ? "text/css" : "text/javascript"), file + " is " + type);
             assertFalse(response.body().isEmpty(), file);
+        }
+    }
+
+    @Test
+    void servesTheFontsOfTheTheme() throws Exception {
+        List<String> fonts = new ArrayList<>();
+        Matcher reference = Pattern.compile("url\\(\"\\./(fonts/[A-Za-z0-9._-]+\\.woff2)\"\\)")
+                .matcher(server.get("/vendor/or-theme.css").body());
+        while (reference.find()) {
+            fonts.add("/vendor/" + reference.group(1));
+        }
+
+        assertFalse(fonts.isEmpty(), "the theme declares no font");
+        for (String font : fonts) {
+            HttpResponse<String> response = server.get(font);
+            assertEquals(200, response.statusCode(), font);
+            assertEquals("font/woff2", response.headers().firstValue("Content-Type").orElse(null), font);
+            assertFalse(response.body().isEmpty(), font);
         }
     }
 
@@ -86,8 +104,8 @@ class StaticHandlerTest {
     @Test
     void doesNotServeAFileThatItHasNoTypeFor() throws Exception {
         // the licence notes of the libraries are in the jar, but they are not part of the page
-        for (String file : List.of("/vendor/gauge.min.js.LICENSE.txt", "/vendor/README.md", "/img/plan.png",
-                "/data.json")) {
+        for (String file : List.of("/vendor/gauge.min.js.LICENSE.txt", "/vendor/fonts/LICENSE.txt",
+                "/vendor/README.md", "/img/plan.png", "/data.json")) {
             assertEquals(404, server.get(file).statusCode(), file);
         }
     }

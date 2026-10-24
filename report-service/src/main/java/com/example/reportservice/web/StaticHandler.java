@@ -24,7 +24,8 @@ public final class StaticHandler implements HttpHandler {
     private static final Map<String, String> CONTENT_TYPES = Map.of(
             "html", "text/html; charset=utf-8",
             "css", "text/css; charset=utf-8",
-            "js", "text/javascript; charset=utf-8");
+            "js", "text/javascript; charset=utf-8",
+            "woff2", "font/woff2");
 
     private record Target(String resource, String contentType) { }
 

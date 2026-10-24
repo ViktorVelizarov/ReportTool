@@ -82,9 +82,10 @@ does that. The interface is a prototype that reads the assets, attributes, data 
 through the endpoints below, while its generated text, exports and saved reports are still mock; the
 [frontend README](../frontend/README.md) says what is real and what is mock.
 
-The widgets of the interface are the dashboard builder of OpenRemote's Insights, ported to plain JavaScript. That code
-is licensed under the AGPL-3.0-or-later, and the jar includes it, so the jar can only be distributed under that license
-too. The [frontend README](../frontend/README.md#license) explains this.
+The widgets of the interface are the dashboard builder of OpenRemote's Insights, ported to plain JavaScript, and its
+form controls and theme are OpenRemote's own components, bundled. That code is licensed under the AGPL-3.0-or-later,
+and the jar includes it, so the jar can only be distributed under that license too. The
+[frontend README](../frontend/README.md#license) explains this.
 
 The manager shows the interface inside its Services page by loading the `homepageUrl` the service registers. That is
 always `http://localhost:{PORT}/` for now (`http://localhost:{PORT}/{realm}` for a global service, see
