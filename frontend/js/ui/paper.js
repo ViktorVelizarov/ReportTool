@@ -6,6 +6,7 @@
 import { WIDGET_SPECS } from '../builder/service/widget-specs.js';
 import { ReportContext } from '../data/report-context.js';
 import { h, onChange, replaceChildren } from '../dom.js';
+import '../kit/inputs.js';
 import { formatDate, formatRange, plural } from '../model/format.js';
 import { resolvePeriod } from '../model/periods.js';
 import { readingOrder } from '../model/report.js';
@@ -42,7 +43,7 @@ export function mountPaper(root, store) {
     return readingOrder(widgets).map(widget => {
       const title = widget.displayName || WIDGET_SPECS[widget.widgetTypeId].displayName;
       const key = `${widget.id}|${title}`;
-      if (!views.has(key)) views.set(key, createBlockView(store, `desc:${widget.id}`, title));
+      if (!views.has(key)) views.set(key, createBlockView(store, `desc:${widget.id}`, title, 3));
       return views.get(key);
     });
   }
@@ -58,8 +59,8 @@ export function mountPaper(root, store) {
         `Generated ${formatDate(new Date(state.asOf))} · ${plural(state.template.widgets.length, 'widget')}`));
   });
 
-  const button = (text, className, change) =>
-    h('button', { type: 'button', class: className, onclick: () => store.update(change) }, text);
+  const button = (text, theme, change) =>
+    h('or-vaadin-button', { theme, onclick: () => store.update(change) }, text);
 
   function drawBanner(ai) {
     banner.hidden = ai?.status !== 'ready';
@@ -75,8 +76,8 @@ export function mountPaper(root, store) {
         ]
         : 'All generated text is approved and will be included in the PDF.'),
       h('div', { class: 'ai-banner-actions' },
-        drafts > 0 && button('Approve all', 'btn btn-sm primary', approveAllBlocks),
-        button('Discard text', 'btn btn-sm', removeAllBlocks)));
+        drafts > 0 && button('Approve all', 'primary small', approveAllBlocks),
+        button('Discard text', 'tertiary error small', removeAllBlocks)));
   }
 
   function render(state) {

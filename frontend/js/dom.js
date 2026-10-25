@@ -47,19 +47,23 @@ export function replaceChildren(el, ...children) {
 }
 
 /**
- * Runs render(), which replaces the content of container, and puts the focus back afterwards: on the element with the
- * same data-focus, or else on a control in the same data-row (for example when a button disables itself).
+ * Runs render(), which replaces the content of container, and puts the focus back afterwards for someone who works
+ * with the keyboard: on the element with the same data-focus, or else on the one that the selector instead finds, or
+ * else on a control in the same data-row (for example when a button disables itself). After a click nothing is put
+ * back, as the library's buttons would draw a focus ring around a button that nobody asked for.
  */
-export function keepFocus(container, render) {
+export function keepFocus(container, render, instead) {
   const active = document.activeElement;
-  const inside = container.contains(active);
-  const focusKey = inside ? active.dataset.focus : undefined;
+  const inside = container.contains(active) && active.matches(':focus-visible');
+  const focusKey = inside ? active.closest('[data-focus]')?.dataset.focus : undefined;
   const rowKey = inside ? active.closest('[data-row]')?.dataset.row : undefined;
   render();
   if (!focusKey) return;
-  const sameElement = container.querySelector(`[data-focus="${CSS.escape(focusKey)}"]:not(:disabled)`);
-  const rowControl = `[data-row="${CSS.escape(rowKey ?? '')}"] :is(button, select):not(:disabled)`;
-  (sameElement ?? (rowKey && container.querySelector(rowControl)))?.focus();
+  const enabled = ':not(:disabled, [disabled])';
+  const sameElement = container.querySelector(`[data-focus="${CSS.escape(focusKey)}"]${enabled}`);
+  const insteadElement = instead && container.querySelector(instead);
+  const rowControl = `[data-row="${CSS.escape(rowKey ?? '')}"] :is(button, select, or-vaadin-button)${enabled}`;
+  (sameElement ?? insteadElement ?? (rowKey && container.querySelector(rowControl)))?.focus();
 }
 
 /** Wraps a render function so it only runs when the key of the state it depends on changes. */

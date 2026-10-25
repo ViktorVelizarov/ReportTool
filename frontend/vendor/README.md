@@ -10,8 +10,8 @@ taken unchanged from its npm package, except where the table says otherwise.
 | `gridstack-css.js` | The stylesheet of GridStack as a module, for the shadow roots of the builder | `gridstack` 12.4.2 | MIT |
 | `echarts.min.js` | [Apache ECharts](https://echarts.apache.org), draws the line, bar and KPI charts; the library Insights uses | `echarts` 6.1.0 | Apache-2.0 (header of the file), see `echarts.min.js.NOTICE.txt` |
 | `gauge.min.js` | [gauge.js](https://bernii.github.io/gauge.js/), draws the gauge; the library OpenRemote's or-gauge uses | `gaugeJS` 1.3.9 | MIT, see `gauge.min.js.LICENSE.txt` |
-| `or-vaadin.js` | The controls of OpenRemote's component library that the page uses (`or-vaadin-badge`, `-button`, `-checkbox`, `-checkbox-group`, `-confirm-dialog`, `-dialog`, `-menu-bar`, `-multi-select-combo-box`, `-number-field`, `-radio-group`, `-select`, `-text-area`, `-text-field` and `-toggle`), OpenRemote's scheduler (`or-scheduler`) with the date and time pickers that it is made of, `i18next` with OpenRemote's `<or-translate>`, and Vaadin's notification, which the library has no version of; with the Vaadin components, moment, rrule and the copy of Lit that they are made of | `@openremote/or-vaadin-components`, `@openremote/or-scheduler` and `@openremote/or-translate` 1.32.2, `@vaadin/*` 25.3.4, `lit` 3.3.3, `moment` 2.31.0, `rrule` 2.8.1, `i18next` 26.5.10 | AGPL-3.0-or-later (OpenRemote), Apache-2.0 (Vaadin), BSD-3-Clause (Lit, rrule), MIT (moment, i18next); the notices are at the end of the file |
-| `or-theme.css` | OpenRemote's theme: its colours (`--or-color-*`), the Vaadin Lumo variables they are mapped on (`--lumo-*`) and the styles of the controls and of the notification | `@openremote/theme` 1.32.2, `@vaadin/vaadin-lumo-styles` 25.3.4 | AGPL-3.0-or-later (OpenRemote), Apache-2.0 (Vaadin); the notices are at the end of the file |
+| `or-vaadin.js` | The controls of OpenRemote's component library that the page uses (`or-vaadin-badge`, `-button`, `-checkbox`, `-checkbox-group`, `-confirm-dialog`, `-dialog`, `-menu-bar`, `-multi-select-combo-box`, `-number-field`, `-radio-group`, `-select`, `-text-area`, `-text-field` and `-toggle`), OpenRemote's scheduler (`or-scheduler`) with the date and time pickers that it is made of, `i18next` with OpenRemote's `<or-translate>`, and Vaadin's card, notification and progress bar, which the library has no version of; with the Vaadin components, moment, rrule and the copy of Lit that they are made of | `@openremote/or-vaadin-components`, `@openremote/or-scheduler` and `@openremote/or-translate` 1.32.2, `@vaadin/*` 25.3.4, `lit` 3.3.3, `moment` 2.31.0, `rrule` 2.8.1, `i18next` 26.5.10 | AGPL-3.0-or-later (OpenRemote), Apache-2.0 (Vaadin), BSD-3-Clause (Lit, rrule), MIT (moment, i18next); the notices are at the end of the file |
+| `or-theme.css` | OpenRemote's theme: its colours (`--or-color-*`), the Vaadin Lumo variables they are mapped on (`--lumo-*`) and the styles of the controls, the card, the notification and the progress bar | `@openremote/theme` 1.32.2, `@vaadin/vaadin-lumo-styles` 25.3.4 | AGPL-3.0-or-later (OpenRemote), Apache-2.0 (Vaadin); the notices are at the end of the file |
 | `rrule.js` | [rrule](https://github.com/jakubroztocil/rrule), which finds the dates of a recurrence rule; the page uses it for the next reports of a schedule (the scheduler in `or-vaadin.js` has a copy of its own) | `rrule` 2.8.1 | BSD-3-Clause, see `rrule.js.LICENSE.txt` |
 | `fonts/Inter-*.woff2` | Inter regular, medium, semi-bold and bold, the font of the theme | `inter-ui` 4.1.1 | SIL OFL 1.1, see `fonts/LICENSE.txt` |
 
@@ -29,12 +29,12 @@ How each file is made:
 - `echarts.min.js` is `dist/echarts.min.js` of `echarts`, which sets `window.echarts`.
 - `gauge.min.js` is `dist/gauge.min.js` of `gaugeJS`, which sets `window.Gauge`.
 - `or-vaadin.js`, `or-theme.css`, `rrule.js` and `fonts/` are built from the packages that OpenRemote publishes, and
-  from Vaadin's notification, which neither the library nor the theme has anything for. In an empty folder `work/`,
-  install them:
+  from Vaadin's card, notification and progress bar, which neither the library nor the theme has anything for. In an
+  empty folder `work/`, install them:
 
   ```
   npm install --ignore-scripts @openremote/or-vaadin-components@1.32.2 @openremote/or-scheduler@1.32.2 \
-    @openremote/theme@1.32.2 @vaadin/notification@25.3.4
+    @openremote/theme@1.32.2 @vaadin/card@25.3.4 @vaadin/notification@25.3.4 @vaadin/progress-bar@25.3.4
   ```
 
   and add these small files next to `node_modules/`:
@@ -43,12 +43,13 @@ How each file is made:
     same for `or-vaadin-button`, `or-vaadin-checkbox`, `or-vaadin-checkbox-group`, `or-vaadin-confirm-dialog`,
     `or-vaadin-dialog`, `or-vaadin-menu-bar`, `or-vaadin-multi-select-combo-box`, `or-vaadin-number-field`,
     `or-vaadin-radio-group` (which brings the radio button), `or-vaadin-select`, `or-vaadin-text-area`,
-    `or-vaadin-text-field` and `or-vaadin-toggle`; then `import '@openremote/or-scheduler';` and
-    `import '@vaadin/notification';`; and the two things that the page asks the bundle for:
-    `export { INTUITIVE_NOT_APPLICABLE } from '@openremote/or-scheduler';` and
+    `or-vaadin-text-field` and `or-vaadin-toggle`; then `import '@openremote/or-scheduler';`,
+    `import '@vaadin/card';`, `import '@vaadin/notification';` and `import '@vaadin/progress-bar';`; and the two things
+    that the page asks the bundle for: `export { INTUITIVE_NOT_APPLICABLE } from '@openremote/or-scheduler';` and
     `export { i18next } from '@openremote/or-translate';`.
-  - `theme.css` is `@import "@openremote/theme/default.css";` and, on the next line,
-    `@import "@vaadin/vaadin-lumo-styles/components/notification.css";`.
+  - `theme.css` is `@import "@openremote/theme/default.css";` and, on the next lines,
+    `@import "@vaadin/vaadin-lumo-styles/components/card.css";`, the same for `notification.css` and then for
+    `progress-bar.css`.
   - `core.js` stands in for `@openremote/core`, the runtime of the manager, which a bundle for this page does not want.
     The dialogs of the library use `Util.generateUniqueUUID` of it in their `showDialog` and `showConfirmDialog`
     helpers, which the page does not call, the scheduler uses `Util.objectsEqual` to compare plain data, and the date
