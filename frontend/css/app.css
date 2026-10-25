@@ -5,23 +5,17 @@
   color-scheme: light;
   --green: var(--or-color-primary);
   --green-strong: var(--or-color-text-primary);
-  --green-fill: var(--or-color-primary);
   --green-tint: var(--or-color-primary-10pct);
-  --green-line: var(--or-color-primary-50pct);
   --ink: var(--or-color-text-body);
   --muted: var(--or-color-text-secondary);
   --faint: var(--or-color-text-tertiary);
   --line: var(--or-color-contrast-10pct);
-  --line-strong: var(--or-color-contrast-20pct);
   --page: var(--or-color-contrast-10pct);
   --surface: var(--or-color-base);
   --wash: var(--or-color-contrast-5pct);
-  --amber-ink: var(--or-color-text-warning);
-  --amber-tint: var(--or-color-warning-10pct);
-  --amber-line: var(--or-color-warning);
+  --amber: var(--or-color-warning);
   --radius: var(--lumo-border-radius-l);
   --shadow: var(--lumo-box-shadow-xs);
-  --shadow-lg: var(--lumo-box-shadow-l);
   --font: var(--lumo-font-family);
 
   /* The colours that the dashboard builder and its widgets read, the names of OpenRemote's legacy theme */
@@ -56,20 +50,7 @@ button { cursor: pointer; }
 
 /* Page */
 
-.startup-error {
-  display: grid;
-  gap: 12px;
-  justify-items: start;
-  width: min(480px, 100%);
-  margin: 64px auto;
-  padding: 24px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
-}
-
-.startup-error h2 { font-size: 18px; }
+.startup-error { width: min(480px, 100%); margin: 64px auto; }
 
 .layout {
   display: flex;
@@ -93,33 +74,6 @@ or-dashboard-sidebar {
   border-radius: var(--radius);
   box-shadow: var(--shadow);
 }
-
-/* Buttons and fields */
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  height: 36px;
-  padding: 0 14px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--ink);
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
-  transition: background 0.12s, border-color 0.12s;
-}
-
-.btn:hover:not(:disabled) { border-color: #aeb9c6; background: var(--wash); }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn.primary { border-color: var(--green-fill); background: var(--green-fill); color: #fff; }
-.btn.primary:hover:not(:disabled) { border-color: #2f6c19; background: #2f6c19; }
-.btn-sm { height: 28px; padding: 0 10px; gap: 5px; font-size: 13px; }
-.btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
-.btn.ghost:hover:not(:disabled) { border-color: transparent; background: #eaeef2; color: var(--ink); }
 
 /* The top of the page: what the report is called, and what can be done with it */
 
@@ -173,7 +127,7 @@ or-dashboard-sidebar {
   margin-top: 4px;
   padding: 36px 40px 24px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow);
 }
@@ -203,81 +157,30 @@ or-dashboard-preview { display: block; margin: 0 -5px; }
   font-size: 12px;
 }
 
+/* The notice above the generated text: what is left to approve, as the notice in the attribute rows of the manager */
 .ai-banner {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 12px;
-  margin-bottom: 16px;
-  padding: 10px 14px;
-  border: 1px solid var(--amber-line);
-  border-radius: 10px;
-  background: var(--amber-tint);
-  color: #5b3a07;
-}
-
-.ai-banner[data-tone="ok"] { border-color: var(--green-line); background: var(--green-tint); color: #26521a; }
-.ai-banner p { flex: 1 1 240px; min-width: 0; }
-.ai-banner-actions { display: flex; flex: none; gap: 8px; }
-
-.ai-block {
-  margin-bottom: 16px;
-  padding: 12px 16px;
-  border-left: 3px solid var(--line-strong);
-  border-radius: 0 8px 8px 0;
+  gap: var(--lumo-space-xs) var(--lumo-space-m);
+  margin-bottom: var(--lumo-space-m);
+  padding: var(--lumo-space-xs) var(--lumo-space-m);
+  border-radius: var(--lumo-border-radius-m);
   background: var(--wash);
 }
 
-.ai-block[data-state="draft"] { border-left-color: #e3a21a; background: #fffaf0; }
-.ai-block[data-state="approved"] { border-left-color: var(--green); background: #f5faf2; }
-.ai-block-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 28px; }
-.ai-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-}
-/* The tag marks text that the author still has to approve; the finished report, and its preview, does not have it */
-.ai-block[data-state="approved"] .ai-tag, .paper[data-mode="preview"] .ai-tag { display: none; }
-.ai-title {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.ai-block-actions { display: flex; gap: 2px; margin-left: auto; }
-.ai-text { margin-top: 6px; line-height: 1.6; }
-.ai-edit {
-  width: 100%;
-  margin-top: 8px;
-  padding: 8px 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: #fff;
-  line-height: 1.5;
-  resize: vertical;
-}
-.ai-edit-actions { display: flex; gap: 8px; margin-top: 8px; }
+.ai-banner > .icon { color: var(--amber); }
+.ai-banner[data-tone="ok"] > .icon { color: var(--green-strong); }
+.ai-banner p { flex: 1 1 240px; min-width: 0; }
+.ai-banner-actions { display: flex; flex: none; gap: var(--lumo-space-s); }
 
-.status-tag { padding: 1px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; }
-.status-tag.draft { background: #fdeccb; color: var(--amber-ink); }
-.status-tag.approved { background: #dcefd2; color: #2c5e17; }
-.status-tag.loading { background: #e8edf2; color: var(--muted); }
-
-.skeleton {
-  border-radius: 6px;
-  background: linear-gradient(90deg, #edf0f3 25%, #f6f8fa 40%, #edf0f3 60%);
-  background-size: 300% 100%;
-  animation: shimmer 1.4s ease-in-out infinite;
-}
-
-.skeleton.line { height: 12px; margin-top: 8px; }
-.skeleton.line.short { width: 60%; }
+/* A block of generated text is a card; its badges, buttons and text field are those of the library */
+.ai-block { margin-bottom: var(--lumo-space-m); }
+.ai-badges { display: flex; align-items: center; gap: var(--lumo-space-xs); }
+.ai-text { line-height: var(--lumo-line-height-m); }
+.ai-actions { display: flex; flex-wrap: wrap; gap: var(--lumo-space-xs); }
+.ai-edit { width: 100%; min-height: 8rem; max-height: 24rem; }
+.ai-loading-label { color: var(--muted); font-size: var(--lumo-font-size-s); }
 
 /* Messages and dialogs */
 
@@ -330,8 +233,6 @@ or-vaadin-confirm-dialog::part(overlay) { min-width: min(36rem, 90vw); }
   .schedule-columns { grid-template-columns: minmax(0, 1fr); }
 }
 
-@keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
-
 /* Smaller windows */
 
 @media (max-width: 1100px) {
@@ -350,6 +251,9 @@ or-vaadin-confirm-dialog::part(overlay) { min-width: min(36rem, 90vw); }
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
+
+  /* The animation of the progress bar is inside the component, out of reach of the rule above */
+  vaadin-progress-bar::part(value), vaadin-progress-bar::part(value)::before { animation: none; }
 }
 
 /*
@@ -357,15 +261,18 @@ or-vaadin-confirm-dialog::part(overlay) { min-width: min(36rem, 90vw); }
  * same, so the two rules below are the same as the ones for printing.
  */
 
-.paper[data-mode="preview"] :is(.ai-banner, .ai-block-actions, .status-tag),
+.paper[data-mode="preview"] :is(.ai-banner, .ai-badges),
 .paper[data-mode="preview"] .ai-block:is([data-state="draft"], [data-state="loading"]),
 .paper[data-mode="preview"] .descriptions:not(:has(.ai-block[data-state="approved"])) { display: none !important; }
+
+/* The footer of the card holds the buttons, and its space goes with them */
+.paper[data-mode="preview"] .ai-block::part(footer) { display: none; }
 
 @page { size: A4 landscape; margin: 10mm; }
 
 @media print {
   body { background: #fff; }
-  .page-head, or-dashboard-sidebar, vaadin-notification-container, .ai-block-actions, .ai-banner, .status-tag {
+  .page-head, or-dashboard-sidebar, vaadin-notification-container, .ai-banner, .ai-badges, .ai-block::part(footer) {
     display: none !important;
   }
   .ai-block[data-state="draft"], .ai-block[data-state="loading"] { display: none !important; }

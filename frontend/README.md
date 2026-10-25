@@ -59,13 +59,14 @@ translations and icons. The text field, number field, text area, select, toggle,
 multi-select combo box, menu bar, badge, dialog and confirm dialog are OpenRemote's own `or-vaadin-*` components, and
 so are the scheduler (`or-scheduler`), `<or-translate>` and the `i18next` that it uses: all of them are bundled in
 `vendor/or-vaadin.js`. The settings of the builder, the top of the page and the dialogs are made of them, and the page
-takes its colours, font, radii and shadows from OpenRemote's theme, `vendor/or-theme.css`. A message (saved, exported,
-failed) is a notification of Vaadin, which the library has no component for, in the colours of that theme. `js/kit/`
-has small stand-ins, with the same names, properties and events, for what is not bundled yet: tabs, the attribute
-picker, icons, the loading indicator and the colour input; it also gives `i18next` the texts of the page
-(`js/kit/i18n.js`). Its `OrMwcDialog`, which the pickers of the builder use, draws an `or-vaadin-dialog`. The calls the
-widgets make to the manager are answered by `js/data/asset-service.js`, with the data of the realm from the report
-service.
+takes its colours, font, radii and shadows from OpenRemote's theme, `vendor/or-theme.css`. The library has no component
+for a message, a card or a progress bar, which the design system of OpenRemote has: a message (saved, exported, failed)
+is a notification of Vaadin, a block of generated text and the page that cannot start are cards of Vaadin, and text
+that is being written shows a progress bar of Vaadin, all in the colours of that theme. `js/kit/` has small stand-ins,
+with the same names, properties and events, for what is not bundled yet: tabs, the attribute picker, icons, the loading
+indicator and the colour input; it also gives `i18next` the texts of the page (`js/kit/i18n.js`). Its `OrMwcDialog`,
+which the pickers of the builder use, draws an `or-vaadin-dialog`. The calls the widgets make to the manager are
+answered by `js/data/asset-service.js`, with the data of the realm from the report service.
 
 The top of the page is made after the header of an asset in OpenRemote's manager: the name of the report with the realm
 and a "Prototype" badge, and the buttons that save it and switch between editing and previewing it (in the manager,
@@ -94,7 +95,7 @@ closed repository. The alternative is a builder of our own that is written witho
 | Time frames | Presets only: last 7, 30 and 90 days, last calendar month and last calendar quarter |
 | Instructions for the AI | "Generate text" first opens a dialog with two questions, which have to be answered: what the report shows, and what the AI should look out for. The answers are kept with the saved report, but nothing uses them yet. `js/model/prompt.js` can make the prompt from them (the answers, the figures of every widget and a few fixed rules), but the page neither shows nor sends it |
 | Generated text | Written from templates with the figures of the widgets (`js/model/ai.js`); there is no AI, so the text does not follow the answers |
-| Review | Generated text starts as a draft. Approve, edit or remove each block; a PDF only includes approved text. The "AI" tag marks drafts only: an approved block, the preview and the printed report do not show it |
+| Review | Generated text starts as a draft. Each block is a card with badges for its state (Draft, Approved or Editing) and the buttons Approve, Edit and Remove below the text; a notice above the blocks counts what is left to approve and approves or discards all of it at once. A block that is being written shows a progress bar. A PDF only includes approved text. The "AI" badge marks drafts only: an approved block, the preview and the printed report do not show it, nor the badges and buttons |
 | Export | The PDF, CSV and PNG buttons show progress and the name of the file, but create nothing |
 | Saved reports | Kept in memory only, and a reload forgets them. The studio opens with an empty report. A saved report keeps its answers to the two questions |
 | Schedule | A dialog sets when the report is made by itself, in OpenRemote's own scheduler (`or-scheduler`: once, or repeating every so many days, weeks, months or years, on days of the week or of the month, until a date or for a number of times), the report admin, whose email address is required and who gets a reminder on every day the report is made, to check it first, who gets the report by email, with which subject and message (with the placeholders `{report}`, `{period}` and `{date}`, filled in for every report) and as which files, and shows the next reports with the subject of the next email. When is an event of OpenRemote's calendar (`start`, `end` and a recurrence rule), the format that the manager uses. It is kept with the saved report, in memory; nothing is made or sent |

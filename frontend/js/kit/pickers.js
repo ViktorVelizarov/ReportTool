@@ -95,14 +95,6 @@ const sharedStyles = css`
     padding: 16px;
     color: var(--muted);
   }
-
-  .units {
-    padding: 1px 8px;
-    border-radius: 10px;
-    background: var(--green-tint);
-    color: var(--green-strong);
-    font-size: 12px;
-  }
 `;
 
 /** A click on the row, but not on the box or the label of the control, chooses as well. */
@@ -120,7 +112,7 @@ function choice(multi, name, label, checked, onChange, units) {
   return html`
     <div class="choice" @click=${chooseFromRow}>
       ${control}
-      ${units ? html`<span class="units">${units}</span>` : nothing}
+      ${units ? html`<or-vaadin-badge theme="small">${units}</or-vaadin-badge>` : nothing}
     </div>`;
 }
 
@@ -162,22 +154,7 @@ class AssetAttributePickerContent extends OrElement {
       margin-top: 10px;
     }
 
-    .chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 2px 4px 2px 10px;
-      border-radius: 12px;
-      background: var(--green-tint);
-      font-size: 13px;
-    }
-
-    .chip button {
-      display: inline-flex;
-      padding: 0;
-      border: 0;
-      background: none;
-      cursor: pointer;
+    .chips or-icon {
       --or-icon-width: 16px;
       --or-icon-height: 16px;
     }
@@ -271,11 +248,12 @@ class AssetAttributePickerContent extends OrElement {
       </div>
       <div class="chips">
         ${chosen.map(({ ref, text }) => html`
-          <span class="chip">${text}
-            <button title=${i18next.t('delete')} @click=${() => this._remove(ref)}>
+          <or-vaadin-badge>${text}
+            <or-vaadin-button theme="tertiary-inline icon" aria-label=${i18next.t('delete')}
+              title=${i18next.t('delete')} @click=${() => this._remove(ref)}>
               <or-icon icon="close-circle"></or-icon>
-            </button>
-          </span>`)}
+            </or-vaadin-button>
+          </or-vaadin-badge>`)}
       </div>
     `;
   }
