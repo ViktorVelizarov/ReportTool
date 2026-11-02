@@ -58,6 +58,11 @@ public final class ManagerClient {
         return config.realm();
     }
 
+    /** The address of the manager, without a trailing slash. */
+    public String managerUrl() {
+        return config.managerUrl();
+    }
+
     /**
      * Calls {@code /api/{realm}{path}} in the realm of the service user; a non-null body is sent as JSON. Returns the
      * parsed JSON response, or null if it was empty.

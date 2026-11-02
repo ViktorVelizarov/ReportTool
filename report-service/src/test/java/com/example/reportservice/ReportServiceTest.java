@@ -29,7 +29,7 @@ class ReportServiceTest {
         ObjectNode service = ReportService.describeService(config(false));
 
         assertEquals("report-service", service.get("serviceId").asText());
-        assertEquals("Reports", service.get("label").asText());
+        assertEquals("Report Studio", service.get("label").asText());
         assertEquals(BuildInfo.version(), service.get("version").asText());
         assertEquals("AVAILABLE", service.get("status").asText());
     }

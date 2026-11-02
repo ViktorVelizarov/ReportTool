@@ -4,6 +4,7 @@
  */
 
 import { WIDGET_SPECS } from '../builder/service/widget-specs.js';
+import { Branding } from '../data/branding.js';
 import { ReportContext } from '../data/report-context.js';
 import { h, onChange, replaceChildren } from '../dom.js';
 import '../kit/inputs.js';
@@ -51,6 +52,9 @@ export function mountPaper(root, store) {
   const drawCover = onChange(coverKey, state => {
     const period = resolvePeriod(state.periodId, new Date(state.asOf));
     replaceChildren(cover,
+      Branding.logo && h('img', {
+        class: 'cover-logo', src: Branding.logo, alt: 'Logo', onerror: event => event.target.remove(),
+      }),
       h('p', { class: 'cover-kicker' }, 'Report'),
       h('h1', null, state.name.trim() || 'Untitled report'),
       h('p', { class: 'cover-period' },

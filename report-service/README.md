@@ -47,14 +47,14 @@ on the Services page of every realm, and the data endpoints can read the realm t
 1. In the manager, open the `master` realm and create a service user (Users, Service users) with the realm role
    `admin`, which makes it a super user, and the roles `read:assets`, `read:services` and `write:services`.
 2. Put its credentials in `.env` with `OR_REALM=master` and `OR_GLOBAL_SERVICE=true`, and start the service.
-3. Select a realm in the manager and open Services, Reports.
+3. Select a realm in the manager and open Services, Report Studio.
 
 How it works: the service registers the address `http://localhost:{PORT}/{realm}`, and the manager replaces `{realm}`
 with the realm that is open. A super user gets the name of the realm (`http://localhost:5000/manufacturer`), any other
 user a query parameter (`http://localhost:5000/?realm=smartcity`), so the interface is served at both. The data
 endpoints take the realm as the query parameter `realm` (see below). Only a super user may read a realm other than its
 own, so the service user of a realm-scoped service cannot be used for this. The interface reads the realm from its
-address and sends it with every call, and shows it in its header.
+address and sends it with every call.
 
 The manager checks a token against the realm in the URL of a call, so a token of `master` is only good for
 `/api/master/...`, also for a super user. The service therefore always calls the API of its own realm and names the
@@ -151,6 +151,27 @@ have, with the name of its value type and the units of its value, which are left
 parts, as OpenRemote names them: `["litre", "per", "hour"]`. The `units` meta item of an asset's own attribute, if it
 has one, takes precedence over the descriptor's.
 
+### Branding
+
+| Endpoint | Description |
+|----------|-------------|
+| `/branding` | How the manager shows the realm: `{primaryColour, logo}`. The report uses them to look like the realm. |
+
+The manager keeps the look of each realm in its configuration (`manager_config.json`, which an administrator edits on
+the manager's Configuration page): under `realms.{realm}` the `styles` that set the colours of the realm, and its
+`logo`. A setting that the realm leaves out is that of the `default` entry, as the manager merges them. The service
+reads the configuration, which the manager gives to everyone, and passes on two settings:
+
+- `primaryColour` is the `--or-app-color4` of the `styles`, the colour the manager uses for the realm, as `#rgb` or
+  `#rrggbb`. A colour in another notation (`red`, `rgb(...)`) is ignored.
+- `logo` is the address of the logo, which the browser loads. A path on the manager (`/images/logo.svg`) gets the
+  address of the manager (`OR_MANAGER`) in front of it, so that has to be an address the browser can reach; an
+  `http://` or `https://` address is passed as it is, and anything else is ignored.
+
+Each is left out of the answer when the realm has none, and the answer is `{}` for a manager that has no configuration
+(the manager then answers 204, as the one of `docker compose` does until someone saves a configuration). The page keeps
+the look of OpenRemote then. An unknown realm has no entry of its own and gets that of `default`.
+
 ### Errors
 
 Errors are `{"error": "..."}`. `400` is an invalid parameter, `404` an unknown path, asset or attribute, `405` a method
@@ -183,6 +204,8 @@ The code is in `src/main/java/com/example/reportservice`, one package per concer
   names and realm names).
 - `asset` - `AssetEndpoints` and the client that reads assets from `/api/{realm}/asset`, with the realm to read in the
   query.
+- `branding` - `BrandingEndpoints` and the client that reads the colour and logo of a realm from
+  `/api/{realm}/configuration/manager`.
 - `datapoint` - `DatapointEndpoints` and the client that reads attribute history, and checks that the realm has the
   asset.
 - `model` - `ModelEndpoints` and the client that reads the asset model (asset types and their attributes) from
