@@ -35,7 +35,7 @@ class ServiceRegistrationTest {
     private ServiceRegistration registration(boolean global) {
         return new ServiceRegistration(
                 manager.client(),
-                Json.object().put("serviceId", "report-service").put("label", "Reports"),
+                Json.object().put("serviceId", "report-service").put("label", "Report Studio"),
                 global,
                 Duration.ofMillis(50));
     }
@@ -47,7 +47,7 @@ class ServiceRegistrationTest {
         registration.stop();
 
         assertEquals("POST /service", manager.calls().getFirst());
-        assertEquals("Reports", manager.lastBody("POST /service").get("label").asText());
+        assertEquals("Report Studio", manager.lastBody("POST /service").get("label").asText());
         assertEquals("DELETE /service/report-service/i1", manager.calls().getLast());
     }
 
