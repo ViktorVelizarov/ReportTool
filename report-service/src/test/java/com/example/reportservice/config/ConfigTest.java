@@ -2,6 +2,7 @@ package com.example.reportservice.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -44,6 +45,7 @@ class ConfigTest {
         assertEquals(5000, config.port());
         assertFalse(config.insecureTls());
         assertFalse(config.globalService());
+        assertNull(config.chromePath());
     }
 
     @Test
@@ -54,12 +56,21 @@ class ConfigTest {
                 "OR_MANAGER", "https://localhost",
                 "OR_REALM", "building",
                 "PORT", "6000",
-                "OR_INSECURE_TLS", "TRUE")::get);
+                "OR_INSECURE_TLS", "TRUE",
+                "CHROME_PATH", " /opt/chromium/chrome ")::get);
 
         assertEquals("https://localhost", config.managerUrl());
         assertEquals("building", config.realm());
         assertEquals(6000, config.port());
         assertTrue(config.insecureTls());
+        assertEquals("/opt/chromium/chrome", config.chromePath());
+    }
+
+    @Test
+    void treatsAnEmptyBrowserPathAsNone() {
+        Config config = Config.from(Map.of("OR_CLIENT_ID", "id", "OR_CLIENT_SECRET", "secret", "CHROME_PATH", "")::get);
+
+        assertNull(config.chromePath());
     }
 
     @Test

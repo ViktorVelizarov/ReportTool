@@ -1,11 +1,14 @@
 package com.example.reportservice.web;
 
+import com.example.reportservice.json.Json;
+import com.fasterxml.jackson.databind.JsonNode;
+import java.io.IOException;
 import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
- * A GET request routed by {@link Router}: the path parameters (the {@code {name}} parts of the route) and the query
- * parameters. Invalid parameters are reported to the caller as {@link ApiException} 400.
+ * A request routed by {@link Router}: the path parameters (the {@code {name}} parts of the route), the query parameters
+ * and the body. Invalid parameters are reported to the caller as {@link ApiException} 400.
  */
 public final class Request {
 
@@ -13,10 +16,12 @@ public final class Request {
 
     private final Map<String, String> pathParams;
     private final Map<String, String> queryParams;
+    private final byte[] body;
 
-    Request(Map<String, String> pathParams, Map<String, String> queryParams) {
+    Request(Map<String, String> pathParams, Map<String, String> queryParams, byte[] body) {
         this.pathParams = pathParams;
         this.queryParams = queryParams;
+        this.body = body;
     }
 
     public String path(String name) {
@@ -64,6 +69,20 @@ public final class Request {
             throw new ApiException(400, name + " must be a non-negative integer");
         }
         return Integer.parseInt(value);
+    }
+
+    /** The body, which must be a JSON object. */
+    public JsonNode jsonBody() {
+        JsonNode json;
+        try {
+            json = Json.read(body);
+        } catch (IOException e) {
+            throw new ApiException(400, "the body is not valid JSON");
+        }
+        if (!json.isObject()) {
+            throw new ApiException(400, "the body must be a JSON object");
+        }
+        return json;
     }
 
     /** Returns {@code value} if it matches {@code pattern}; otherwise rejects the request as invalid {@code what}. */

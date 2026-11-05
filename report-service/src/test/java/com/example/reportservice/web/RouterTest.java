@@ -34,6 +34,8 @@ class RouterTest {
                 "b", String.valueOf(request.query("b")),
                 "n", request.nonNegativeIntQuery("n")));
         router.get("/choice", request -> Map.of("value", request.query("value", LOWERCASE, "value", "home")));
+        router.post("/submit", request -> Map.of("name", request.jsonBody().path("name").asText()));
+        router.post("/file", request -> new Binary("application/pdf", new byte[] {'%', 'P', 'D', 'F'}));
         router.get("/fail/api", request -> { throw new ApiException(418, "teapot"); });
         router.get("/fail/io", request -> { throw new IOException("connection refused"); });
         router.get("/fail/io-without-message", request -> { throw new IOException(); });
@@ -99,6 +101,53 @@ class RouterTest {
         HttpResponse<String> post = server.send("POST", "/things/abc");
         assertEquals(405, post.statusCode());
         assertEquals("GET", post.headers().firstValue("Allow").orElse(null));
+    }
+
+    @Test
+    void answersAPathThatIsARouteForAnotherMethodWithTheMethodsItAllows() throws Exception {
+        HttpResponse<String> get = server.get("/submit");
+        assertEquals(405, get.statusCode());
+        assertEquals("POST", get.headers().firstValue("Allow").orElse(null));
+        assertEquals("method not allowed", json(get).get("error").asText());
+
+        assertEquals(405, server.send("DELETE", "/things/abc").statusCode());
+    }
+
+    @Test
+    void readsTheJsonBodyOfAPost() throws Exception {
+        HttpResponse<String> response = server.post("/submit", "{\"name\":\"wheel\"}");
+
+        assertEquals(200, response.statusCode());
+        assertEquals("wheel", json(response).get("name").asText());
+    }
+
+    @Test
+    void rejectsABodyThatIsNotAJsonObject() throws Exception {
+        for (String body : List.of("", "{", "[1]", "\"text\"", "null")) {
+            HttpResponse<String> response = server.post("/submit", body);
+
+            assertEquals(400, response.statusCode(), body);
+            assertTrue(json(response).get("error").asText().startsWith("the body "), body);
+        }
+    }
+
+    @Test
+    void rejectsABodyThatIsTooLarge() throws Exception {
+        String large = "{\"name\":\"" + "x".repeat(Router.MAX_BODY_BYTES) + "\"}";
+
+        HttpResponse<String> response = server.post("/submit", large);
+
+        assertEquals(413, response.statusCode());
+        assertEquals("the request is too large", json(response).get("error").asText());
+    }
+
+    @Test
+    void writesABinaryBodyAsItIsWithItsContentType() throws Exception {
+        HttpResponse<byte[]> response = server.postForBytes("/file", "{}");
+
+        assertEquals(200, response.statusCode());
+        assertEquals("application/pdf", response.headers().firstValue("Content-Type").orElse(null));
+        assertEquals("%PDF", new String(response.body(), StandardCharsets.US_ASCII));
     }
 
     @Test

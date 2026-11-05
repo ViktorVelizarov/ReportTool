@@ -1,0 +1,29 @@
+<!doctype html>
+<!-- The page that the service prints to make a PDF (see js/render.js): index.html without the toolbar. The scripts and
+     styles have to be the same as those of index.html. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Report Studio</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="vendor/or-theme.css">
+  <link rel="stylesheet" href="css/app.css">
+  <script type="importmap">{ "imports": { "lit": "./vendor/lit.js" } }</script>
+  <script src="vendor/gridstack-all.js"></script>
+  <script src="vendor/echarts.min.js"></script>
+  <script src="vendor/gauge.min.js"></script>
+</head>
+<body>
+  <main class="layout">
+    <section class="workspace">
+      <article class="paper" id="paper">
+        <or-dashboard-preview id="preview"></or-dashboard-preview>
+      </article>
+    </section>
+    <or-dashboard-sidebar id="sidebar" hidden></or-dashboard-sidebar>
+  </main>
+
+  <script type="module" src="js/render.js"></script>
+</body>
+</html>

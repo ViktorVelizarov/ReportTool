@@ -124,6 +124,13 @@ export class TableWidget extends OrAssetWidget {
       color: #6b7280;
       text-align: center;
     }
+
+    /* On paper only the count of the rows stays: the rest cannot be used there */
+    @media print {
+      .pagination .control {
+        display: none;
+      }
+    }
   `;
 
   static manifest = {
@@ -257,16 +264,19 @@ export class TableWidget extends OrAssetWidget {
         </div>
         <div class="pagination">
           ${tableOptions?.length > 1 ? html`
-            <span>Rows per page</span>
-            <select @change=${event => { this._pageSize = Number(event.target.value); this._page = 0; }}>
+            <span class="control">Rows per page</span>
+            <select class="control"
+              @change=${event => { this._pageSize = Number(event.target.value); this._page = 0; }}>
               ${tableOptions.map(option => html`
                 <option value=${option} ?selected=${option === this._pageSize}>${option}</option>`)}
             </select>` : nothing}
           <span>${i18next.t('report.rowsOfRows', { from, to, total: all.length })}</span>
-          <button title="Previous" ?disabled=${page === 0} @click=${() => { this._page = page - 1; }}>
+          <button class="control" title="Previous" ?disabled=${page === 0}
+            @click=${() => { this._page = page - 1; }}>
             <or-icon icon="chevron-left"></or-icon>
           </button>
-          <button title="Next" ?disabled=${page >= pages - 1} @click=${() => { this._page = page + 1; }}>
+          <button class="control" title="Next" ?disabled=${page >= pages - 1}
+            @click=${() => { this._page = page + 1; }}>
             <or-icon icon="chevron-right"></or-icon>
           </button>
         </div>
