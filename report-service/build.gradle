@@ -34,7 +34,7 @@ processResources {
 
     // The web interface is the frontend folder next to this project; the service serves it from the classpath.
     from('../frontend') {
-        include 'index.html', 'css/**', 'js/**', 'vendor/**'
+        include 'index.html', 'render.html', 'css/**', 'js/**', 'vendor/**'
         exclude '**/README.md'
         into 'static'
     }

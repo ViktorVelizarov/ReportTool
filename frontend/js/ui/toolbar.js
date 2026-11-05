@@ -1,9 +1,10 @@
 /** The bar above the report: its name, editing or previewing, the time frame, saved reports, text and export. */
 
 import { downloadsOf } from '../builder/service/widget-specs.js';
+import { ReportContext } from '../data/report-context.js';
 import { h, onChange, replaceChildren } from '../dom.js';
 import { generateText } from '../model/ai.js';
-import { exportFileName } from '../model/exports.js';
+import { exportFileName, pdfRequest } from '../model/exports.js';
 import { plural } from '../model/format.js';
 import { PERIODS } from '../model/periods.js';
 import { describeSchedule } from '../model/schedule.js';
@@ -12,10 +13,11 @@ import {
   setEditMode, setInstructions, setName, setPeriod, startGenerating,
 } from '../state.js';
 import { ask } from './dialog.js';
-import { mockExport } from './export.js';
+import { downloadPdf, mockExport } from './export.js';
 import { icon } from './icons.js';
 import { openInstructions } from './instructions.js';
 import { menuButton } from './menu.js';
+import { previewWidth } from './paper.js';
 import { openSchedule } from './schedule.js';
 import { showToast } from './toast.js';
 
@@ -65,6 +67,9 @@ async function generate(store, { instructions, report }) {
   }
 }
 
+/** Whether the service is making a PDF, which the page asks for one at a time. */
+let makingPdf = false;
+
 async function exportPdf(store) {
   const drafts = countDrafts(store.get().ai);
   if (drafts > 0) {
@@ -79,9 +84,15 @@ async function exportPdf(store) {
     else if (choice !== 'reject') return;
   }
   const state = store.get();
-  mockExport(exportFileName(state.name, state.asOf, 'pdf'),
-    ` with ${plural(state.template.widgets.length, 'widget')} and `
-    + `${plural(countApproved(state.ai), 'approved text block')}`);
+  makingPdf = true;
+  try {
+    await downloadPdf(exportFileName(state.name, state.asOf, 'pdf'),
+      pdfRequest(state, ReportContext.realm, previewWidth()),
+      ` with ${plural(state.template.widgets.length, 'widget')} and `
+      + `${plural(countApproved(state.ai), 'approved text block')}`);
+  } finally {
+    makingPdf = false;
+  }
 }
 
 function exportFiles(store, kind) {
@@ -99,8 +110,8 @@ function exportItems(store) {
   const empty = widgets.length === 0;
   return [
     {
-      label: empty ? 'PDF report (add a widget first)' : 'PDF report',
-      disabled: empty,
+      label: empty ? 'PDF report (add a widget first)' : makingPdf ? 'PDF report (being made…)' : 'PDF report',
+      disabled: empty || makingPdf,
       onSelect: () => exportPdf(store),
     },
     {

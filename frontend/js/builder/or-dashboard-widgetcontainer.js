@@ -50,6 +50,13 @@ const containerStyle = css`
     background: #eceff1;
     color: #1d2733;
   }
+
+  /* The buttons cannot be used on paper */
+  @media print {
+    .tools {
+      display: none;
+    }
+  }
 `;
 
 export class OrDashboardWidgetContainer extends OrElement {

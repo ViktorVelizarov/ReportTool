@@ -19,6 +19,22 @@ export const ServiceClient = {
     if (!response.ok) throw await refusal(response);
     return response.json();
   },
+
+  /** The file (a Blob) that the service makes of a report that is posted to it as JSON. */
+  async postForFile(path, body) {
+    let response;
+    try {
+      response = await this.fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    } catch {
+      throw new Error('The report service cannot be reached');
+    }
+    if (!response.ok) throw await refusal(response);
+    return response.blob();
+  },
 };
 
 /** The error for an answer that is not a success: it has the message of the service, and the status. */

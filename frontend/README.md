@@ -5,9 +5,10 @@ drag widgets onto the page and set them up in the sidebar, choose the time frame
 report shows and what to look out for, review the text it suggests, and export.
 
 **This is a prototype.** The assets, attributes and data points in it are the live data of a realm of OpenRemote, which
-the page reads through the [report service](../report-service). The generated text, the exports, the schedules and the
-saved reports are still mock behaviour; the table [below](#what-is-real-and-what-is-mock) says what is what. It is a
-static site (plain ES modules, no build step, nothing to install) that the report service serves.
+the page reads through the [report service](../report-service), and the PDF of a report is made by that service. The
+generated text, the CSV and PNG exports, the schedules and the saved reports are still mock behaviour; the table
+[below](#what-is-real-and-what-is-mock) says what is what. It is a static site (plain ES modules, no build step, nothing
+to install) that the report service serves.
 
 ## Run
 
@@ -94,7 +95,8 @@ closed repository. The alternative is a builder of our own that is written witho
 | Instructions for the AI | "Generate text" first opens a dialog with two questions, which have to be answered: what the report shows, and what the AI should look out for. The answers are kept with the saved report, but nothing uses them yet. `js/model/prompt.js` can make the prompt from them (the answers, the figures of every widget and a few fixed rules), but the page neither shows nor sends it |
 | Generated text | Written from templates with the figures of the widgets (`js/model/ai.js`); there is no AI, so the text does not follow the answers |
 | Review | Generated text starts as a draft. Each block is a card with badges for its state (Draft, Approved or Editing) and the buttons Approve, Edit and Remove below the text; a notice above the blocks counts what is left to approve and approves or discards all of it at once. A block that is being written shows a progress bar. A PDF only includes approved text. The "AI" badge marks drafts only: an approved block, the preview and the printed report do not show it, nor the badges and buttons |
-| Export | The PDF, CSV and PNG buttons show progress and the name of the file, but create nothing |
+| PDF export | Export, PDF report has the service make the PDF and saves it as `report-name_2026-10-04.pdf`, see [below](#the-pdf-export). The report and its approved text are posted to `POST /export/pdf`; the file looks as the report does in Preview, with the real data, and has no widget cut by a page break |
+| CSV and PNG export | The buttons show progress and the name of the file, but create nothing |
 | Saved reports | Kept in memory only, and a reload forgets them. The studio opens with an empty report. A saved report keeps its answers to the two questions |
 | Schedule | A dialog sets when the report is made by itself, in OpenRemote's own scheduler (`or-scheduler`: once, or repeating every so many days, weeks, months or years, on days of the week or of the month, until a date or for a number of times), the report admin, whose email address is required and who gets a reminder on every day the report is made, to check it first, who gets the report by email, with which subject and message (with the placeholders `{report}`, `{period}` and `{date}`, filled in for every report) and as which files, and shows the next reports with the subject of the next email. When is an event of OpenRemote's calendar (`start`, `end` and a recurrence rule), the format that the manager uses. It is kept with the saved report, in memory; nothing is made or sent |
 
@@ -107,17 +109,52 @@ What the live data looks like on the page:
   (`js/data/units.js`): the parts `litre`, `per` and `hour` give `l/h`.
 - The attribute picker lists all assets of the realm, grouped by asset type. It reads them all when it opens.
 
-Printing the page (Ctrl+P) prints the report on A4 landscape, scaled to the width of the page, without the controls
-and without text that is not approved. The grid puts every widget at a fixed place, so a page break can cut through a
-widget; a clean document is a job for the PDF export.
+Printing the page (Ctrl+P) prints the report on A4 landscape, scaled to the width of the page, as it is in Preview: the
+cover, the text, the widgets and the descriptions one after the other. It leaves out the controls (the toolbar, the
+sidebar, the download buttons of the widgets and the buttons of a table) and the text that is not approved. The grid
+puts every widget at a fixed place, so a page break can still cut through a widget when you print the page yourself; the
+PDF export does not.
+
+## The PDF export
+
+Export, PDF report posts the report to the service (`POST /export/pdf`, see the [service
+README](../report-service/README.md#pdf-export)) and saves what comes back. `pdfRequest` in `js/model/exports.js` makes
+the request: the report as it is on the page, with only the generated text that is approved (the author is asked about
+drafts first), and the width that the report has in Preview (`previewWidth` in `js/ui/paper.js`: the inside of the
+paper, which is the same when the report is being edited and the sidebar takes room). The file is named by
+`exportFileName`, from the name of the report and the moment it is made for.
+
+The service has a headless browser open `render.html`, which is this page again without the toolbar and the sidebar;
+`js/render.js` starts it. Before the page starts, the browser sets `window.reportRenderRequest = { width, report }`: the
+request, and the width in pixels that the report has in Preview, which is also the width of its window. The page turns
+the request into the state of a report (`stateOfPdfRequest`), shows it as in Preview, and waits until the widgets have
+their data and are drawn: nothing was fetched or loading for 300 ms. Then it puts the report on the pages and sets
+`window.reportRenderResult = { scale }`, or `{ error }` when it cannot draw the report. The browser prints the page at
+that scale, which makes the layout as wide as the paper. The PDF therefore looks as the report does in Preview, with the
+same proportions between the text, the charts and the widgets, and with 2 pixels to every pixel of a chart so that it
+stays sharp. What is left out is what cannot be used on paper: the toolbar, the download buttons of the widgets and the
+buttons of a table (its count of rows stays).
+
+The report is printed as one flow, as it is in Preview, and only where a page break would cut a part is that part moved
+to the next page. `placeOnPages` in `js/model/pages.js` decides where the parts go, and `placeOnPaper` in `js/render.js`
+moves them: the cover, each block of text, each widget, and each description (the heading goes with the first one). A
+part that would cross the bottom of a page goes to the top of the next page, together with every part below it in its
+column, and a part never goes to an earlier page than the one before it in reading order, so the report reads in the
+order it was built. A part that is taller than a page cannot be kept whole; it starts on a page of its own. The line at
+the end of the report is not left alone on a page: the lowest parts keep room for it. If a part is cut all the same, the
+page logs it, and the service logs that as a warning.
+
+The print rules of `css/app.css` decide what is on the paper, for the PDF and for Ctrl+P alike: the page has margins of
+10 mm instead of the padding of the paper, the controls are left out, and generated text that is not approved is left
+out. Everything else is styled as it is on the screen.
 
 ## Layout
 
-- `index.html`, `css/app.css` - the page and its styles. `css/app.css` is read after `vendor/or-theme.css` and gets
-  its colours, font, radii and shadows from that theme. The import map in `index.html` points `lit` to
-  `vendor/lit.js`.
-- `js/main.js` - starts the page. `js/state.js` - the report (its name, time frame and template, the generated text,
-  the saved reports) and the actions that change it, as pure functions.
+- `index.html`, `render.html`, `css/app.css` - the page, the page that the service prints to make a PDF, and their
+  styles. `css/app.css` is read after `vendor/or-theme.css` and gets its colours, font, radii and shadows from that
+  theme. The import map points `lit` to `vendor/lit.js`.
+- `js/main.js` - starts the page; `js/render.js` starts the page that is printed. `js/state.js` - the report (its name,
+  time frame and template, the generated text, the saved reports) and the actions that change it, as pure functions.
 - `js/builder/` - the dashboard builder, see above. `js/ui/builder.js` connects it to the state: the builder elements
   get copies of the template, and their events change the state.
 - `js/data/` - what the page knows of OpenRemote: the realm of the address (`realm.js`), the calls to the report
@@ -126,7 +163,8 @@ widget; a clean document is a job for the PDF export.
   the context of the report (its realm, moment and time frame) that the widgets read when they fetch data.
 - `js/model/` - the report apart from the page: time frames, statistics, the figures of the widgets for the text
   (`report.js`), the questions for the AI (`instructions.js`), the prompt they make (`prompt.js`), the text templates,
-  the schedule (`schedule.js`, which finds the dates of a repeat with `vendor/rrule.js`), formatting and file names.
+  the schedule (`schedule.js`, which finds the dates of a repeat with `vendor/rrule.js`), formatting, the file names and
+  the request for a PDF (`exports.js`), and the pages of a printed report (`pages.js`).
 - `js/ui/` - the page around the builder: the toolbar, the paper (cover, text blocks, widget descriptions), the review
   blocks, menus, dialogs (a question, the schedule, and the instructions for the AI), messages and icons, and the
   message for a page that cannot start. `js/dom.js` has the helpers they build the page with; nothing is
@@ -143,9 +181,9 @@ npm test
 ```
 
 Uses the built-in test runner of Node.js (developed with Node 24); there is nothing to install. The tests cover the
-state, the report model, the prompt and the text, the schedule, the data layer, and the parts of the builder that need
-no browser: time windows, bar chart intervals and methods, the map, the keys, and the widget types with their default
-configs.
+state, the report model, the prompt and the text, the schedule, the request for a PDF, the placing of widgets on pages,
+the data layer, and the parts of the builder that need no browser: time windows, bar chart intervals and methods, the
+map, the keys, and the widget types with their default configs.
 The data layer is tested against a fake of the service (`test/helpers/service.js`) that has the asset model, the look of
 the realm and a few assets in the JSON that the service gives, with generated data points, and records every call; `test/helpers/` also
 has the report that the tests of the report and the state use. The modules that need a browser are checked for valid
@@ -155,7 +193,7 @@ syntax.
 
 - `js/model/ai.js` becomes a call to a language model with the prompt of `js/model/prompt.js`, which is made already;
   the review stays as it is.
-- `js/ui/export.js` becomes the real PDF, CSV and PNG export; ECharts can give a chart as an image
+- The CSV and PNG buttons (`mockExport` in `js/ui/export.js`) become real exports; ECharts can give a chart as an image
   (`getDataURL`).
 - Saved reports are stored by the service. A template is the same JSON as an Insights dashboard.
 - A schedule is stored by the service with its report. A job in the service makes the report when it is due and mails

@@ -5,7 +5,7 @@ import { realmOf } from './data/realm.js';
 import { ReportContext } from './data/report-context.js';
 import { createStore, initialState } from './state.js';
 import { mountBuilder } from './ui/builder.js';
-import { mountPaper } from './ui/paper.js';
+import { fitPrintToPage, mountPaper } from './ui/paper.js';
 import { showStartupError } from './ui/startup-error.js';
 import { mountToolbar, saveCurrent } from './ui/toolbar.js';
 import { widgetTools } from './ui/widget-tools.js';
@@ -30,8 +30,10 @@ async function start() {
 
   const store = createStore(initialState(reportMoment()));
 
+  const paper = document.getElementById('paper');
   mountToolbar(document.getElementById('toolbar'), store);
-  mountPaper(document.getElementById('paper'), store);
+  mountPaper(paper, store);
+  fitPrintToPage(paper);
   mountBuilder({
     store,
     preview: document.getElementById('preview'),

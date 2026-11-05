@@ -12,19 +12,22 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Serves read-only JSON GET endpoints on an {@link HttpServer}.
+ * Serves JSON endpoints on an {@link HttpServer}: GET routes that read, and POST routes that take a JSON body.
  *
- * <p>A {@link Handler} returns the response body, which is written as JSON, or throws to report an error:
- * {@link ApiException} sets the status itself, an {@link IOException} (a failed or refused call to the manager)
- * becomes a 502, an interruption a 503 and any other unexpected failure a 500, each with a JSON
- * {@code {"error": ...}} body.
+ * <p>A {@link Handler} returns the response body, which is written as JSON (or as it is, when it is a {@link Binary}),
+ * or throws to report an error: {@link ApiException} sets the status itself, an {@link IOException} (a failed or
+ * refused call to the manager) becomes a 502, an interruption a 503 and any other unexpected failure a 500, each with a
+ * JSON {@code {"error": ...}} body.
  *
  * <p>The router handles every request of the server. A path that is not a route goes to the fallback handler, which
- * by default answers 404, so that something else (the web interface) can serve all other paths.
+ * by default answers 404, so that something else (the web interface) can serve all other paths. A path that is a route
+ * for another method only is answered with 405.
  */
 public final class Router {
 
@@ -33,9 +36,12 @@ public final class Router {
         Object handle(Request request) throws IOException, InterruptedException;
     }
 
+    /** The largest body that a request may have; a report with all its widgets is far below it. */
+    static final int MAX_BODY_BYTES = 2 * 1024 * 1024;
+
     private static final Logger LOG = LoggerFactory.getLogger(Router.class);
 
-    private record Route(List<String> pattern, Handler handler) { }
+    private record Route(String method, List<String> pattern, Handler handler) { }
 
     private final List<Route> routes = new ArrayList<>();
     private final HttpHandler fallback;
@@ -56,7 +62,12 @@ public final class Router {
 
     /** Adds a GET route. Segments in braces capture path parameters, e.g. {@code /assets/{id}}. */
     public void get(String pattern, Handler handler) {
-        routes.add(new Route(segments(pattern), handler));
+        routes.add(new Route("GET", segments(pattern), handler));
+    }
+
+    /** Adds a POST route, which reads the body of the request with {@link Request#jsonBody()}. */
+    public void post(String pattern, Handler handler) {
+        routes.add(new Route("POST", segments(pattern), handler));
     }
 
     /**
@@ -69,12 +80,24 @@ public final class Router {
 
     private void handle(HttpExchange exchange) throws IOException {
         List<String> path = segments(exchange.getRequestURI().getPath());
+        Set<String> otherMethods = new TreeSet<>();
         for (Route route : routes) {
             Map<String, String> pathParams = match(route.pattern(), path);
-            if (pathParams != null) {
+            if (pathParams == null) {
+                continue;
+            }
+            if (route.method().equals(exchange.getRequestMethod())) {
                 serve(exchange, route, pathParams);
                 return;
             }
+            otherMethods.add(route.method());
+        }
+        if (!otherMethods.isEmpty()) {
+            try (exchange) {
+                exchange.getResponseHeaders().set("Allow", String.join(", ", otherMethods));
+                sendJson(exchange, 405, error("method not allowed"));
+            }
+            return;
         }
         fallback.handle(exchange);
     }
@@ -85,11 +108,7 @@ public final class Router {
         int status = 200;
         Object body;
         try {
-            if (!"GET".equals(exchange.getRequestMethod())) {
-                exchange.getResponseHeaders().set("Allow", "GET");
-                throw new ApiException(405, "method not allowed");
-            }
-            body = route.handler().handle(new Request(pathParams, queryParams(exchange)));
+            body = route.handler().handle(new Request(pathParams, queryParams(exchange), readBody(exchange)));
         } catch (ApiException e) {
             status = e.status();
             body = error(e.getMessage());
@@ -108,16 +127,32 @@ public final class Router {
         }
 
         try (exchange) {
-            sendJson(exchange, status, body);
+            if (body instanceof Binary binary) {
+                send(exchange, status, binary.contentType(), binary.bytes());
+            } else {
+                sendJson(exchange, status, body);
+            }
         }
     }
 
     /** Writes the body as JSON. The caller closes the exchange. */
     static void sendJson(HttpExchange exchange, int status, Object body) throws IOException {
-        byte[] json = Json.write(body);
-        exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
-        exchange.sendResponseHeaders(status, json.length);
-        exchange.getResponseBody().write(json);
+        send(exchange, status, "application/json; charset=utf-8", Json.write(body));
+    }
+
+    private static void send(HttpExchange exchange, int status, String contentType, byte[] body) throws IOException {
+        exchange.getResponseHeaders().set("Content-Type", contentType);
+        exchange.sendResponseHeaders(status, body.length);
+        exchange.getResponseBody().write(body);
+    }
+
+    /** The body of the request; one that is larger than {@link #MAX_BODY_BYTES} is rejected with 413. */
+    private static byte[] readBody(HttpExchange exchange) throws IOException {
+        byte[] body = exchange.getRequestBody().readNBytes(MAX_BODY_BYTES + 1);
+        if (body.length > MAX_BODY_BYTES) {
+            throw new ApiException(413, "the request is too large");
+        }
+        return body;
     }
 
     /** The path parameters if the path fits the pattern, else null. */

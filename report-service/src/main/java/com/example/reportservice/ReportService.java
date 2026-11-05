@@ -4,6 +4,10 @@ import com.example.reportservice.asset.AssetEndpoints;
 import com.example.reportservice.branding.BrandingEndpoints;
 import com.example.reportservice.config.Config;
 import com.example.reportservice.datapoint.DatapointEndpoints;
+import com.example.reportservice.export.BrowserLocator;
+import com.example.reportservice.export.ChromiumPdfRenderer;
+import com.example.reportservice.export.PdfEndpoints;
+import com.example.reportservice.export.PdfRenderer;
 import com.example.reportservice.json.Json;
 import com.example.reportservice.model.ModelEndpoints;
 import com.example.reportservice.openremote.ManagerClient;
@@ -20,8 +24,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * OpenRemote external service: serves the report web interface and live OpenRemote data, and keeps a lease on the
- * manager registry. See README.md for the settings.
+ * OpenRemote external service: serves the report web interface, live OpenRemote data and the PDFs of reports, and keeps
+ * a lease on the manager registry. See README.md for the settings.
  */
 public final class ReportService {
 
@@ -42,7 +46,7 @@ public final class ReportService {
         }
 
         ManagerClient manager = new ManagerClient(config);
-        HttpServer server = startServer(config.port(), manager);
+        HttpServer server = startServer(config.port(), manager, config.chromePath(), config.insecureTls());
         ServiceRegistration registration =
                 new ServiceRegistration(manager, describeService(config), config.globalService(), HEARTBEAT);
         registration.start();
@@ -70,15 +74,26 @@ public final class ReportService {
                 .put("status", "AVAILABLE");
     }
 
-    /** Starts the server for the data endpoints and, for every other path, the web interface. */
-    static HttpServer startServer(int port, ManagerClient manager) throws IOException {
+    /**
+     * Starts the server for the data endpoints, the PDF export and, for every other path, the web interface. The PDFs
+     * are made by the browser that {@code chromePath} names, or else by one that is found on the system.
+     */
+    static HttpServer startServer(int port, ManagerClient manager, String chromePath, boolean insecureTls)
+            throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("0.0.0.0", port), 0);
+        // the browser opens the web interface at this address, which is why the port is known only now
+        String address = "http://127.0.0.1:" + server.getAddress().getPort();
+        PdfRenderer pdf = BrowserLocator.find(chromePath)
+                .<PdfRenderer>map(browser -> new ChromiumPdfRenderer(browser, address, insecureTls))
+                .orElse(PdfEndpoints.UNAVAILABLE);
+
         Router router = new Router(new StaticHandler());
         new AssetEndpoints(manager).register(router);
         new BrandingEndpoints(manager).register(router);
         new DatapointEndpoints(manager).register(router);
         new ModelEndpoints(manager).register(router);
+        new PdfEndpoints(pdf).register(router);
 
-        HttpServer server = HttpServer.create(new InetSocketAddress("0.0.0.0", port), 0);
         server.setExecutor(Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("http-", 1).factory()));
         router.register(server);
         server.start();

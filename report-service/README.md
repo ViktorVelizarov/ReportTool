@@ -3,7 +3,7 @@
 An external service for [OpenRemote](https://openremote.io). It serves the Report Studio web interface (the
 [frontend](../frontend) folder) and registers itself in the manager's external service registry so the interface can
 be shown inside the manager UI. It also exposes live OpenRemote data (assets, attributes and their stored history) and
-the asset model as read-only JSON.
+the asset model as read-only JSON, and makes the PDF of a report (see [PDF export](#pdf-export)).
 
 On startup it registers as `report-service`, then sends a heartbeat every 20 seconds (the manager drops a service
 after 60 seconds without one). If the manager forgets it (for example after a restart) it registers again, and it
@@ -17,6 +17,8 @@ deregisters on shutdown. It serves the realm of its service user or, registered 
 - A **service user** in the realm you want to register in. Create one in the manager UI (Users, Service users).
   Its client ID and secret are the credentials below. If registering fails with `HTTP 403`, give the user more roles.
   To serve every realm it has to be a super user, see below.
+- For the PDF export: Chrome, Chromium or Edge on the machine that runs the service, see [PDF export](#pdf-export).
+  The rest of the service works without it.
 
 ## Configuration
 
@@ -32,7 +34,8 @@ take precedence. Copy [.env.example](.env.example) to `.env` (git-ignored) to ge
 | `OR_MANAGER`        | `http://127.0.0.1:8080`      | Manager base URL                                                                                   |
 | `OR_KEYCLOAK`       | `http://127.0.0.1:8081/auth` | Keycloak base URL including `/auth`                                                                |
 | `PORT`              | `5000`                       | Port this service listens on                                                                       |
-| `OR_INSECURE_TLS`   | `false`                      | Skip TLS certificate verification. **Local testing only.**                                         |
+| `OR_INSECURE_TLS`   | `false`                      | Skip TLS certificate verification, also in the browser of the PDF export. **Local testing only.**  |
+| `CHROME_PATH`       | a browser that is found      | The Chrome, Chromium or Edge that makes the PDFs, see [PDF export](#pdf-export)                    |
 
 The manager only accepts tokens whose issuer matches the `authServerUrl` it advertises at `/api/master/info`, so
 use the same host name for `OR_KEYCLOAK` that the manager and Keycloak are configured with (for example
@@ -79,8 +82,8 @@ The interface is the [frontend](../frontend) folder, a static site. The build co
 service's resources (see `processResources` in `build.gradle`) and `StaticHandler` serves it from there, so the
 service is still a single jar with nothing else to deploy. A change in `../frontend` needs a new build; `./gradlew run`
 does that. The interface is a prototype that reads the assets, attributes, data points and asset model of a realm
-through the endpoints below, while its generated text, exports and saved reports are still mock; the
-[frontend README](../frontend/README.md) says what is real and what is mock.
+through the endpoints below, and has its PDFs made by this service, while its generated text, CSV and PNG exports and
+saved reports are still mock; the [frontend README](../frontend/README.md) says what is real and what is mock.
 
 The widgets of the interface are the dashboard builder of OpenRemote's Insights, ported to plain JavaScript, and its
 form controls and theme are OpenRemote's own components, bundled. That code is licensed under the AGPL-3.0-or-later,
@@ -96,7 +99,7 @@ service to be served over HTTPS, or browsers block it as mixed content.
 ## Live OpenRemote data
 
 The service reads live data from the manager's REST API and exposes it as read-only JSON. The service user needs the
-`read:assets` role. All endpoints are `GET`.
+`read:assets` role. All these endpoints are `GET`.
 
 Every endpoint except the asset model takes the optional query parameter `realm`, the realm to read (letters, digits,
 `-` and `_`), for example `http://localhost:5000/assets?realm=smartcity&limit=3`. Without it the realm of the service
@@ -174,10 +177,50 @@ the look of OpenRemote then. An unknown realm has no entry of its own and gets t
 
 ### Errors
 
-Errors are `{"error": "..."}`. `400` is an invalid parameter, `404` an unknown path, asset or attribute, `405` a method
-other than `GET`, and `413` a data point query that returns too much. `502` means OpenRemote failed or refused the
-service (for example the service user lacks a role, or may not read the realm that was asked for), `503` that the
-request was interrupted and `500` a bug in this service.
+Errors are `{"error": "..."}`. `400` is an invalid parameter or body, `404` an unknown path, asset or attribute, `405` a
+method that the path does not take (`Allow` says which), and `413` a data point query that returns too much, or a body
+that is too large. `502` means OpenRemote failed or refused the service (for example the service user lacks a role, or
+may not read the realm that was asked for) or, for a PDF, that it could not be made; `503` that the request was
+interrupted, or that a PDF cannot be made now (see below), and `500` a bug in this service.
+
+## PDF export
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /export/pdf` | The PDF of the report in the body: A4 landscape, looking as the report does in Preview, with no widget or block of text cut by a page break. The answer is the PDF, `application/pdf`. |
+
+The body is a JSON object that the web interface posts when the author chooses Export, PDF report (`pdfRequest` in
+`js/model/exports.js` of the [frontend](../frontend)): `realm` (the realm that the report is about; without it the realm
+of the service user), `width` (the width in pixels that the report has in Preview, a whole number from 524 to 4000,
+which is the width that the PDF is laid out in; 1280 when it is left out, and `400` when it is not a whole number in
+that range), `name`, `periodId`, `asOf` (the moment the report is made for, in milliseconds), `template` (the layout and
+widgets, a `DashboardTemplate` of OpenRemote's Insights) and `text` (the generated text that the author approved, as
+`{block id: text}`). The service reads only the realm and the width; the page that is printed checks the rest and
+refuses what is not a report.
+
+**How it works.** For every PDF the service starts a headless browser with a profile of its own, opens `/render.html` of
+this service in it, in a window as wide as the report is in Preview, and has it print the page when it is drawn. That
+page is the report as in Preview, without the toolbar and the sidebar; it reads the assets and data points from this
+service, as the interface does, so the PDF shows what the author saw. The service drives the browser with the Chrome
+DevTools protocol (`ChromiumPdfRenderer` and `DevTools`): it gives the page the report and the width, and waits until
+the page says that it is drawn. The [frontend README](../frontend/README.md#the-pdf-export) describes the page. The
+browser ends when the PDF is made, and its profile is removed. A PDF takes one to three seconds on a development
+machine, longer for a report with much data.
+
+**Which browser.** The one that `CHROME_PATH` names. Otherwise the service looks where Chrome and Edge (Windows) or
+Chrome, Chromium and Edge (macOS, Linux) are normally installed; any browser that is built on Chromium will do. When it
+finds none, the service starts all the same and says so in its log, and the endpoint answers `503`. It was tried with
+Chrome 157, Edge 156 and Playwright's Chromium 1208 on Windows 11, started from PowerShell. Edge started from a Git Bash
+terminal stopped at once, which Chrome did not: start the service from PowerShell, or set `CHROME_PATH` to Chrome.
+A Linux container was not tried: the browser needs its system libraries and fonts there, and Chrome does not start as
+root unless its sandbox is switched off, which the service does not do.
+
+**Limits.** A body can be 2 MB at most (`413`). At most two browsers run at a time and a request waits up to a minute
+for its turn (`503`). A PDF that is not ready within a minute is a `502`, and so is a page that cannot draw the report;
+the answer then has its message. As for the data endpoints, anyone who can reach the service can ask for a PDF, and the
+browser opens whatever the report refers to, such as the address of an image, from the machine of the service. With
+`OR_INSECURE_TLS=true` the browser accepts any TLS certificate, so that the logo of a realm can be on a manager with a
+self-signed one.
 
 ## Test
 
@@ -185,7 +228,9 @@ request was interrupted and `500` a bug in this service.
 ./gradlew test
 ```
 
-The tests of the web interface itself are in the frontend folder (`npm test`).
+The tests of the web interface itself are in the frontend folder (`npm test`). The tests of the PDF export that drive a
+real browser, among them one that makes the PDF of a report with the real web interface, are skipped on a machine that
+has no Chrome, Chromium or Edge.
 
 ## Layout
 
@@ -195,9 +240,9 @@ The code is in `src/main/java/com/example/reportservice`, one package per concer
   that Gradle writes into `build-info.properties`, so the version is defined only in `build.gradle`.
 - `config` - `Config`: environment and `.env` settings.
 - `json` - `Json`: the shared JSON mapper.
-- `web` - the small HTTP layer: `Router`, `Request` and `ApiException` (routing, parameters and error responses) and
-  `StaticHandler`, which serves the web interface. The router handles every request of the server and leaves what is
-  not a route to `StaticHandler`.
+- `web` - the small HTTP layer: `Router`, `Request` and `ApiException` (routing, parameters, bodies and error
+  responses), `Binary` (an answer that is not JSON, such as a PDF) and `StaticHandler`, which serves the web interface.
+  The router handles every request of the server and leaves what is not a route to `StaticHandler`.
 - `openremote` - talking to the manager: `ManagerClient` (Keycloak service user login, token caching, REST calls in
   the realm of the service user), `ServiceRegistration` (registers, heartbeats and deregisters in
   `/api/{realm}/service`, or in `/api/master/service/global` for a global service) and `Ids` (the rules for asset IDs,
@@ -210,6 +255,8 @@ The code is in `src/main/java/com/example/reportservice`, one package per concer
   asset.
 - `model` - `ModelEndpoints` and the client that reads the asset model (asset types and their attributes) from
   `/api/{realm}/model`.
+- `export` - `PdfEndpoints` and the `PdfRenderer` that makes the PDF: `ChromiumPdfRenderer` starts the browser that
+  `BrowserLocator` finds and talks to it through `DevTools`, a small client of the Chrome DevTools protocol.
 
 A new feature is a new package next to `asset`, `datapoint` and `model`, with an `...Endpoints` class that
 `ReportService` registers on the router.
