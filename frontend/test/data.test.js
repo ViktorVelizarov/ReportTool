@@ -117,6 +117,34 @@ test('a report is posted as JSON and the file that comes back is handed on', asy
   }
 });
 
+test('a call with a body sends it as JSON with its method and parameters, and gives the JSON back', async () => {
+  const fetch = ServiceClient.fetch;
+  const sent = [];
+  try {
+    ServiceClient.fetch = async (path, init) => {
+      sent.push({ path, ...init });
+      return { ok: true, status: 200, json: async () => ({ id: 'report-1' }) };
+    };
+    assert.deepEqual(await ServiceClient.sendJson('PUT', '/reports/report-1', { name: 'A report' },
+      { realm: 'a b', unused: undefined }), { id: 'report-1' });
+    assert.deepEqual(sent, [{
+      path: '/reports/report-1?realm=a+b',
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"name":"A report"}',
+    }]);
+
+    ServiceClient.fetch = async () => ({ ok: false, status: 409, json: async () => ({ error: 'name taken' }) });
+    await assert.rejects(ServiceClient.sendJson('POST', '/reports', {}),
+      error => error.message === 'name taken' && error.status === 409);
+
+    ServiceClient.fetch = async () => { throw new TypeError('Failed to fetch'); };
+    await assert.rejects(ServiceClient.sendJson('POST', '/reports', {}), /The report service cannot be reached/);
+  } finally {
+    ServiceClient.fetch = fetch;
+  }
+});
+
 // --- assets ---
 
 test('assets come in the shape of OpenRemote with only the requested attributes', async () => {

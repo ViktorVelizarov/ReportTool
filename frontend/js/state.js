@@ -2,7 +2,8 @@
  * The report setup and everything that changes it. The actions are pure: they return the new state, or the same state
  * when nothing changes. The setup of a report is its name, its time frame, the template of its widgets, the layout
  * and settings that the dashboard builder edits (see builder/), what the author told the AI about it, and its
- * schedule, if it has one.
+ * schedule, if it has one. That is what is saved; the saved reports themselves are kept by the report service (see
+ * data/saved-reports.js and ui/saved-reports.js), and the state knows which one is open and what they are called.
  */
 
 import { DashboardService } from './builder/service/dashboard-service.js';
@@ -32,7 +33,7 @@ export function createStore(initial) {
   };
 }
 
-/** The studio opens with an empty report, for the first time frame, and with no saved reports. */
+/** The studio opens with an empty report that is not saved, and does not know the saved reports yet. */
 export function initialState(asOf = Date.now()) {
   return {
     name: UNTITLED,
@@ -40,10 +41,11 @@ export function initialState(asOf = Date.now()) {
     template: DashboardService.newTemplate(),
     instructions: newInstructions(), // the answers to the questions of model/instructions.js, saved with the report
     schedule: null, // null | the schedule of model/schedule.js, which is saved with the report
+    reportId: undefined, // the id of the saved report that is open; undefined for a report that was never saved
     editMode: true,
     selectedId: undefined, // the id of the widget that is selected in the builder
     ai: null, // null | { status: 'loading' } | { status: 'ready', blocks: { id: { text, state } } }
-    saved: [],
+    saved: null, // null | [{ id, name, updatedAt }]: the saved reports of the realm, null while they are not known
     asOf,
   };
 }
@@ -112,9 +114,10 @@ export function setSchedule(state, schedule) {
   return objectsEqual(state.schedule, next) ? state : { ...state, schedule: next };
 }
 
-/** An empty report, in the time frame that was chosen. */
+/** An empty report, in the time frame that was chosen. It is not a saved report until it is saved. */
 export const newReport = state => ({
   ...state,
+  reportId: undefined,
   name: UNTITLED,
   template: DashboardService.newTemplate(),
   instructions: newInstructions(),
@@ -126,26 +129,29 @@ export const newReport = state => ({
 
 // --- Saved reports ---
 
-export function saveReport(state) {
-  const name = state.name.trim() || UNTITLED;
-  const existing = state.saved.find(report => report.name === name);
-  const report = {
-    id: existing?.id ?? `saved-${state.saved.length + 1}`,
-    name,
-    periodId: state.periodId,
-    template: jsonCopy(state.template),
-    instructions: { ...state.instructions },
-    schedule: state.schedule && jsonCopy(state.schedule),
-  };
-  const saved = existing ? state.saved.map(item => (item === existing ? report : item)) : [...state.saved, report];
-  return { ...state, saved };
-}
+/** The saved reports of the realm, as the service lists them; null when they could not be read. */
+export const setSavedReports = (state, saved) => ({ ...state, saved });
 
-export function loadReport(state, id) {
-  const report = state.saved.find(item => item.id === id);
-  if (!report) return state;
+/** The report as it is saved: its setup, and not what is only on the page (the selection, the mode, the text). */
+export const reportOf = state => ({
+  name: state.name.trim() || UNTITLED,
+  periodId: state.periodId,
+  template: state.template,
+  instructions: state.instructions,
+  schedule: state.schedule,
+});
+
+/** The report that is open was saved as the saved report with the id, so saving it again replaces that report. */
+export const reportSaved = (state, id) => (id === state.reportId ? state : { ...state, reportId: id });
+
+/**
+ * Opens a saved report in place of the report that is open. The report is made for the moment asOf, and its time frame
+ * is relative to it (the last 30 days, say), so a report that is opened later shows the days before that day.
+ */
+export function loadReport(state, report, asOf) {
   return {
     ...state,
+    reportId: report.id,
     name: report.name,
     periodId: report.periodId,
     template: jsonCopy(report.template),
@@ -153,6 +159,7 @@ export function loadReport(state, id) {
     schedule: report.schedule && jsonCopy(report.schedule),
     selectedId: undefined,
     ai: null,
+    asOf,
   };
 }
 

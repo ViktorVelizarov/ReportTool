@@ -1,8 +1,9 @@
 /**
  * A fake of the report service for the tests: the asset model, the look and a few assets of a realm in the JSON that
- * the service gives, and data points that are generated from the time (one every full hour). Every call that the page
- * makes is recorded. It answers like the service does, also with the errors, but it checks nothing: the tests look at
- * the calls.
+ * the service gives, data points that are generated from the time (one every full hour), and saved reports that it
+ * keeps in memory. Every call that the page makes is recorded: the address, and for a call that sends something the
+ * method in front of it. It answers like the service does, also with the errors, but it checks little: the tests look
+ * at the calls.
  */
 
 import { ServiceClient } from '../../js/data/service-client.js';
@@ -136,12 +137,55 @@ function selected(asset, selection) {
 
 const answer = (status, body) => ({ ok: status < 400, status, json: async () => structuredClone(body) });
 
-function respond(url) {
+/** The saved reports of each realm by id, as the service keeps them. A report that nobody named is in this realm. */
+const SERVICE_USER_REALM = 'master';
+let savedReports = new Map();
+
+const summaryOf = ({ id, name, updatedAt }) => ({ id, name, updatedAt });
+const nameKey = name => name.toLowerCase();
+
+/** What the service does with saved reports: a name is unique in a realm, and a report is replaced in place. */
+function respondReports(method, id, realm, body) {
+  if (!savedReports.has(realm)) savedReports.set(realm, new Map());
+  const reports = savedReports.get(realm);
+
+  if (method === 'GET' && !id) {
+    const byName = (a, b) => nameKey(a.name).localeCompare(nameKey(b.name));
+    return answer(200, [...reports.values()].map(summaryOf).sort(byName));
+  }
+  if (method === 'GET' || method === 'PUT') {
+    if (!reports.has(id)) return answer(404, { error: 'report not found' });
+    if (method === 'GET') return answer(200, reports.get(id));
+  }
+
+  const name = body.name.trim();
+  if ([...reports.values()].some(report => report.id !== id && nameKey(report.name) === nameKey(name))) {
+    return answer(409, { error: 'a report with this name exists already' });
+  }
+  const saved = {
+    id: id ?? `report-${reports.size + 1}`,
+    name,
+    periodId: body.periodId,
+    template: body.template,
+    instructions: body.instructions ?? null,
+    schedule: body.schedule ?? null,
+    createdAt: reports.get(id)?.createdAt ?? NOW,
+    updatedAt: NOW,
+  };
+  reports.set(saved.id, saved);
+  return answer(200, summaryOf(saved));
+}
+
+function respond(url, init) {
   const { pathname, searchParams } = new URL(url, 'http://service');
   const [, first, id, second, name, last] = pathname.split('/');
 
   if (pathname === '/model/assetInfos') return answer(200, ASSET_INFOS);
   if (pathname === '/branding') return answer(200, BRANDING);
+  if (first === 'reports') {
+    return respondReports(init?.method ?? 'GET', id, searchParams.get('realm') ?? SERVICE_USER_REALM,
+      init?.body && JSON.parse(init.body));
+  }
   if (pathname === '/assets') {
     const type = searchParams.get('type');
     const assets = ASSETS.filter(asset => !type || asset.type === type)
@@ -160,12 +204,16 @@ function respond(url) {
     : []);
 }
 
-/** Makes the page talk to the fake instead of the service. The returned list has the address of every call. */
+/**
+ * Makes the page talk to the fake instead of the service, which has no saved reports then. The returned list has the
+ * address of every call, with the method in front of it ("POST /reports?realm=manufacturer") unless it is a GET.
+ */
 export function installFakeService() {
   const calls = [];
-  ServiceClient.fetch = async url => {
-    calls.push(url);
-    return respond(url);
+  savedReports = new Map();
+  ServiceClient.fetch = async (url, init) => {
+    calls.push(init?.method ? `${init.method} ${url}` : url);
+    return respond(url, init);
   };
   return calls;
 }

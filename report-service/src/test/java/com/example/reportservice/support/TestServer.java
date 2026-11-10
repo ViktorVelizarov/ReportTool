@@ -42,18 +42,28 @@ public final class TestServer implements AutoCloseable {
     }
 
     public HttpResponse<String> post(String path, String body) throws IOException, InterruptedException {
-        return http.send(postRequest(path, body), HttpResponse.BodyHandlers.ofString());
+        return send("POST", path, body);
+    }
+
+    public HttpResponse<String> put(String path, String body) throws IOException, InterruptedException {
+        return send("PUT", path, body);
+    }
+
+    /** Sends the body as JSON with the method. */
+    public HttpResponse<String> send(String method, String path, String body)
+            throws IOException, InterruptedException {
+        return http.send(jsonRequest(method, path, body), HttpResponse.BodyHandlers.ofString());
     }
 
     /** Like {@link #post}, for an answer that is a file and not text. */
     public HttpResponse<byte[]> postForBytes(String path, String body) throws IOException, InterruptedException {
-        return http.send(postRequest(path, body), HttpResponse.BodyHandlers.ofByteArray());
+        return http.send(jsonRequest("POST", path, body), HttpResponse.BodyHandlers.ofByteArray());
     }
 
-    private HttpRequest postRequest(String path, String body) {
+    private HttpRequest jsonRequest(String method, String path, String body) {
         return HttpRequest.newBuilder(URI.create(url() + path))
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .method(method, HttpRequest.BodyPublishers.ofString(body))
                 .build();
     }
 

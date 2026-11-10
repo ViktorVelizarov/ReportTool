@@ -6,8 +6,9 @@ import { ReportContext } from './data/report-context.js';
 import { createStore, initialState } from './state.js';
 import { mountBuilder } from './ui/builder.js';
 import { fitPrintToPage, mountPaper } from './ui/paper.js';
+import { readSaved, saveCurrent } from './ui/saved-reports.js';
 import { showStartupError } from './ui/startup-error.js';
-import { mountToolbar, saveCurrent } from './ui/toolbar.js';
+import { mountToolbar } from './ui/toolbar.js';
 import { widgetTools } from './ui/widget-tools.js';
 
 /** The moment the report is made for. Normally now; ?asOf=2026-10-04T12:00:00Z fixes it, for repeatable screenshots. */
@@ -18,20 +19,21 @@ function reportMoment() {
 }
 
 async function start() {
+  const store = createStore(initialState(reportMoment()));
   try {
     // The builder asks for the asset types without waiting, so the model is read before the report is shown. The look
-    // of the realm is read with it, so that the page is not drawn in the colour of OpenRemote first.
-    await Promise.all([loadAssetModel(), loadBranding()]);
+    // of the realm is read with it, so that the page is not drawn in the colour of OpenRemote first, and so are the
+    // saved reports, so that the menu of them is complete from the start. The page starts without them if they cannot
+    // be read: the menu then offers to try again.
+    await Promise.all([loadAssetModel(), loadBranding(), readSaved(store)]);
   } catch (error) {
     console.error(error);
     showStartupError(document.querySelector('main'), error.message);
     return;
   }
 
-  const store = createStore(initialState(reportMoment()));
-
   const paper = document.getElementById('paper');
-  mountToolbar(document.getElementById('toolbar'), store);
+  mountToolbar(document.getElementById('toolbar'), store, reportMoment);
   mountPaper(paper, store);
   fitPrintToPage(paper);
   mountBuilder({

@@ -9,33 +9,46 @@ export const ServiceClient = {
 
   /** The JSON that the service answers to a GET; parameters that are undefined are left out. */
   async getJson(path, params = {}) {
-    const query = new URLSearchParams(Object.entries(params).filter(([, value]) => value !== undefined)).toString();
-    let response;
-    try {
-      response = await this.fetch(query ? `${path}?${query}` : path);
-    } catch {
-      throw new Error('The report service cannot be reached');
-    }
-    if (!response.ok) throw await refusal(response);
-    return response.json();
+    return (await call(addressOf(path, params))).json();
+  },
+
+  /**
+   * The JSON that the service answers to a call with a JSON body, such as a POST that adds something or a PUT that
+   * replaces it; parameters that are undefined are left out.
+   */
+  async sendJson(method, path, body, params = {}) {
+    return (await call(addressOf(path, params), jsonRequest(method, body))).json();
   },
 
   /** The file (a Blob) that the service makes of a report that is posted to it as JSON. */
   async postForFile(path, body) {
-    let response;
-    try {
-      response = await this.fetch(path, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-    } catch {
-      throw new Error('The report service cannot be reached');
-    }
-    if (!response.ok) throw await refusal(response);
-    return response.blob();
+    return (await call(path, jsonRequest('POST', body))).blob();
   },
 };
+
+/** The address of a call: the path, with the parameters that are not undefined as its query. */
+function addressOf(path, params) {
+  const query = new URLSearchParams(Object.entries(params).filter(([, value]) => value !== undefined)).toString();
+  return query ? `${path}?${query}` : path;
+}
+
+const jsonRequest = (method, body) => ({
+  method,
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+});
+
+/** The answer of the service. It is an error when the service cannot be reached or does not answer with a success. */
+async function call(address, init) {
+  let response;
+  try {
+    response = await ServiceClient.fetch(address, init);
+  } catch {
+    throw new Error('The report service cannot be reached');
+  }
+  if (!response.ok) throw await refusal(response);
+  return response;
+}
 
 /** The error for an answer that is not a success: it has the message of the service, and the status. */
 async function refusal(response) {

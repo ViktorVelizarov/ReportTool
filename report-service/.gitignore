@@ -1,6 +1,9 @@
 # Secrets
 .env
 
+# Saved reports (REPORTS_DIR), which are data and not source
+data/
+
 # Build output
 build/
 bin/

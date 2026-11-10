@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,7 @@ class ConfigTest {
         assertFalse(config.insecureTls());
         assertFalse(config.globalService());
         assertNull(config.chromePath());
+        assertEquals(Path.of("data/reports"), config.reportsDir());
     }
 
     @Test
@@ -57,13 +59,15 @@ class ConfigTest {
                 "OR_REALM", "building",
                 "PORT", "6000",
                 "OR_INSECURE_TLS", "TRUE",
-                "CHROME_PATH", " /opt/chromium/chrome ")::get);
+                "CHROME_PATH", " /opt/chromium/chrome ",
+                "REPORTS_DIR", "/var/lib/report-studio")::get);
 
         assertEquals("https://localhost", config.managerUrl());
         assertEquals("building", config.realm());
         assertEquals(6000, config.port());
         assertTrue(config.insecureTls());
         assertEquals("/opt/chromium/chrome", config.chromePath());
+        assertEquals(Path.of("/var/lib/report-studio"), config.reportsDir());
     }
 
     @Test

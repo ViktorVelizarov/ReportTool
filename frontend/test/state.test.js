@@ -4,8 +4,9 @@ import { test } from 'node:test';
 import { newSchedule } from '../js/model/schedule.js';
 import {
   addWidget, approveAllBlocks, approveBlock, countApproved, countDrafts, createStore, editBlock, finishGenerating,
-  initialState, jsonCopy, loadReport, newReport, removeAllBlocks, removeBlock, removeWidget, saveReport, selectWidget,
-  setEditMode, setInstructions, setName, setPeriod, setSchedule, setTemplate, startGenerating, updateWidget,
+  initialState, jsonCopy, loadReport, newReport, removeAllBlocks, removeBlock, removeWidget, reportOf, reportSaved,
+  selectWidget, setEditMode, setInstructions, setName, setPeriod, setSavedReports, setSchedule, setTemplate,
+  startGenerating, updateWidget,
 } from '../js/state.js';
 import { REPORT } from './helpers/report.js';
 
@@ -43,7 +44,7 @@ test('the store tells its listeners about a new state, and only then', () => {
   assert.equal(store.get().value, 2);
 });
 
-test('the studio opens with an empty report, in edit mode, with no saved reports', () => {
+test('the studio opens with an empty report that is not saved, and does not know the saved reports yet', () => {
   const state = initialState(NOW);
 
   assert.equal(state.name, 'Untitled report');
@@ -55,7 +56,8 @@ test('the studio opens with an empty report, in edit mode, with no saved reports
   assert.equal(state.ai, null);
   assert.deepEqual(state.instructions, { subject: '', focus: '' });
   assert.equal(state.schedule, null);
-  assert.deepEqual(state.saved, []);
+  assert.equal(state.reportId, undefined);
+  assert.equal(state.saved, null);
   assert.equal(state.asOf, NOW);
   assert.notEqual(initialState(NOW).template.id, state.template.id, 'every report has a template of its own');
 });
@@ -156,63 +158,87 @@ test('the name changes, and the preview has no selected widget', () => {
   assert.equal(setEditMode(preview, false), preview);
 });
 
-test('a new report is empty and keeps the time frame', () => {
-  const state = newReport(setEditMode(setPeriod(withText(), 'last30'), false));
+test('a new report is empty, is not a saved report and keeps the time frame', () => {
+  const state = newReport(setEditMode(setPeriod(reportSaved(withText(), 'report-1'), 'last30'), false));
 
   assert.equal(state.name, 'Untitled report');
   assert.deepEqual(state.template.widgets, []);
   assert.equal(state.template.columns, 12);
   assert.equal(state.periodId, 'last30');
+  assert.equal(state.reportId, undefined);
   assert.equal(state.editMode, true);
   assert.equal(state.ai, null);
 });
 
 // --- saved reports ---
 
-test('saving adds a report, or replaces the one with the same name', () => {
+/** A saved report as the page gets it from the service (see data/saved-reports.js). */
+const savedAs = (state, id = 'report-1') => ({ id, ...jsonCopy(reportOf(state)) });
+
+test('a report is saved as its setup, under its name without the spaces around it', () => {
   const state = setName(withReport(), '  Irrigation  ');
 
-  const saved = saveReport(state);
-  assert.equal(saved.saved.length, 1);
-  const report = saved.saved.at(-1);
-  assert.deepEqual([report.id, report.name, report.periodId], ['saved-1', 'Irrigation', 'last7']);
+  const report = reportOf(state);
 
-  const again = saveReport(setPeriod(saved, 'last30'));
-  assert.equal(again.saved.length, 1);
-  assert.equal(again.saved.at(-1).periodId, 'last30');
-  assert.equal(again.saved.at(-1).id, 'saved-1');
-
-  const other = saveReport(setName(again, 'Other'));
-  assert.deepEqual(other.saved.map(item => item.id), ['saved-1', 'saved-2']);
-
-  assert.equal(saveReport(setName(state, ' ')).saved.at(-1).name, 'Untitled report');
+  assert.deepEqual(Object.keys(report), ['name', 'periodId', 'template', 'instructions', 'schedule']);
+  assert.deepEqual([report.name, report.periodId], ['Irrigation', 'last7']);
+  assert.deepEqual(report.template, state.template);
+  assert.deepEqual(report.instructions, { subject: '', focus: '' });
+  assert.equal(report.schedule, null);
+  assert.equal(reportOf(setName(state, ' ')).name, 'Untitled report');
 });
 
-test('a saved report keeps its own copy of the template', () => {
-  const state = saveReport(withReport());
-  const saved = state.saved.at(-1);
+test('what is only on the page is not saved: the selection, the mode and the generated text', () => {
+  const state = setEditMode(selectWidget(withText(), 'irrigation-1'), false);
 
-  const changed = removeWidget(state, 'irrigation-1');
+  assert.deepEqual(reportOf(state), reportOf(withReport()));
+});
 
-  assert.equal(changed.saved.at(-1).template.widgets.length, 8);
-  assert.notEqual(saved.template, state.template);
+test('the saved reports of the realm are kept, and none is kept when they could not be read', () => {
+  const saved = [{ id: 'report-1', name: 'Weekly', updatedAt: NOW }];
+
+  const known = setSavedReports(initialState(NOW), saved);
+
+  assert.equal(known.saved, saved);
+  assert.equal(setSavedReports(known, null).saved, null);
+});
+
+test('a report that is saved is the report that is open from then on, and saving it again changes nothing', () => {
+  const state = withReport();
+
+  const saved = reportSaved(state, 'report-1');
+
+  assert.equal(saved.reportId, 'report-1');
+  assert.equal(saved.template, state.template, 'saving does not change what the report shows');
+  assert.equal(reportSaved(saved, 'report-1'), saved);
+  assert.equal(reportSaved(saved, 'report-2').reportId, 'report-2');
 });
 
 test('opening a saved report shows its widgets and time frame, with no text and nothing selected', () => {
-  const saved = saveReport(setPeriod(setName(withReport(), 'Quarterly irrigation'), 'lastQuarter'));
-  const state = selectWidget(finishGenerating(startGenerating(removeWidget(saved, 'irrigation-8')), TEXT),
+  const report = savedAs(setPeriod(setName(withReport(), 'Quarterly irrigation'), 'lastQuarter'));
+  const state = selectWidget(finishGenerating(startGenerating(removeWidget(withReport(), 'irrigation-8')), TEXT),
     'irrigation-1');
 
-  const opened = loadReport(state, 'saved-1');
+  const opened = loadReport(state, report, NOW + 1);
 
+  assert.equal(opened.reportId, 'report-1');
   assert.equal(opened.name, 'Quarterly irrigation');
   assert.equal(opened.periodId, 'lastQuarter');
   assert.equal(opened.template.widgets.length, 8);
-  assert.deepEqual(opened.template, jsonCopy(saved.saved[0].template));
-  assert.notEqual(opened.template, saved.saved[0].template);
+  assert.deepEqual(opened.template, report.template);
+  assert.notEqual(opened.template, report.template, 'the report keeps a copy of its own');
   assert.equal(opened.selectedId, undefined);
   assert.equal(opened.ai, null);
-  assert.equal(loadReport(state, 'no-such-report'), state);
+});
+
+test('a saved report is made for the moment it is opened at, not for the one it was saved at', () => {
+  const report = savedAs(setPeriod(withReport(), 'last30'));
+  const aMonthLater = NOW + 31 * 24 * 3_600_000;
+
+  const opened = loadReport(initialState(NOW), report, aMonthLater);
+
+  assert.equal(opened.asOf, aMonthLater);
+  assert.equal(opened.periodId, 'last30', 'the time frame is relative, so it is still the last 30 days');
 });
 
 // --- the schedule ---
@@ -234,17 +260,19 @@ test('a schedule is set and removed without touching what the report shows', () 
 });
 
 test('a schedule is saved with the report, opened with it, and gone from a new report', () => {
-  const saved = saveReport(setSchedule(setName(withReport(), 'Weekly'), SCHEDULE));
-  assert.deepEqual(saved.saved[0].schedule, SCHEDULE);
-  assert.notEqual(saved.saved[0].schedule, saved.schedule, 'a saved report keeps a copy of its own');
+  const scheduled = setSchedule(setName(withReport(), 'Weekly'), SCHEDULE);
+  const report = savedAs(scheduled);
+  assert.deepEqual(report.schedule, SCHEDULE);
 
-  const empty = newReport(saved);
+  const empty = newReport(scheduled);
   assert.equal(empty.schedule, null);
-  assert.deepEqual(loadReport(empty, 'saved-1').schedule, SCHEDULE);
+  const opened = loadReport(empty, report, NOW);
+  assert.deepEqual(opened.schedule, SCHEDULE);
+  assert.notEqual(opened.schedule, report.schedule, 'the state keeps a copy of its own');
 
-  const removed = saveReport(setSchedule(saved, null));
-  assert.equal(removed.saved[0].schedule, null);
-  assert.equal(loadReport(newReport(removed), 'saved-1').schedule, null);
+  const removed = setSchedule(scheduled, null);
+  assert.equal(reportOf(removed).schedule, null);
+  assert.equal(loadReport(scheduled, savedAs(removed), NOW).schedule, null);
 });
 
 // --- the instructions for the AI ---
@@ -273,18 +301,18 @@ test('instructions stay when the report changes, for the author to correct', () 
 });
 
 test('instructions are saved with the report, opened with it, and gone from a new report', () => {
-  const saved = saveReport(setInstructions(setName(withReport(), 'Weekly'), INSTRUCTIONS));
-  assert.deepEqual(saved.saved[0].instructions, ANSWERS);
-  assert.notEqual(saved.saved[0].instructions, saved.instructions, 'a saved report keeps a copy of its own');
+  const instructed = setInstructions(setName(withReport(), 'Weekly'), INSTRUCTIONS);
+  const report = savedAs(instructed);
+  assert.deepEqual(report.instructions, ANSWERS);
 
-  const empty = newReport(saved);
+  const empty = newReport(instructed);
   assert.deepEqual(empty.instructions, { subject: '', focus: '' });
-  const opened = loadReport(empty, 'saved-1');
+  const opened = loadReport(empty, report, NOW);
   assert.deepEqual(opened.instructions, ANSWERS);
-  assert.notEqual(opened.instructions, saved.saved[0].instructions);
+  assert.notEqual(opened.instructions, report.instructions, 'the state keeps a copy of its own');
 
   const other = { subject: 'Other.', focus: 'Other too.' };
-  assert.deepEqual(saveReport(setInstructions(saved, other)).saved[0].instructions, other);
+  assert.deepEqual(reportOf(setInstructions(instructed, other)).instructions, other);
 });
 
 // --- generated text ---

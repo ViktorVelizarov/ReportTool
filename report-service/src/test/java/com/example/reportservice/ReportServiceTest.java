@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.example.reportservice.config.Config;
 import com.example.reportservice.export.BrowserLocator;
+import com.example.reportservice.json.Json;
 import com.example.reportservice.support.FakeManager;
 import com.example.reportservice.support.Pdfs;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -16,8 +17,11 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class ReportServiceTest {
 
@@ -25,7 +29,7 @@ class ReportServiceTest {
 
     private static Config config(boolean globalService) {
         return new Config("http://manager", "http://manager/auth", "master", "id", "secret", 5000, false,
-                globalService, null);
+                globalService, null, Path.of("reports"));
     }
 
     @Test
@@ -51,12 +55,12 @@ class ReportServiceTest {
     }
 
     @Test
-    void servesTheInterfaceAndTheDataFromOneServer() throws Exception {
+    void servesTheInterfaceAndTheDataFromOneServer(@TempDir Path reports) throws Exception {
         try (FakeManager manager = new FakeManager()
                 .respond("POST /asset/query", FakeManager.ASSETS)
                 .respond("POST /asset/count", "2")
                 .respond("GET /model/assetInfos", FakeManager.ASSET_INFOS)) {
-            HttpServer server = ReportService.startServer(0, manager.client(), null, false);
+            HttpServer server = ReportService.startServer(0, manager.client(), reports, null, false);
             try {
                 int port = server.getAddress().getPort();
 
@@ -66,7 +70,8 @@ class ReportServiceTest {
                     assertPage(get(port, page), page);
                 }
                 // a realm that is named like an endpoint, or starts like one, still gets its page
-                for (String page : List.of("/assets-demo", "/assetsx", "/model", "/models", "/model-city")) {
+                for (String page : List.of("/assets-demo", "/assetsx", "/model", "/models", "/model-city",
+                        "/reports-demo", "/reportsx")) {
                     assertPage(get(port, page), page);
                 }
                 HttpResponse<String> script = get(port, "/js/main.js");
@@ -92,13 +97,38 @@ class ReportServiceTest {
                  "widgetConfig":{"assetType":"RoomAsset","allOfType":true,"attributeNames":["temperature"]}}]}}""";
 
     @Test
-    void makesThePdfOfAReportWithTheWebInterfaceAndTheDataOfTheManager() throws Exception {
+    void keepsTheSavedReportsInTheFolderItWasGiven(@TempDir Path reports) throws Exception {
+        try (FakeManager manager = new FakeManager()) {
+            HttpServer server = ReportService.startServer(0, manager.client(), reports, null, false);
+            try {
+                int port = server.getAddress().getPort();
+                String report = "{\"name\":\"Weekly\",\"periodId\":\"last7\",\"template\":{\"widgets\":[]}}";
+
+                HttpResponse<String> saved = send(port, "POST", "/reports?realm=manufacturer", report);
+                assertEquals(200, saved.statusCode(), saved.body());
+                String id = Json.read(saved.body().getBytes(StandardCharsets.UTF_8)).get("id").asText();
+
+                assertTrue(Files.isRegularFile(reports.resolve("manufacturer").resolve(id + ".json")));
+                assertTrue(get(port, "/reports?realm=manufacturer").body().contains(id));
+                assertEquals("[]", get(port, "/reports?realm=smartcity").body());
+                assertEquals("[]", get(port, "/reports").body(), "the realm of the service user has none of them");
+                assertEquals("Weekly", Json.read(get(port, "/reports/" + id + "?realm=manufacturer").body()
+                        .getBytes(StandardCharsets.UTF_8)).get("name").asText());
+                assertEquals(200, send(port, "PUT", "/reports/" + id + "?realm=manufacturer", report).statusCode());
+            } finally {
+                server.stop(0);
+            }
+        }
+    }
+
+    @Test
+    void makesThePdfOfAReportWithTheWebInterfaceAndTheDataOfTheManager(@TempDir Path reports) throws Exception {
         assumeTrue(BrowserLocator.find(null).isPresent(), "needs Chrome, Chromium or Edge");
         try (FakeManager manager = new FakeManager()
                 .respond("POST /asset/query", FakeManager.ASSETS)
                 .respond("POST /asset/count", "2")
                 .respond("GET /model/assetInfos", FakeManager.ASSET_INFOS)) {
-            HttpServer server = ReportService.startServer(0, manager.client(), null, false);
+            HttpServer server = ReportService.startServer(0, manager.client(), reports, null, false);
             try {
                 HttpRequest request = HttpRequest.newBuilder(
                         URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/export/pdf"))
@@ -129,6 +159,14 @@ class ReportServiceTest {
 
     private static HttpResponse<String> get(int port, String path) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path)).build();
+        return HTTP.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private static HttpResponse<String> send(int port, String method, String path, String body)
+            throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
+                .method(method, HttpRequest.BodyPublishers.ofString(body))
+                .build();
         return HTTP.send(request, HttpResponse.BodyHandlers.ofString());
     }
 }

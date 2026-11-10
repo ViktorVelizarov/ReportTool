@@ -1,7 +1,7 @@
 /**
  * The dialog in which the schedule of a report is set up: when it is made (in OpenRemote's scheduler), who is reminded
  * to check it, who gets it, with which subject and message, and as which files. Only the design is real; saving keeps
- * the schedule with the saved report, and nothing is made or sent.
+ * the schedule with the saved report, which the report service stores, and nothing is made or sent.
  */
 
 import { INTUITIVE_NOT_APPLICABLE } from '../../vendor/or-vaadin.js';
@@ -17,8 +17,9 @@ import {
   FORMATS, isEmail, MESSAGE_MAX_LENGTH, newSchedule, nextRuns, PLACEHOLDERS, scheduleProblem, SUBJECT_MAX_LENGTH,
   TIME_ZONE,
 } from '../model/schedule.js';
-import { jsonCopy, saveReport, setSchedule } from '../state.js';
+import { jsonCopy, setSchedule } from '../state.js';
 import { icon } from './icons.js';
+import { persistReport } from './saved-reports.js';
 import { showToast } from './toast.js';
 
 const DEMO_NOTE = 'Demo only: nothing is made or sent.';
@@ -232,18 +233,20 @@ export function openSchedule(store) {
           h('or-icon', { slot: 'prefix', icon: 'or:trash' }), 'Remove schedule'),
         saveTip)));
 
-  function saveSchedule() {
-    store.update(current => saveReport(setSchedule(current, draft)));
+  /** Sets the schedule of the report and saves the report with it; the author is told if that fails. */
+  async function saveSchedule() {
+    store.update(current => setSchedule(current, draft));
     dialog.close();
+    if (!await persistReport(store)) return;
     showToast(draft.enabled
       ? `Scheduled “${reportName}”: ${describeSchedule(draft)}. ${DEMO_NOTE}`
       : `Saved the paused schedule of “${reportName}”. ${DEMO_NOTE}`, { tone: 'success', durationMs: 6000 });
   }
 
-  function removeSchedule() {
-    store.update(current => saveReport(setSchedule(current, null)));
+  async function removeSchedule() {
+    store.update(current => setSchedule(current, null));
     dialog.close();
-    showToast(`Removed the schedule of “${reportName}”.`);
+    if (await persistReport(store)) showToast(`Removed the schedule of “${reportName}”.`);
   }
 
   function refresh() {
