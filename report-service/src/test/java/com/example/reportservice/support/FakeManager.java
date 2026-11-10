@@ -9,6 +9,7 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -86,7 +87,8 @@ public final class FakeManager implements AutoCloseable {
     /** A client that logs in to this fake and calls it. */
     public ManagerClient client() {
         String url = "http://127.0.0.1:" + server.getAddress().getPort();
-        return new ManagerClient(new Config(url, url + "/auth", "master", "id", "secret", 0, false, false, null));
+        return new ManagerClient(
+                new Config(url, url + "/auth", "master", "id", "secret", 0, false, false, null, Path.of("reports")));
     }
 
     /** Answers {@code call}, e.g. {@code "POST /asset/count"}, with this JSON body. */

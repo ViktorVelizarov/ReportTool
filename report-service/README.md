@@ -3,7 +3,8 @@
 An external service for [OpenRemote](https://openremote.io). It serves the Report Studio web interface (the
 [frontend](../frontend) folder) and registers itself in the manager's external service registry so the interface can
 be shown inside the manager UI. It also exposes live OpenRemote data (assets, attributes and their stored history) and
-the asset model as read-only JSON, and makes the PDF of a report (see [PDF export](#pdf-export)).
+the asset model as read-only JSON, makes the PDF of a report (see [PDF export](#pdf-export)) and keeps the reports that
+authors save (see [Saved reports](#saved-reports)).
 
 On startup it registers as `report-service`, then sends a heartbeat every 20 seconds (the manager drops a service
 after 60 seconds without one). If the manager forgets it (for example after a restart) it registers again, and it
@@ -34,6 +35,7 @@ take precedence. Copy [.env.example](.env.example) to `.env` (git-ignored) to ge
 | `OR_MANAGER`        | `http://127.0.0.1:8080`      | Manager base URL                                                                                   |
 | `OR_KEYCLOAK`       | `http://127.0.0.1:8081/auth` | Keycloak base URL including `/auth`                                                                |
 | `PORT`              | `5000`                       | Port this service listens on                                                                       |
+| `REPORTS_DIR`       | `data/reports`               | The folder that the saved reports are kept in, see [Saved reports](#saved-reports)                 |
 | `OR_INSECURE_TLS`   | `false`                      | Skip TLS certificate verification, also in the browser of the PDF export. **Local testing only.**  |
 | `CHROME_PATH`       | a browser that is found      | The Chrome, Chromium or Edge that makes the PDFs, see [PDF export](#pdf-export)                    |
 
@@ -64,7 +66,8 @@ The manager checks a token against the realm in the URL of a call, so a token of
 realm to read in the request, which is what the manager's own UI does for a super user: in the asset query. The data
 point API only knows asset IDs, so the service first asks whether the realm has the asset.
 
-A realm named `assets` cannot be opened as `/assets`, which is the list of assets; use `/?realm=assets`.
+A realm that is named like an endpoint (`assets`, `branding` or `reports`) cannot be opened as `/{realm}`, which is the
+endpoint; use `/?realm=assets`.
 
 ## Run
 
@@ -82,8 +85,9 @@ The interface is the [frontend](../frontend) folder, a static site. The build co
 service's resources (see `processResources` in `build.gradle`) and `StaticHandler` serves it from there, so the
 service is still a single jar with nothing else to deploy. A change in `../frontend` needs a new build; `./gradlew run`
 does that. The interface is a prototype that reads the assets, attributes, data points and asset model of a realm
-through the endpoints below, and has its PDFs made by this service, while its generated text, CSV and PNG exports and
-saved reports are still mock; the [frontend README](../frontend/README.md) says what is real and what is mock.
+through the endpoints below, has its PDFs made by this service and its reports saved by it, while its generated text,
+CSV and PNG exports and schedules are still mock; the [frontend README](../frontend/README.md) says what is real and
+what is mock.
 
 The widgets of the interface are the dashboard builder of OpenRemote's Insights, ported to plain JavaScript, and its
 form controls and theme are OpenRemote's own components, bundled. That code is licensed under the AGPL-3.0-or-later,
@@ -108,8 +112,9 @@ is a `502`. An asset, or the history of an attribute, is only found in the realm
 the answer is a `404`.
 
 **The endpoints have no authentication of their own**: anyone who can reach the service's port can read whatever the
-service user can read, and for a super user that is every realm of the manager. Run the service on a trusted network,
-or put an authenticating proxy in front of it.
+service user can read, and for a super user that is every realm of the manager. The same goes for the
+[saved reports](#saved-reports), which anyone who can reach the port can also add and change, in every realm. Run the
+service on a trusted network, or put an authenticating proxy in front of it.
 
 ### Assets and attributes
 
@@ -177,11 +182,12 @@ the look of OpenRemote then. An unknown realm has no entry of its own and gets t
 
 ### Errors
 
-Errors are `{"error": "..."}`. `400` is an invalid parameter or body, `404` an unknown path, asset or attribute, `405` a
-method that the path does not take (`Allow` says which), and `413` a data point query that returns too much, or a body
-that is too large. `502` means OpenRemote failed or refused the service (for example the service user lacks a role, or
-may not read the realm that was asked for) or, for a PDF, that it could not be made; `503` that the request was
-interrupted, or that a PDF cannot be made now (see below), and `500` a bug in this service.
+Errors are `{"error": "..."}`. `400` is an invalid parameter or body, `404` an unknown path, asset, attribute or saved
+report, `405` a method that the path does not take (`Allow` says which), `409` a name that another saved report has, and
+`413` a data point query that returns too much, or a body that is too large. `502` means OpenRemote failed or refused
+the service (for example the service user lacks a role, or may not read the realm that was asked for) or, for a PDF,
+that it could not be made; `503` that the request was interrupted, or that a PDF cannot be made now (see below), and
+`500` a bug in this service, or a saved report that cannot be read or written.
 
 ## PDF export
 
@@ -222,6 +228,52 @@ browser opens whatever the report refers to, such as the address of an image, fr
 `OR_INSECURE_TLS=true` the browser accepts any TLS certificate, so that the logo of a realm can be on a manager with a
 self-signed one.
 
+## Saved reports
+
+The service keeps the reports that authors save, so that a report can be opened again later and made with the data of
+that day. A saved report is the setup of a report, not what it shows: nothing of the data or of the generated text is in
+it.
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /reports` | The saved reports of the realm by name, ignoring case: `[{id, name, updatedAt}]`. |
+| `POST /reports` | Saves the report in the body as a new saved report. The answer is its `{id, name, updatedAt}`. |
+| `GET /reports/{id}` | The saved report: `{id, name, periodId, template, instructions, schedule, createdAt, updatedAt}`. |
+| `PUT /reports/{id}` | Saves the report in the body over the saved report with the ID, under the name that the body gives it. Answers like `POST`; an ID that the realm does not have is a `404`. |
+
+All of them take the optional query parameter `realm`, as the data endpoints do, and keep the reports of each realm
+apart. The body of `POST` and `PUT` is what the web interface saves of a report (`reportOf` in `js/state.js` of the
+[frontend](../frontend)):
+
+| Property | Description |
+|----------|-------------|
+| `name` | 1 to 80 characters without control characters; the spaces around it are dropped. Required. |
+| `periodId` | The time frame of the report, such as `last30`. It is relative, so a report that is opened a month later is made for the days before that day; it is never a date. Required. |
+| `template` | The layout and widgets, a `DashboardTemplate` of OpenRemote's Insights: an object with a list `widgets`, which can be empty. Required. |
+| `instructions` | What the author told the AI about the report, an object. Optional. |
+| `schedule` | When the report is made by itself, an object, or `null`. Optional. |
+
+The service checks that these are there and of the right kind, and keeps them as they are, so a new setting of the web
+interface needs no change here. Other properties are ignored: the service gives the report its `id` (a UUID) and the
+times `createdAt` and `updatedAt` (Unix milliseconds). The web interface checks what it reads when it opens a report.
+
+**Names.** A report is its ID and not its name: saving a report with `PUT` under another name renames it. A name is
+unique within a realm, upper and lower case ignored, because the author tells the reports apart by their name; a name
+that another report has is a `409`, for `POST` and for `PUT` alike.
+
+**Where they are kept.** In `REPORTS_DIR`, which is relative to the folder that the service is started from (so
+`report-service/data/reports` for `./gradlew run`) and is made at startup; the service does not start when it cannot.
+Each report is the file `{realm}/{id}.json`, written to a file of its own first and then moved into place, so that a
+report is never half written. The folder can be copied to make a backup, and a report is removed by deleting its file:
+there is no endpoint for that yet. A damaged file is skipped, and logged, so that it cannot hide the other reports. Keep
+the folder on a volume if the service runs in a container, or the reports go with the container.
+
+**Limits.** There is one service at a time: the files are guarded by a lock in the process, so two services on one
+folder could overwrite each other. A report can be 2 MB at most (`413`). The service does not know who the author is
+(see the note on authentication above), so the saved reports of a realm are shared by everyone who works in it, and when
+two people save the same report the last save wins. A failure to read or write a file is a `500`, with the cause in the
+log.
+
 ## Test
 
 ```
@@ -257,6 +309,8 @@ The code is in `src/main/java/com/example/reportservice`, one package per concer
   `/api/{realm}/model`.
 - `export` - `PdfEndpoints` and the `PdfRenderer` that makes the PDF: `ChromiumPdfRenderer` starts the browser that
   `BrowserLocator` finds and talks to it through `DevTools`, a small client of the Chrome DevTools protocol.
+- `report` - `ReportEndpoints` and the `ReportStore` that keeps the saved reports as files; `ReportDraft` is a report
+  as it is sent to be saved, and checks it.
 
 A new feature is a new package next to `asset`, `datapoint` and `model`, with an `...Endpoints` class that
 `ReportService` registers on the router.

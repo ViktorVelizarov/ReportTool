@@ -9,8 +9,8 @@ import { plural } from '../model/format.js';
 import { PERIODS } from '../model/periods.js';
 import { describeSchedule } from '../model/schedule.js';
 import {
-  approveAllBlocks, countApproved, countDrafts, finishGenerating, loadReport, newReport, removeAllBlocks, saveReport,
-  setEditMode, setInstructions, setName, setPeriod, startGenerating,
+  approveAllBlocks, countApproved, countDrafts, finishGenerating, removeAllBlocks, setEditMode, setInstructions,
+  setName, setPeriod, startGenerating,
 } from '../state.js';
 import { ask } from './dialog.js';
 import { downloadPdf, mockExport } from './export.js';
@@ -18,6 +18,7 @@ import { icon } from './icons.js';
 import { openInstructions } from './instructions.js';
 import { menuButton } from './menu.js';
 import { previewWidth } from './paper.js';
+import { saveCurrent, savedReportItems } from './saved-reports.js';
 import { openSchedule } from './schedule.js';
 import { showToast } from './toast.js';
 
@@ -25,33 +26,6 @@ import { showToast } from './toast.js';
 const WRITING_MS = 1400;
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-/** The menu of the saved reports: a new report, and the saved ones, with a tick at the one that is open. */
-function savedItems(store) {
-  const state = store.get();
-  return [
-    { label: 'New report', onSelect: () => store.update(newReport) },
-    ...(state.saved.length > 0 ? [{ separator: true }] : []),
-    ...state.saved.map(report => ({
-      label: report.name,
-      checked: report.name === state.name.trim(),
-      onSelect: () => {
-        store.update(current => loadReport(current, report.id));
-        showToast(`Opened “${report.name}”`);
-      },
-    })),
-  ];
-}
-
-/** Saves the report under its name, which replaces a saved report with the same name. */
-export function saveCurrent(store) {
-  if (!store.get().template.widgets.length) return;
-  const before = store.get().saved.length;
-  store.update(saveReport);
-  const state = store.get();
-  const name = state.name.trim() || 'Untitled report';
-  showToast(`${state.saved.length > before ? 'Saved' : 'Updated'} “${name}”`, { tone: 'success' });
-}
 
 /** Has the text written for the figures of the report, after the author instructed the AI; the author reviews it. */
 async function generate(store, { instructions, report }) {
@@ -127,7 +101,8 @@ function exportItems(store) {
   ];
 }
 
-export function mountToolbar(root, store) {
+/** moment() gives the moment that a saved report is made for when it is opened. */
+export function mountToolbar(root, store, moment) {
   const name = h('input', {
     type: 'text',
     class: 'name-input',
@@ -162,7 +137,7 @@ export function mountToolbar(root, store) {
     h('div', { class: 'toolbar-actions' },
       h('div', { class: 'segmented', role: 'group', 'aria-label': 'Mode' }, modes),
       period,
-      menuButton({ label: 'Saved reports', iconName: 'folder-outline', items: () => savedItems(store) }),
+      menuButton({ label: 'Saved reports', iconName: 'folder-outline', items: () => savedReportItems(store, moment) }),
       saveButton,
       scheduleButton,
       h('div', { class: 'toolbar-group' },

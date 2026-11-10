@@ -18,7 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Serves JSON endpoints on an {@link HttpServer}: GET routes that read, and POST routes that take a JSON body.
+ * Serves JSON endpoints on an {@link HttpServer}: GET routes that read, and POST and PUT routes that take a JSON body.
  *
  * <p>A {@link Handler} returns the response body, which is written as JSON (or as it is, when it is a {@link Binary}),
  * or throws to report an error: {@link ApiException} sets the status itself, an {@link IOException} (a failed or
@@ -68,6 +68,11 @@ public final class Router {
     /** Adds a POST route, which reads the body of the request with {@link Request#jsonBody()}. */
     public void post(String pattern, Handler handler) {
         routes.add(new Route("POST", segments(pattern), handler));
+    }
+
+    /** Adds a PUT route, which reads the body of the request with {@link Request#jsonBody()}. */
+    public void put(String pattern, Handler handler) {
+        routes.add(new Route("PUT", segments(pattern), handler));
     }
 
     /**

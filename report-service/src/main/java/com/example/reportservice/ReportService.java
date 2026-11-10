@@ -12,20 +12,23 @@ import com.example.reportservice.json.Json;
 import com.example.reportservice.model.ModelEndpoints;
 import com.example.reportservice.openremote.ManagerClient;
 import com.example.reportservice.openremote.ServiceRegistration;
+import com.example.reportservice.report.ReportEndpoints;
 import com.example.reportservice.web.Router;
 import com.example.reportservice.web.StaticHandler;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.file.Path;
+import java.time.Clock;
 import java.time.Duration;
 import java.util.concurrent.Executors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * OpenRemote external service: serves the report web interface, live OpenRemote data and the PDFs of reports, and keeps
- * a lease on the manager registry. See README.md for the settings.
+ * OpenRemote external service: serves the report web interface, live OpenRemote data, the saved reports and the PDFs of
+ * reports, and keeps a lease on the manager registry. See README.md for the settings.
  */
 public final class ReportService {
 
@@ -46,7 +49,8 @@ public final class ReportService {
         }
 
         ManagerClient manager = new ManagerClient(config);
-        HttpServer server = startServer(config.port(), manager, config.chromePath(), config.insecureTls());
+        HttpServer server =
+                startServer(config.port(), manager, config.reportsDir(), config.chromePath(), config.insecureTls());
         ServiceRegistration registration =
                 new ServiceRegistration(manager, describeService(config), config.globalService(), HEARTBEAT);
         registration.start();
@@ -55,6 +59,7 @@ public final class ReportService {
             registration.stop();
             server.stop(0);
         }));
+        LOG.info("Saved reports are kept in {}", config.reportsDir().toAbsolutePath());
         LOG.info("Listening on http://localhost:{}/", config.port());
     }
 
@@ -75,11 +80,13 @@ public final class ReportService {
     }
 
     /**
-     * Starts the server for the data endpoints, the PDF export and, for every other path, the web interface. The PDFs
-     * are made by the browser that {@code chromePath} names, or else by one that is found on the system.
+     * Starts the server for the data endpoints, the saved reports, the PDF export and, for every other path, the web
+     * interface. The reports are kept in {@code reportsDir}. The PDFs are made by the browser that {@code chromePath}
+     * names, or else by one that is found on the system.
      */
-    static HttpServer startServer(int port, ManagerClient manager, String chromePath, boolean insecureTls)
-            throws IOException {
+    static HttpServer startServer(int port, ManagerClient manager, Path reportsDir, String chromePath,
+            boolean insecureTls) throws IOException {
+        ReportEndpoints reports = new ReportEndpoints(reportsDir, Clock.systemUTC(), manager.realm());
         HttpServer server = HttpServer.create(new InetSocketAddress("0.0.0.0", port), 0);
         // the browser opens the web interface at this address, which is why the port is known only now
         String address = "http://127.0.0.1:" + server.getAddress().getPort();
@@ -93,6 +100,7 @@ public final class ReportService {
         new DatapointEndpoints(manager).register(router);
         new ModelEndpoints(manager).register(router);
         new PdfEndpoints(pdf).register(router);
+        reports.register(router);
 
         server.setExecutor(Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("http-", 1).factory()));
         router.register(server);
