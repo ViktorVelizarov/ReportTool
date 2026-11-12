@@ -97,9 +97,13 @@ or-vaadin-button.busy .icon { animation: spin 1.1s linear infinite; }
 .toolbar::before { bottom: 100%; height: 8px; }
 .toolbar::after { top: 100%; height: 4px; }
 
+/* The name, then the mode with the time frame and the saved report, then the actions. Wide enough, they are one row. If
+   not, the actions go to a row of their own and the name keeps the row of the other controls, instead of stretching
+   across a row alone */
 .toolbar .name-field { flex: 1 1 220px; min-width: 0; }
-.toolbar-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
-.toolbar-select { width: 13rem; }
+.toolbar-view, .toolbar-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+/* Wide enough for the longest time frame ("Last 30 days" needs 144 px) and for a name of a saved report to show */
+.toolbar-select { width: 10rem; }
 
 /* The report */
 

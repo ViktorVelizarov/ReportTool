@@ -18,7 +18,7 @@ import { downloadPdf, mockExport } from './export.js';
 import { icon } from './icons.js';
 import { openInstructions } from './instructions.js';
 import { previewWidth } from './paper.js';
-import { chooseSavedReport, saveCurrent, savedReportItems } from './saved-reports.js';
+import { chooseSavedReport, deleteCurrent, saveCurrent, savedReportItems } from './saved-reports.js';
 import { openSchedule } from './schedule.js';
 import { showToast } from './toast.js';
 
@@ -104,7 +104,9 @@ function exportItems(store, changed) {
   ];
 }
 
-/** A button that opens a list, as the menu bar of OpenRemote's library does. The item that is chosen runs its onSelect. */
+/**
+ * A button that opens a list, as the menu bar of OpenRemote's library does. The item that is chosen runs its onSelect.
+ */
 function libraryMenu(title) {
   const bar = h('or-vaadin-menu-bar', { theme: 'dropdown-indicators', title });
   bar.addEventListener('item-selected', event => event.detail.value.onSelect?.());
@@ -130,7 +132,9 @@ export function mountToolbar(root, store, moment) {
     oninput: event => store.update(state => setName(state, event.target.value)),
   });
   // One button for the other mode, as the manager's asset header has one for modify and view
-  const modeButton = h('or-vaadin-button', { onclick: () => store.update(state => setEditMode(state, !state.editMode)) });
+  const modeButton = h('or-vaadin-button', {
+    onclick: () => store.update(state => setEditMode(state, !state.editMode)),
+  });
   const periodSelect = h('or-vaadin-select', {
     class: 'toolbar-select',
     label: 'Time frame',
@@ -141,10 +145,22 @@ export function mountToolbar(root, store, moment) {
   const savedSelect = h('or-vaadin-select', {
     class: 'toolbar-select',
     label: 'Saved reports',
-    placeholder: 'Open a saved report',
+    placeholder: 'View list',
   });
-  const saveButton = h('or-vaadin-button', { onclick: () => saveCurrent(store) },
-    icon('content-save-outline', 18, 'prefix'), 'Save');
+  // Save and Delete are only an icon, as the manager's own buttons for saving and deleting are, so that the bar fits in
+  // one row: what they do is their label for a screen reader, and their title
+  const { button: saveButton, tip: saveTip } = libraryButton({
+    theme: 'icon',
+    'aria-label': 'Save',
+    onclick: () => saveCurrent(store),
+  });
+  saveButton.append(icon('content-save-outline'));
+  const { button: deleteButton, tip: deleteTip } = libraryButton({
+    theme: 'error icon',
+    'aria-label': 'Delete',
+    onclick: () => deleteCurrent(store),
+  });
+  deleteButton.append(icon('delete'));
   const { button: scheduleButton, tip: scheduleTip } = libraryButton({ onclick: () => openSchedule(store) });
   const { button: generateButton, tip: generateTip } = libraryButton({
     theme: 'primary',
@@ -153,8 +169,8 @@ export function mountToolbar(root, store, moment) {
   const exportMenu = libraryMenu('Download the report');
   replaceChildren(root,
     name,
-    h('div', { class: 'toolbar-actions' },
-      modeButton, periodSelect, savedSelect, saveButton, scheduleTip, generateTip, exportMenu.bar));
+    h('div', { class: 'toolbar-view' }, modeButton, periodSelect, savedSelect),
+    h('div', { class: 'toolbar-actions' }, saveTip, deleteTip, scheduleTip, generateTip, exportMenu.bar));
 
   // The select of the saved reports shows the saved report that is open; what is chosen is done, and then it shows
   // again what is open, also when nothing could be done
@@ -175,12 +191,16 @@ export function mountToolbar(root, store, moment) {
   const drawExport = onChange(exportKey, showExport);
 
   const scheduleOf = state => (state.schedule?.enabled ? describeSchedule(state.schedule) : '');
-  const buttonsKey = state => `${state.ai?.status}|${state.template.widgets.length === 0}|${scheduleOf(state)}`;
+  const buttonsKey = state =>
+    `${state.ai?.status}|${state.template.widgets.length === 0}|${scheduleOf(state)}|${Boolean(state.reportId)}`;
   const drawButtons = onChange(buttonsKey, state => {
     const status = state.ai?.status;
     const empty = state.template.widgets.length === 0;
     const scheduled = scheduleOf(state);
     saveButton.disabled = empty;
+    saveTip.title = empty ? 'Add at least one widget first' : 'Save the report (Ctrl+S)';
+    deleteButton.disabled = !state.reportId;
+    deleteTip.title = state.reportId ? 'Delete this saved report' : 'Only a saved report can be deleted';
     scheduleButton.disabled = empty;
     scheduleButton.setAttribute('theme', scheduled ? 'success' : '');
     scheduleTip.title = empty ? 'Add at least one widget first' : scheduled || 'Send this report automatically';

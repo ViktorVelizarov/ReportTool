@@ -119,6 +119,25 @@ class ReportEndpointsTest {
     }
 
     @Test
+    void removesASavedReportSoThatItIsNotListedAndCannotBeOpenedOrSavedOverAnymore() throws Exception {
+        String weekly = save("/reports?realm=manufacturer", REPORT);
+        String monthly = save("/reports?realm=manufacturer", report("Monthly"));
+
+        HttpResponse<String> removed = server.send("DELETE", "/reports/" + weekly + "?realm=manufacturer");
+
+        assertEquals(204, removed.statusCode());
+        assertEquals("", removed.body());
+        assertEquals(List.of("Monthly"), names("/reports?realm=manufacturer"));
+        assertEquals(404, server.get("/reports/" + weekly + "?realm=manufacturer").statusCode());
+        assertEquals(404, server.put("/reports/" + weekly + "?realm=manufacturer", REPORT).statusCode(),
+                "saving over a removed report does not bring it back");
+        assertEquals(404, server.send("DELETE", "/reports/" + weekly + "?realm=manufacturer").statusCode());
+        assertFalse(Files.exists(folder.resolve("manufacturer").resolve(weekly + ".json")));
+        assertEquals(200, server.get("/reports/" + monthly + "?realm=manufacturer").statusCode());
+        assertEquals(200, server.post("/reports?realm=manufacturer", REPORT).statusCode(), "its name is free again");
+    }
+
+    @Test
     void usesTheRealmOfTheServiceUserWhenTheRequestNamesNone() throws Exception {
         String id = save("/reports", REPORT);
 
@@ -128,7 +147,11 @@ class ReportEndpointsTest {
         assertEquals(200, server.get("/reports/" + id).statusCode());
         assertEquals(404, server.get("/reports/" + id + "?realm=manufacturer").statusCode());
         assertEquals(404, server.put("/reports/" + id + "?realm=manufacturer", REPORT).statusCode());
+        assertEquals(404, server.send("DELETE", "/reports/" + id + "?realm=manufacturer").statusCode());
         assertTrue(Files.isRegularFile(folder.resolve("master").resolve(id + ".json")));
+
+        assertEquals(204, server.send("DELETE", "/reports/" + id).statusCode());
+        assertEquals(List.of(), names("/reports"));
     }
 
     @Test
@@ -141,6 +164,7 @@ class ReportEndpointsTest {
             HttpResponse<String> put = server.put("/reports/" + id + "?realm=" + realm, REPORT);
             assertEquals(400, put.statusCode(), realm);
             assertEquals("invalid realm", json(put).get("error").asText(), realm);
+            assertEquals(400, server.send("DELETE", "/reports/" + id + "?realm=" + realm).statusCode(), realm);
         }
         try (Stream<Path> written = Files.list(folder)) {
             assertEquals(0, written.count(), "nothing was written");
@@ -238,9 +262,12 @@ class ReportEndpointsTest {
 
         HttpResponse<String> opened = server.get("/reports/" + unknown);
         HttpResponse<String> replaced = server.put("/reports/" + unknown, REPORT);
+        HttpResponse<String> removed = server.send("DELETE", "/reports/" + unknown);
         assertEquals(404, opened.statusCode());
         assertEquals("report not found", json(opened).get("error").asText());
         assertEquals(404, replaced.statusCode());
+        assertEquals(404, removed.statusCode());
+        assertEquals("report not found", json(removed).get("error").asText());
         assertEquals(List.of(), names("/reports"), "a report is not made by saving over an unknown one");
 
         for (String id : List.of("not-an-id", "1", unknown.toUpperCase(), unknown + "x")) {
@@ -248,6 +275,7 @@ class ReportEndpointsTest {
             assertEquals(400, response.statusCode(), id);
             assertEquals("invalid report id", json(response).get("error").asText(), id);
             assertEquals(400, server.put("/reports/" + id, REPORT).statusCode(), id);
+            assertEquals(400, server.send("DELETE", "/reports/" + id).statusCode(), id);
         }
     }
 
@@ -278,13 +306,16 @@ class ReportEndpointsTest {
     void onlyTakesTheMethodsThatItsPathsHave() throws Exception {
         String id = save("/reports", REPORT);
 
-        HttpResponse<String> deleted = server.send("DELETE", "/reports/" + id);
+        HttpResponse<String> patched = server.send("PATCH", "/reports/" + id, REPORT);
         HttpResponse<String> put = server.put("/reports", REPORT);
+        HttpResponse<String> removedAll = server.send("DELETE", "/reports");
 
-        assertEquals(405, deleted.statusCode());
-        assertEquals("GET, PUT", deleted.headers().firstValue("Allow").orElse(null));
+        assertEquals(405, patched.statusCode());
+        assertEquals("DELETE, GET, PUT", patched.headers().firstValue("Allow").orElse(null));
         assertEquals(405, put.statusCode());
         assertEquals("GET, POST", put.headers().firstValue("Allow").orElse(null));
+        assertEquals(405, removedAll.statusCode(), "there is no way to remove all the reports at once");
+        assertEquals("GET, POST", removedAll.headers().firstValue("Allow").orElse(null));
         assertEquals(List.of("Weekly"), names("/reports"), "the report is still there");
     }
 

@@ -1,8 +1,8 @@
 /**
- * Saving the report that is open to the report service, and opening a report that was saved, so that an author finds
- * their reports again later. The service keeps them for the realm; this module says what happened. It also warns the
- * author about changes that are not saved before they are lost, when another report is opened and when the page is
- * left.
+ * Saving the report that is open to the report service, opening a report that was saved, and deleting one, so that an
+ * author finds their reports again later and can get rid of the ones they do not need. The service keeps them for the
+ * realm; this module says what happened. It also warns the author about changes that are not saved before they are
+ * lost, when another report is opened and when the page is left.
  */
 
 import { SavedReports } from '../data/saved-reports.js';
@@ -89,6 +89,40 @@ export async function saveCurrent(store) {
   const openId = store.get().reportId;
   const saved = await persistReport(store);
   if (saved) showToast(`${saved.id === openId ? 'Updated' : 'Saved'} “${saved.name}”`, { tone: 'success' });
+}
+
+/**
+ * Deletes the saved report that is open, after the author confirmed it: the service no longer has it and the list no
+ * longer shows it, so it cannot be opened again, and a new report takes its place on the page. The saved report is
+ * shared by everyone who works in the realm, so the question says so. A report that the service does not have any more
+ * is as good as deleted.
+ */
+export async function deleteCurrent(store) {
+  const { reportId, saved } = store.get();
+  if (!reportId) return;
+  const name = saved?.find(report => report.id === reportId)?.name ?? reportOf(store.get()).name;
+  const choice = await ask({
+    title: 'Are you sure?',
+    text: `This will delete “${name}” permanently, for everyone who works in this realm.`,
+    confirm: 'Delete',
+    theme: 'error',
+  });
+  if (choice !== 'confirm') return;
+  await exclusively(async () => {
+    try {
+      await SavedReports.remove(reportId);
+    } catch (error) {
+      if (error.status !== 404) {
+        console.error(error);
+        fail(`“${name}” could not be deleted: ${error.message}`);
+        return;
+      }
+    }
+    // the author may have opened another report while the question was open: that one stays
+    store.update(state => (state.reportId === reportId ? newReport(state) : state));
+    await readSaved(store);
+    showToast(`Deleted “${name}”`, { tone: 'success' });
+  });
 }
 
 /** Opens the saved report with the id, made for the moment that moment() gives. */

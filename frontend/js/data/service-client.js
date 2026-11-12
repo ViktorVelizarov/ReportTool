@@ -20,6 +20,11 @@ export const ServiceClient = {
     return (await call(addressOf(path, params), jsonRequest(method, body))).json();
   },
 
+  /** Makes a call that is answered without a body, such as a DELETE; parameters that are undefined are left out. */
+  async send(method, path, params = {}) {
+    await call(addressOf(path, params), { method });
+  },
+
   /** The file (a Blob) that the service makes of a report that is posted to it as JSON. */
   async postForFile(path, body) {
     return (await call(path, jsonRequest('POST', body))).blob();

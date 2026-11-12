@@ -113,8 +113,8 @@ the answer is a `404`.
 
 **The endpoints have no authentication of their own**: anyone who can reach the service's port can read whatever the
 service user can read, and for a super user that is every realm of the manager. The same goes for the
-[saved reports](#saved-reports), which anyone who can reach the port can also add and change, in every realm. Run the
-service on a trusted network, or put an authenticating proxy in front of it.
+[saved reports](#saved-reports), which anyone who can reach the port can also add, change and delete, in every realm.
+Run the service on a trusted network, or put an authenticating proxy in front of it.
 
 ### Assets and attributes
 
@@ -240,6 +240,7 @@ it.
 | `POST /reports` | Saves the report in the body as a new saved report. The answer is its `{id, name, updatedAt}`. |
 | `GET /reports/{id}` | The saved report: `{id, name, periodId, template, instructions, schedule, createdAt, updatedAt}`. |
 | `PUT /reports/{id}` | Saves the report in the body over the saved report with the ID, under the name that the body gives it. Answers like `POST`; an ID that the realm does not have is a `404`. |
+| `DELETE /reports/{id}` | Removes the saved report with the ID, so that it is no longer listed and cannot be opened, and its name is free again. The answer is `204` and has no body; an ID that the realm does not have, also one that was removed already, is a `404`. |
 
 All of them take the optional query parameter `realm`, as the data endpoints do, and keep the reports of each realm
 apart. The body of `POST` and `PUT` is what the web interface saves of a report (`reportOf` in `js/state.js` of the
@@ -264,15 +265,16 @@ that another report has is a `409`, for `POST` and for `PUT` alike.
 **Where they are kept.** In `REPORTS_DIR`, which is relative to the folder that the service is started from (so
 `report-service/data/reports` for `./gradlew run`) and is made at startup; the service does not start when it cannot.
 Each report is the file `{realm}/{id}.json`, written to a file of its own first and then moved into place, so that a
-report is never half written. The folder can be copied to make a backup, and a report is removed by deleting its file:
-there is no endpoint for that yet. A damaged file is skipped, and logged, so that it cannot hide the other reports. Keep
-the folder on a volume if the service runs in a container, or the reports go with the container.
+report is never half written. The folder can be copied to make a backup. `DELETE` removes the file of a report, also
+one that cannot be read, and logs it; deleting the file by hand does the same. A damaged file is skipped, and logged, so
+that it cannot hide the other reports. Keep the folder on a volume if the service runs in a container, or the reports go
+with the container.
 
 **Limits.** There is one service at a time: the files are guarded by a lock in the process, so two services on one
 folder could overwrite each other. A report can be 2 MB at most (`413`). The service does not know who the author is
-(see the note on authentication above), so the saved reports of a realm are shared by everyone who works in it, and when
-two people save the same report the last save wins. A failure to read or write a file is a `500`, with the cause in the
-log.
+(see the note on authentication above), so the saved reports of a realm are shared by everyone who works in it, any of
+them can remove a report for all the others, and when two people save the same report the last save wins. A
+failure to read or write a file is a `500`, with the cause in the log.
 
 ## Test
 
@@ -293,8 +295,9 @@ The code is in `src/main/java/com/example/reportservice`, one package per concer
 - `config` - `Config`: environment and `.env` settings.
 - `json` - `Json`: the shared JSON mapper.
 - `web` - the small HTTP layer: `Router`, `Request` and `ApiException` (routing, parameters, bodies and error
-  responses), `Binary` (an answer that is not JSON, such as a PDF) and `StaticHandler`, which serves the web interface.
-  The router handles every request of the server and leaves what is not a route to `StaticHandler`.
+  responses), `Binary` (an answer that is not JSON, such as a PDF), `NoContent` (an answer without a body, `204`) and
+  `StaticHandler`, which serves the web interface. The router handles every request of the server and leaves what is
+  not a route to `StaticHandler`.
 - `openremote` - talking to the manager: `ManagerClient` (Keycloak service user login, token caching, REST calls in
   the realm of the service user), `ServiceRegistration` (registers, heartbeats and deregisters in
   `/api/{realm}/service`, or in `/api/master/service/global` for a global service) and `Ids` (the rules for asset IDs,
