@@ -3,7 +3,8 @@
  * when nothing changes. The setup of a report is its name, its time frame, the template of its widgets, the layout
  * and settings that the dashboard builder edits (see builder/), what the author told the AI about it, and its
  * schedule, if it has one. That is what is saved; the saved reports themselves are kept by the report service (see
- * data/saved-reports.js and ui/saved-reports.js), and the state knows which one is open and what they are called.
+ * data/saved-reports.js and ui/saved-reports.js), and the state knows which one is open, what they are called, and what
+ * the open report was when it was last saved, opened or started, to tell whether it has changes that are not saved.
  */
 
 import { DashboardService } from './builder/service/dashboard-service.js';
@@ -33,9 +34,18 @@ export function createStore(initial) {
   };
 }
 
+/**
+ * The state with the report as it is now as its baseline: the report as it was last saved, opened or started, which is
+ * what its changes are measured against (see hasUnsavedChanges). The baseline is a copy of its own, so nothing that
+ * changes the template in place can change it.
+ */
+function withBaseline(state, report = reportOf(state)) {
+  return { ...state, baseline: jsonCopy(report) };
+}
+
 /** The studio opens with an empty report that is not saved, and does not know the saved reports yet. */
 export function initialState(asOf = Date.now()) {
-  return {
+  return withBaseline({
     name: UNTITLED,
     periodId: PERIODS[0].id,
     template: DashboardService.newTemplate(),
@@ -47,7 +57,7 @@ export function initialState(asOf = Date.now()) {
     ai: null, // null | { status: 'loading' } | { status: 'ready', blocks: { id: { text, state } } }
     saved: null, // null | [{ id, name, updatedAt }]: the saved reports of the realm, null while they are not known
     asOf,
-  };
+  });
 }
 
 // --- Report setup. Changing what a report shows invalidates the generated text. ---
@@ -115,7 +125,7 @@ export function setSchedule(state, schedule) {
 }
 
 /** An empty report, in the time frame that was chosen. It is not a saved report until it is saved. */
-export const newReport = state => ({
+export const newReport = state => withBaseline({
   ...state,
   reportId: undefined,
   name: UNTITLED,
@@ -141,15 +151,22 @@ export const reportOf = state => ({
   schedule: state.schedule,
 });
 
-/** The report that is open was saved as the saved report with the id, so saving it again replaces that report. */
-export const reportSaved = (state, id) => (id === state.reportId ? state : { ...state, reportId: id });
+/**
+ * The report that is open was saved as the saved report with the id, so saving it again replaces that report. The
+ * report is the one that was sent to the service (see reportOf): a change that was made while it was being saved is not
+ * in it, so that change is still not saved.
+ */
+export function reportSaved(state, id, report) {
+  if (id === state.reportId && objectsEqual(report, state.baseline)) return state;
+  return withBaseline({ ...state, reportId: id }, report);
+}
 
 /**
  * Opens a saved report in place of the report that is open. The report is made for the moment asOf, and its time frame
  * is relative to it (the last 30 days, say), so a report that is opened later shows the days before that day.
  */
 export function loadReport(state, report, asOf) {
-  return {
+  return withBaseline({
     ...state,
     reportId: report.id,
     name: report.name,
@@ -160,8 +177,16 @@ export function loadReport(state, report, asOf) {
     selectedId: undefined,
     ai: null,
     asOf,
-  };
+  });
 }
+
+/**
+ * Whether the report has changes that are not saved: it is not what it was when it was last saved, opened or started,
+ * and Save could keep it, which it cannot when it has no widget. The generated text is no part of it, as Save does not
+ * keep that.
+ */
+export const hasUnsavedChanges = state =>
+  state.template.widgets.length > 0 && !objectsEqual(reportOf(state), state.baseline);
 
 // --- Generated text ---
 

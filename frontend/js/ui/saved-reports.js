@@ -1,10 +1,13 @@
 /**
  * Saving the report that is open to the report service, and opening a report that was saved, so that an author finds
- * their reports again later. The service keeps them for the realm; this module says what happened.
+ * their reports again later. The service keeps them for the realm; this module says what happened. It also warns the
+ * author about changes that are not saved before they are lost, when another report is opened and when the page is
+ * left.
  */
 
 import { SavedReports } from '../data/saved-reports.js';
-import { loadReport, newReport, reportOf, reportSaved, setSavedReports } from '../state.js';
+import { hasUnsavedChanges, loadReport, newReport, reportOf, reportSaved, setSavedReports } from '../state.js';
+import { ask } from './dialog.js';
 import { showToast } from './toast.js';
 
 const ERROR_MS = 8000;
@@ -67,7 +70,7 @@ export function persistReport(store) {
     const report = reportOf(state);
     try {
       const saved = await saveAsOpen(state, report);
-      store.update(current => reportSaved(current, saved.id));
+      store.update(current => reportSaved(current, saved.id, report));
       await readSaved(store);
       return saved;
     } catch (error) {
@@ -102,22 +105,62 @@ function openSaved(store, id, moment) {
   });
 }
 
+/** The values of the select of saved reports that are not a saved report: starting a new one, and asking again. */
+const NEW_REPORT = 'new-report';
+const READ_AGAIN = 'read-again';
+
 /**
- * The menu of the saved reports: a new report, and the saved ones, with a tick at the one that is open. When the
- * service could not say which there are, the menu offers to ask again.
+ * The items of the select of the saved reports: a new report, and the saved ones. When the service could not say which
+ * there are, the select offers to ask again.
  */
-export function savedReportItems(store, moment) {
-  const { saved, reportId } = store.get();
+export function savedReportItems(saved) {
   const reports = saved === null
-    ? [{ label: 'Saved reports could not be read. Try again', disabled: busy, onSelect: () => readSaved(store) }]
-    : saved.map(report => ({
-      label: report.name,
-      checked: report.id === reportId,
-      disabled: busy,
-      onSelect: () => openSaved(store, report.id, moment),
-    }));
+    ? [{ label: 'Saved reports could not be read. Try again', value: READ_AGAIN }]
+    : saved.map(report => ({ label: report.name, value: report.id }));
   return [
-    { label: 'New report', disabled: busy, onSelect: () => exclusively(async () => store.update(newReport)) },
-    ...(reports.length > 0 ? [{ separator: true }, ...reports] : []),
+    { label: 'New report', value: NEW_REPORT },
+    ...(reports.length > 0 ? [{ component: 'hr' }, ...reports] : []),
   ];
+}
+
+/**
+ * Asks the author what to do with the changes of the report that are not saved, before another report takes its place.
+ * Gives true when the report may be replaced: it has no such changes, or the author saved them or chose to discard
+ * them. Gives false when the author cancelled, or the changes could not be saved (the author has been told why).
+ */
+async function settleUnsavedChanges(store) {
+  if (!hasUnsavedChanges(store.get())) return true;
+  const choice = await ask({
+    title: 'Unsaved changes',
+    text: `“${reportOf(store.get()).name}” has changes that are not saved. If you go on without saving them, `
+      + 'they are lost.',
+    confirm: 'Save and continue',
+    reject: 'Discard changes',
+  });
+  if (choice === 'reject') return true;
+  return choice === 'confirm' && (await persistReport(store)) !== null;
+}
+
+/**
+ * Does what the author chose in the select of the saved reports. The report that is open is only replaced, by a saved
+ * report or a new one, after the author dealt with its unsaved changes; it gives null when that was not done.
+ */
+export async function chooseSavedReport(store, value, moment) {
+  if (value === READ_AGAIN) return readSaved(store);
+  if (!(await settleUnsavedChanges(store))) return null;
+  if (value === NEW_REPORT) return exclusively(async () => store.update(newReport));
+  return openSaved(store, value, moment);
+}
+
+/**
+ * Has the browser ask before the page is closed, reloaded or left in another way, while the report has changes that are
+ * not saved. The question is the browser's own, which a page cannot change: it offers to stay, so that the author can
+ * save, or to leave, which discards the changes.
+ */
+export function warnBeforeLeaving(store) {
+  window.addEventListener('beforeunload', event => {
+    if (!hasUnsavedChanges(store.get())) return;
+    event.preventDefault();
+    event.returnValue = ''; // browsers that do not act on the cancelled event ask for this
+  });
 }

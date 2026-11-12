@@ -6,7 +6,7 @@ import { ReportContext } from './data/report-context.js';
 import { createStore, initialState } from './state.js';
 import { mountBuilder } from './ui/builder.js';
 import { fitPrintToPage, mountPaper } from './ui/paper.js';
-import { readSaved, saveCurrent } from './ui/saved-reports.js';
+import { readSaved, saveCurrent, warnBeforeLeaving } from './ui/saved-reports.js';
 import { showStartupError } from './ui/startup-error.js';
 import { mountToolbar } from './ui/toolbar.js';
 import { widgetTools } from './ui/widget-tools.js';
@@ -43,6 +43,7 @@ async function start() {
     toolsFor: widgetTools(store),
     onSave: () => saveCurrent(store),
   });
+  warnBeforeLeaving(store);
 }
 
 ReportContext.realm = realmOf(location);

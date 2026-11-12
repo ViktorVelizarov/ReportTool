@@ -8,8 +8,8 @@ import { resolvePeriod } from '../js/model/periods.js';
 import { newSchedule } from '../js/model/schedule.js';
 import { DAY } from '../js/model/time.js';
 import {
-  initialState, jsonCopy, loadReport, removeWidget, reportOf, reportSaved, setInstructions, setName, setPeriod,
-  setSchedule, setTemplate,
+  hasUnsavedChanges, initialState, jsonCopy, loadReport, removeWidget, reportOf, reportSaved, setInstructions, setName,
+  setPeriod, setSchedule, setTemplate,
 } from '../js/state.js';
 import { REPORT } from './helpers/report.js';
 import { installFakeService, NOW, REALM } from './helpers/service.js';
@@ -30,7 +30,7 @@ const withReport = () =>
 /** Saves the state as a new report, opens it again, and gives the state with it open, as the page does. */
 async function saveAndOpen(state) {
   const saved = await SavedReports.add(reportOf(state));
-  return loadReport(reportSaved(state, saved.id), await SavedReports.open(saved.id), state.asOf);
+  return loadReport(reportSaved(state, saved.id, reportOf(state)), await SavedReports.open(saved.id), state.asOf);
 }
 
 test('the saved reports of the realm are asked from the service, by the realm of the report', async () => {
@@ -166,6 +166,20 @@ test('the id of a report is a part of the address as it is, also when it holds a
   await assert.rejects(SavedReports.open('a/b'), error => error.status === 404);
 
   assert.deepEqual(calls, ['/reports/a%2Fb?realm=manufacturer']);
+});
+
+// --- AC5: changes that are not saved are known, so that the author can be warned about them ---
+
+test('an opened report has no unsaved changes until it is changed, and saving it again ends them', async () => {
+  const opened = await saveAndOpen(withReport());
+  assert.equal(hasUnsavedChanges(opened), false, 'what the service gives back is what was saved');
+
+  const changed = removeWidget(opened, 'irrigation-1');
+  assert.equal(hasUnsavedChanges(changed), true);
+
+  const report = reportOf(changed);
+  const saved = await SavedReports.replace(changed.reportId, report);
+  assert.equal(hasUnsavedChanges(reportSaved(changed, saved.id, report)), false);
 });
 
 // --- what the service gives ---

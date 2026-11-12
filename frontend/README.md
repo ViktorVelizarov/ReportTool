@@ -59,7 +59,8 @@ translations and icons. The text field, number field, text area, select, toggle,
 multi-select combo box, menu bar, badge, dialog and confirm dialog are OpenRemote's own `or-vaadin-*` components, and
 so are the scheduler (`or-scheduler`), `<or-translate>` and the `i18next` that it uses: all of them are bundled in
 `vendor/or-vaadin.js`. The settings of the builder, the review blocks and the dialogs are made of them, and the page
-takes its colours, font, radii and shadows from OpenRemote's theme, `vendor/or-theme.css`. The library has no component
+takes its colours, font and radii from OpenRemote's theme, `vendor/or-theme.css`. As in the manager, the page, its bars
+and its cards are flat: only menus, dialogs and messages have a shadow. The library has no component
 for a message, a card or a progress bar, which the design system of OpenRemote has: a message (saved, exported, failed)
 is a notification of Vaadin, a block of generated text and the page that cannot start are cards of Vaadin, and text
 that is being written shows a progress bar of Vaadin, all in the colours of that theme. `js/kit/` has small stand-ins,
@@ -97,7 +98,7 @@ closed repository. The alternative is a builder of our own that is written witho
 | Review | Generated text starts as a draft. Each block is a card with badges for its state (Draft, Approved or Editing) and the buttons Approve, Edit and Remove below the text; a notice above the blocks counts what is left to approve and approves or discards all of it at once. A block that is being written shows a progress bar. A PDF only includes approved text. The "AI" badge marks drafts only: an approved block, the preview and the printed report do not show it, nor the badges and buttons |
 | PDF export | Export, PDF report has the service make the PDF and saves it as `report-name_2026-10-04.pdf`, see [below](#the-pdf-export). The report and its approved text are posted to `POST /export/pdf`; the file looks as the report does in Preview, with the real data, and has no widget cut by a page break |
 | CSV and PNG export | The buttons show progress and the name of the file, but create nothing |
-| Saved reports | Kept by the service (`GET`, `POST` and `PUT /reports`, `js/data/saved-reports.js`), so they are there after a reload and for everyone who works in the realm, see [below](#saved-reports). The studio opens with an empty report. A saved report keeps its time frame, widgets, answers to the two questions and schedule, but not the generated text |
+| Saved reports | Kept by the service (`GET`, `POST` and `PUT /reports`, `js/data/saved-reports.js`), so they are there after a reload and for everyone who works in the realm, see [below](#saved-reports). The studio opens with an empty report. A saved report keeps its time frame, widgets, answers to the two questions and schedule, but not the generated text. Opening or starting another report, or leaving the page, with changes that are not saved asks first |
 | Schedule | A dialog sets when the report is made by itself, in OpenRemote's own scheduler (`or-scheduler`: once, or repeating every so many days, weeks, months or years, on days of the week or of the month, until a date or for a number of times), the report admin, whose email address is required and who gets a reminder on every day the report is made, to check it first, who gets the report by email, with which subject and message (with the placeholders `{report}`, `{period}` and `{date}`, filled in for every report) and as which files, and shows the next reports with the subject of the next email. When is an event of OpenRemote's calendar (`start`, `end` and a recurrence rule), the format that the manager uses. It is kept with the saved report, by the service; nothing is made or sent |
 
 What the live data looks like on the page:
@@ -170,18 +171,29 @@ service has for the realm and opens a report from it (`js/ui/saved-reports.js`).
   menu says so and offers to try again.
 - What the service gives is checked before it is shown (`savedReport` in `js/data/saved-reports.js`): a report in a time
   frame that this version does not know is refused, and answers or a schedule that are missing are filled in.
-- Not there yet: deleting a report, a warning when a report with changes that are not saved is replaced by opening or
-  starting another one, and saved reports of one author: the service does not know who the author is, so everyone in the
-  realm has the same ones.
+- Changes that are not saved: the state keeps the report as it was last saved, opened or started, and
+  `hasUnsavedChanges` in `js/state.js` says whether the report differs from it in what Save keeps (name, time frame,
+  widgets and their settings, answers for the AI, schedule). The generated text, the selection and the mode are not
+  part of it, and a report without a widget has nothing that Save could keep, so it is never warned about. What counts
+  as saved is what was sent to the service, so a change made while the report is being saved is still not saved.
+  Opening a saved report or starting a new one asks first when the report has such changes (`chooseSavedReport` in
+  `js/ui/saved-reports.js`): Save and continue saves it and then goes on, and does not go on when the save fails, for
+  example because the name is taken; Discard changes goes on without saving; Cancel, or Escape, stays.
+- Leaving the page (closing the tab, reloading it, going to another address) with such changes makes the browser ask
+  whether to stay or to leave (`warnBeforeLeaving`), in its own words, which a page cannot change: the author stays and
+  saves, or leaves and loses the changes. Inside the manager the studio is a frame that the manager takes away when the
+  author goes to another tab or to another realm, and a page cannot ask anything then, so nothing is asked in that case.
+- Not there yet: deleting a report, and saved reports of one author: the service does not know who the author is, so
+  everyone in the realm has the same ones.
 
 ## Layout
 
 - `index.html`, `render.html`, `css/app.css` - the page, the page that the service prints to make a PDF, and their
-  styles. `css/app.css` is read after `vendor/or-theme.css` and gets its colours, font, radii and shadows from that
-  theme. The import map points `lit` to `vendor/lit.js`.
+  styles. `css/app.css` is read after `vendor/or-theme.css` and gets its colours, font and radii from that theme.
+  The import map points `lit` to `vendor/lit.js`.
 - `js/main.js` - starts the page; `js/render.js` starts the page that is printed. `js/state.js` - the report (its name,
-  time frame and template, the generated text, which saved report is open and what the saved reports are called) and
-  the actions that change it, as pure functions.
+  time frame and template, the generated text, which saved report is open, what the saved reports are called and what
+  the report was when it was last saved) and the actions that change it, as pure functions.
 - `js/builder/` - the dashboard builder, see above. `js/ui/builder.js` connects it to the state: the builder elements
   get copies of the template, and their events change the state.
 - `js/data/` - what the page knows of OpenRemote: the realm of the address (`realm.js`), the calls to the report
@@ -210,15 +222,15 @@ npm test
 
 Uses the built-in test runner of Node.js (developed with Node 24); there is nothing to install. The tests cover the
 state, the report model, the prompt and the text, the schedule, the request for a PDF, the placing of widgets on pages,
-the data layer, the saved reports (saving, opening, a time frame that moves on, a report that is saved again), and the
-parts of the builder that need no browser: time windows, bar chart intervals and methods, the map, the keys, and the
-widget types with their default configs.
+the data layer, the saved reports (saving, opening, a time frame that moves on, a report that is saved again, changes
+that are not saved), and the parts of the builder that need no browser: time windows, bar chart intervals and methods,
+the map, the keys, and the widget types with their default configs.
 The data layer is tested against a fake of the service (`test/helpers/service.js`) that has the asset model, the look of
 the realm and a few assets in the JSON that the service gives, with generated data points, and saved reports that it
 keeps in memory with the rules of the service; it records every call. `test/helpers/` also
 has the report that the tests of the report and the state use. The modules that need a browser are checked for valid
-syntax only. That includes `js/ui/saved-reports.js` (one thing at a time, the messages, the menu of saved reports), so
-a change there has to be tried in a browser against the service.
+syntax only. That includes `js/ui/saved-reports.js` (one thing at a time, the messages, the menu of saved reports, the
+questions about unsaved changes), so a change there has to be tried in a browser against the service.
 
 ## Towards the real thing
 
