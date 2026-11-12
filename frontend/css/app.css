@@ -1,24 +1,13 @@
-/* Report Studio prototype. The colours, the font, the radii and the shadows are those of the OpenRemote theme, which
-   vendor/or-theme.css defines (--or-color-*, --lumo-*). */
+/* Report Studio prototype. The colours, the font and the radii are those of the OpenRemote theme, which
+   vendor/or-theme.css defines (--or-color-*, --lumo-*). The colours are used by the names that OpenRemote's design
+   system gives them (Primary, Body Text, Base, Contrast 10% and so on) and not under names of our own, so that the
+   primary colour that a realm chooses is followed everywhere. As in OpenRemote's manager the page, its bars and its
+   cards are flat: only what opens above the page (a menu, a dialog, a message) has a shadow. */
 
 :root {
   color-scheme: light;
-  --green: var(--or-color-primary);
-  --green-strong: var(--or-color-text-primary);
-  --green-tint: var(--or-color-primary-10pct);
-  --green-line: var(--or-color-primary-50pct);
-  --ink: var(--or-color-text-body);
-  --muted: var(--or-color-text-secondary);
-  --faint: var(--or-color-text-tertiary);
-  --line: var(--or-color-contrast-10pct);
-  --line-strong: var(--or-color-contrast-20pct);
-  --page: #F9F9F9; /* the background of the manager (its --or-app-color2), so that the page matches the manager around it */
-  --surface: var(--or-color-base);
-  --wash: var(--or-color-contrast-5pct);
-  --amber: var(--or-color-text-warning);
-  --radius: var(--lumo-border-radius-l);
-  --shadow: var(--lumo-box-shadow-xs);
-  --font: var(--lumo-font-family);
+  /* Lumo's large radius as the mockups draw it: 12 px (the em of this page's 14 px text would give 10.5 px) */
+  --radius: 0.75rem;
 
   /* The colours that the dashboard builder and its widgets read, the names of OpenRemote's legacy theme */
   --or-app-color1: var(--or-color-base);
@@ -32,9 +21,10 @@
 
 body {
   margin: 0;
-  background: var(--page);
-  color: var(--ink);
-  font: 14px/1.45 var(--font);
+  min-height: 100vh; /* a short page is filled with the colour as well: the theme gives the root a white one */
+  background: var(--or-color-contrast-10pct); /* the page is Contrast 10%, the cards are Base */
+  color: var(--or-color-text-body);
+  font: var(--lumo-font-size-s)/1.45 var(--lumo-font-family); /* Small body text */
   -webkit-font-smoothing: antialiased;
 }
 
@@ -44,7 +34,7 @@ button, input:not([slot]), select, textarea:not([slot]) { font: inherit; color: 
 button { cursor: pointer; }
 /* The controls of OpenRemote draw their own ring, also around their input */
 :is(button, a, input, select, textarea):focus-visible:not([slot]) {
-  outline: 2px solid var(--green);
+  outline: 2px solid var(--or-color-primary);
   outline-offset: 2px;
 }
 [hidden] { display: none !important; }
@@ -54,11 +44,12 @@ button { cursor: pointer; }
 
 .startup-error { width: min(480px, 100%); margin: 64px auto; }
 
+/* The spacing of the manager's mockups: cards 4 px apart, 8 px between the panel and the content and around the page */
 .layout {
   display: flex;
   align-items: flex-start;
-  gap: 20px;
-  padding: 20px;
+  gap: 8px;
+  padding: 8px;
 }
 
 .workspace { flex: 1; min-width: 0; }
@@ -66,171 +57,60 @@ button { cursor: pointer; }
 /* The widget types and the settings of the dashboard builder */
 or-dashboard-sidebar {
   position: sticky;
-  top: 20px;
+  top: 8px;
   flex: none;
   width: 320px;
-  height: calc(100vh - 40px);
-  border: 1px solid var(--line);
+  height: calc(100vh - 16px);
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
 }
 
-/* Buttons and fields */
+/* The controls of the toolbar are OpenRemote's own: buttons, selects, a menu bar and a text field */
 
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  height: 36px;
-  padding: 0 14px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--ink);
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
-  transition: background 0.12s, border-color 0.12s;
-}
+.tip { display: inline-flex; }
+or-vaadin-button.busy .icon { animation: spin 1.1s linear infinite; }
 
-.btn:hover:not(:disabled) { border-color: var(--or-color-contrast-30pct); background: var(--wash); }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn.primary { border-color: var(--green); background: var(--green); color: var(--or-color-primary-contrast); }
-.btn.primary:hover:not(:disabled) { border-color: var(--green-strong); background: var(--green-strong); }
-.btn.busy .icon { animation: spin 1.1s linear infinite; }
-.btn.scheduled { border-color: var(--green-line); background: var(--green-tint); color: var(--green-strong); }
-
-.select {
-  height: 36px;
-  padding: 0 8px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: var(--surface);
-  font-weight: 600;
-}
-
-.segmented {
-  display: inline-flex;
-  padding: 2px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: var(--wash);
-}
-
-.segment {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 6px;
-  background: none;
-  color: var(--muted);
-  font-weight: 600;
-}
-
-.segment:hover { color: var(--ink); }
-.segment[aria-pressed="true"] { background: var(--surface); box-shadow: var(--shadow); color: var(--ink); }
-
-/* Toolbar and menus */
+/* Toolbar */
 
 .toolbar {
   position: sticky;
-  top: 12px;
+  top: 8px;
   z-index: 20;
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: end;
   gap: 10px 14px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
+  padding: 16px;
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(8px);
+  background: var(--or-color-base);
 }
 
-/* With the toolbar in front, so that it wins over the rule for inputs at the top of this file */
-.toolbar .name-input {
-  flex: 1 1 220px;
-  min-width: 0;
-  height: 38px;
-  padding: 0 10px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: transparent;
-  font-size: 17px;
-  font-weight: 650;
-}
-
-.toolbar .name-input:hover { border-color: var(--line); }
-.toolbar .name-input:focus {
-  border-color: var(--green);
-  outline: none;
-  background: var(--surface);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 18%, transparent);
-}
-.toolbar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.toolbar-group { display: flex; align-items: center; gap: 8px; }
-.divider { width: 1px; height: 24px; background: var(--line); }
-
-.menu-wrap { position: relative; }
-
-/* The menu is made after the menu bar of OpenRemote's library: plain text, room for a tick in front, a line between */
-.menu {
+/* Strips of the colour of the page above and below the toolbar, so that the report does not show in the gaps around it
+   while it scrolls under the toolbar */
+.toolbar::before, .toolbar::after {
+  content: '';
   position: absolute;
-  top: calc(100% + 4px);
   left: 0;
-  z-index: 40;
-  width: max-content;
-  max-width: min(32rem, calc(100vw - 32px));
-  padding: 4px;
-  border-radius: var(--lumo-border-radius-m);
-  background: var(--surface);
-  box-shadow: 0 0 0 1px var(--lumo-shade-5pct), var(--lumo-box-shadow-m);
-  font-size: var(--lumo-font-size-m);
+  right: 0;
+  /* Contrast 10% on Base: the colour of the page, but not see-through */
+  background: linear-gradient(var(--or-color-contrast-10pct), var(--or-color-contrast-10pct)), var(--or-color-base);
 }
+.toolbar::before { bottom: 100%; height: 8px; }
+.toolbar::after { top: 100%; height: 4px; }
 
-.menu-item {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  min-height: 36px;
-  padding: 8px 26px 8px 2px;
-  border: 0;
-  border-radius: var(--lumo-border-radius-m);
-  background: none;
-  line-height: 20px;
-  text-align: left;
-}
-
-.menu-item:hover:not(:disabled) { background: var(--green-tint); }
-.menu-item:focus-visible { outline-offset: -2px; }
-.menu-item:disabled { color: var(--or-color-text-disabled); cursor: not-allowed; }
-.menu-check {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  color: var(--green);
-}
-.menu-separator { height: 1px; margin: 8px 4px; background: var(--line); }
+.toolbar .name-field { flex: 1 1 220px; min-width: 0; }
+.toolbar-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.toolbar-select { width: 13rem; }
 
 /* The report */
 
 .paper {
-  margin-top: 16px;
+  margin-top: 4px;
   padding: 36px 40px 24px;
-  border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
+  background: var(--or-color-base);
 }
 
-.cover { margin-bottom: 24px; padding-bottom: 20px; border-bottom: 3px solid var(--green); }
+.cover { margin-bottom: 24px; padding-bottom: 20px; border-bottom: 3px solid var(--or-color-primary); }
 .cover-logo {
   display: block;
   height: 40px;
@@ -239,28 +119,31 @@ or-dashboard-sidebar {
   object-fit: contain;
   object-position: left;
 }
+/* The text styles are those of OpenRemote's design system (Typography): the label above the title is Heading 6, the
+   title Heading 2, the period Normal body text and the line under it Text XS */
 .cover-kicker {
-  color: var(--green-strong);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  color: var(--or-color-text-primary);
+  font-size: var(--lumo-font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
 }
-.cover h1 { margin: 6px 0 8px; font-size: 30px; line-height: 1.2; letter-spacing: -0.02em; overflow-wrap: anywhere; }
-.cover-period { font-size: 16px; }
-.cover-meta { margin-top: 2px; color: var(--muted); font-size: 13px; }
+.cover h1 { margin: 6px 0 8px; font-size: var(--lumo-font-size-xxl); font-weight: 600; overflow-wrap: anywhere; }
+.cover-period { font-size: var(--lumo-font-size-m); }
+.cover-meta { margin-top: 2px; color: var(--or-color-text-secondary); font-size: var(--lumo-font-size-xs); }
 
 or-dashboard-preview { display: block; margin: 0 -5px; }
 
 .descriptions { margin-top: 24px; }
-.descriptions h2 { margin-bottom: 12px; font-size: 17px; font-weight: 650; }
+/* Heading 3, above the titles of the blocks (Heading 4) */
+.descriptions h2 { margin-bottom: 12px; font-size: var(--lumo-font-size-xl); font-weight: 600; }
 
 .paper-foot {
   margin-top: 24px;
   padding-top: 12px;
-  border-top: 1px solid var(--line);
-  color: var(--faint);
-  font-size: 12px;
+  border-top: 1px solid var(--or-color-contrast-10pct);
+  color: var(--or-color-text-tertiary);
+  font-size: var(--lumo-font-size-xxs);
 }
 
 /* The notice above the generated text: what is left to approve, as the notice in the attribute rows of the manager */
@@ -272,11 +155,11 @@ or-dashboard-preview { display: block; margin: 0 -5px; }
   margin-bottom: var(--lumo-space-m);
   padding: var(--lumo-space-xs) var(--lumo-space-m);
   border-radius: var(--lumo-border-radius-m);
-  background: var(--wash);
+  background: var(--or-color-contrast-5pct);
 }
 
-.ai-banner > .icon { color: var(--amber); }
-.ai-banner[data-tone="ok"] > .icon { color: var(--green-strong); }
+.ai-banner > .icon { color: var(--or-color-text-warning); }
+.ai-banner[data-tone="ok"] > .icon { color: var(--or-color-text-primary); }
 .ai-banner p { flex: 1 1 240px; min-width: 0; }
 .ai-banner-actions { display: flex; flex: none; gap: var(--lumo-space-s); }
 
@@ -286,7 +169,7 @@ or-dashboard-preview { display: block; margin: 0 -5px; }
 .ai-text { line-height: var(--lumo-line-height-m); }
 .ai-actions { display: flex; flex-wrap: wrap; gap: var(--lumo-space-xs); }
 .ai-edit { width: 100%; min-height: 8rem; max-height: 24rem; }
-.ai-loading-label { color: var(--muted); font-size: var(--lumo-font-size-s); }
+.ai-loading-label { color: var(--or-color-text-secondary); font-size: var(--lumo-font-size-s); }
 
 /* Messages and dialogs */
 
@@ -307,14 +190,14 @@ or-vaadin-confirm-dialog::part(overlay) { min-width: min(36rem, 90vw); }
 
 /* The content of the dialogs of OpenRemote: its sections are white cards on the green-grey of the dialog */
 .dialog-body { display: grid; gap: var(--lumo-space-m); width: min(600px, 80vw); }
-.dialog-text { color: var(--muted); font-size: var(--lumo-font-size-s); }
+.dialog-text { color: var(--or-color-text-secondary); font-size: var(--lumo-font-size-s); }
 .dialog-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--lumo-space-s);
   padding: var(--lumo-space-m);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: var(--or-color-base);
 }
 .dialog-card > h4 { margin: 0; }
 .dialog-error { color: var(--or-color-text-error); }
@@ -344,14 +227,13 @@ or-vaadin-confirm-dialog::part(overlay) { min-width: min(36rem, 90vw); }
 /* Smaller windows */
 
 @media (max-width: 1100px) {
-  .layout { flex-direction: column; align-items: stretch; padding: 12px; }
-  .toolbar { top: 8px; }
+  .layout { flex-direction: column; align-items: stretch; }
   or-dashboard-sidebar { position: static; width: auto; height: 560px; }
 }
 
 @media (max-width: 700px) {
   .paper { padding: 24px 18px 18px; }
-  .cover h1 { font-size: 24px; }
+  .cover h1 { font-size: var(--lumo-font-size-xl); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -380,7 +262,7 @@ or-vaadin-confirm-dialog::part(overlay) { min-width: min(36rem, 90vw); }
 @page { size: A4 landscape; margin: 10mm; }
 
 @media print {
-  body { background: #fff; }
+  body { min-height: 0; background: var(--or-color-base); }
   .toolbar, or-dashboard-sidebar, vaadin-notification-container, .ai-banner, .ai-badges,
   .ai-block::part(footer) {
     display: none !important;
@@ -388,7 +270,7 @@ or-vaadin-confirm-dialog::part(overlay) { min-width: min(36rem, 90vw); }
   .ai-block[data-state="draft"], .ai-block[data-state="loading"] { display: none !important; }
   .descriptions:not(:has(.ai-block[data-state="approved"])) { display: none !important; }
   .layout { display: block; padding: 0; }
-  .paper { margin: 0; padding: 0; border: 0; box-shadow: none; }
+  .paper { margin: 0; padding: 0; }
   .cover, .ai-block, .paper-foot { break-inside: avoid; }
   .descriptions h2 { break-after: avoid; }
 }

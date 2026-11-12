@@ -43,7 +43,7 @@ const sharedStyles = css`
     padding: var(--lumo-space-xs) 0;
     overflow: auto;
     border-radius: var(--radius);
-    background: var(--surface);
+    background: var(--or-color-base);
   }
 
   .type {
@@ -51,7 +51,7 @@ const sharedStyles = css`
     align-items: center;
     gap: 8px;
     padding: 8px 10px;
-    background: var(--wash);
+    background: var(--or-color-contrast-5pct);
     font-weight: 600;
   }
 
@@ -70,12 +70,12 @@ const sharedStyles = css`
   }
 
   .row:hover {
-    background: var(--wash);
+    background: var(--or-color-contrast-5pct);
   }
 
   .row.active {
-    background: var(--green-tint);
-    color: var(--green-strong);
+    background: var(--or-color-primary-10pct);
+    color: var(--or-color-text-primary);
   }
 
   .choice {
@@ -93,7 +93,7 @@ const sharedStyles = css`
 
   .empty {
     padding: 16px;
-    color: var(--muted);
+    color: var(--or-color-text-secondary);
   }
 `;
 

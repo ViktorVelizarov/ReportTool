@@ -4,9 +4,9 @@ import { test } from 'node:test';
 import { newSchedule } from '../js/model/schedule.js';
 import {
   addWidget, approveAllBlocks, approveBlock, countApproved, countDrafts, createStore, editBlock, finishGenerating,
-  initialState, jsonCopy, loadReport, newReport, removeAllBlocks, removeBlock, removeWidget, reportOf, reportSaved,
-  selectWidget, setEditMode, setInstructions, setName, setPeriod, setSavedReports, setSchedule, setTemplate,
-  startGenerating, updateWidget,
+  hasUnsavedChanges, initialState, jsonCopy, loadReport, newReport, removeAllBlocks, removeBlock, removeWidget,
+  reportOf, reportSaved, selectWidget, setEditMode, setInstructions, setName, setPeriod, setSavedReports, setSchedule,
+  setTemplate, startGenerating, updateWidget,
 } from '../js/state.js';
 import { REPORT } from './helpers/report.js';
 
@@ -24,6 +24,9 @@ const withReport = () =>
 
 /** The state with the test report open and generated text that is ready. */
 const withText = () => finishGenerating(startGenerating(withReport()), TEXT);
+
+/** The state after the page saved its report as the saved report with the id. */
+const afterSave = (state, id = 'report-1') => reportSaved(state, id, reportOf(state));
 
 /** The template of the state with one widget changed. */
 function changeWidget(state, id, change) {
@@ -159,7 +162,7 @@ test('the name changes, and the preview has no selected widget', () => {
 });
 
 test('a new report is empty, is not a saved report and keeps the time frame', () => {
-  const state = newReport(setEditMode(setPeriod(reportSaved(withText(), 'report-1'), 'last30'), false));
+  const state = newReport(setEditMode(setPeriod(afterSave(withText()), 'last30'), false));
 
   assert.equal(state.name, 'Untitled report');
   assert.deepEqual(state.template.widgets, []);
@@ -206,12 +209,12 @@ test('the saved reports of the realm are kept, and none is kept when they could 
 test('a report that is saved is the report that is open from then on, and saving it again changes nothing', () => {
   const state = withReport();
 
-  const saved = reportSaved(state, 'report-1');
+  const saved = afterSave(state);
 
   assert.equal(saved.reportId, 'report-1');
   assert.equal(saved.template, state.template, 'saving does not change what the report shows');
-  assert.equal(reportSaved(saved, 'report-1'), saved);
-  assert.equal(reportSaved(saved, 'report-2').reportId, 'report-2');
+  assert.equal(afterSave(saved), saved);
+  assert.equal(afterSave(saved, 'report-2').reportId, 'report-2');
 });
 
 test('opening a saved report shows its widgets and time frame, with no text and nothing selected', () => {
@@ -353,4 +356,90 @@ test('blocks are approved, edited and removed; without blocks there is no text',
   assert.equal(state.ai, null);
   assert.equal(removeAllBlocks(state), state);
   assert.equal(removeAllBlocks(withText()).ai, null);
+});
+
+// --- changes that are not saved ---
+
+/** A saved report that is open and was not changed since. */
+const opened = () => loadReport(initialState(NOW), savedAs(withReport()), NOW);
+
+test('a report has no unsaved changes while it is as it was opened or started: empty, new or opened', () => {
+  assert.equal(hasUnsavedChanges(initialState(NOW)), false);
+  assert.equal(hasUnsavedChanges(newReport(withReport())), false);
+  assert.equal(hasUnsavedChanges(opened()), false);
+});
+
+test('a report that was built and never saved has unsaved changes', () => {
+  assert.equal(hasUnsavedChanges(withReport()), true);
+});
+
+test('a change to what Save keeps is an unsaved change: name, time frame, widgets, answers and schedule', () => {
+  const state = opened();
+  const changes = {
+    'the name': setName(state, 'Quarterly irrigation'),
+    'the time frame': setPeriod(state, 'last30'),
+    'where a widget is': setTemplate(state, changeWidget(state, 'irrigation-1', widget => { widget.gridItem.y = 20; })),
+    'the settings of a widget': setTemplate(state,
+      changeWidget(state, 'irrigation-2', widget => { widget.widgetConfig.max = 2000; })),
+    'a removed widget': removeWidget(state, 'irrigation-8'),
+    'the answers for the AI': setInstructions(state, INSTRUCTIONS),
+    'the schedule': setSchedule(state, SCHEDULE),
+  };
+
+  for (const [what, changed] of Object.entries(changes)) {
+    assert.equal(hasUnsavedChanges(changed), true, what);
+  }
+});
+
+test('what Save does not keep is no unsaved change: the generated text, the selection and the mode', () => {
+  const state = opened();
+
+  const changed = setEditMode(selectWidget(finishGenerating(startGenerating(state), TEXT), 'irrigation-1'), false);
+
+  assert.equal(hasUnsavedChanges(changed), false);
+  assert.equal(hasUnsavedChanges(setSavedReports(state, [])), false);
+});
+
+test('a change that is undone is no change, and the spaces around the name are not one', () => {
+  const state = opened();
+  const moved = setTemplate(state, changeWidget(state, 'irrigation-1', widget => { widget.gridItem.y = 20; }));
+
+  assert.equal(hasUnsavedChanges(setName(setName(state, 'Other'), state.name)), false);
+  assert.equal(hasUnsavedChanges(setTemplate(moved, state.template)), false);
+  assert.equal(hasUnsavedChanges(setName(state, `  ${state.name}  `)), false, 'Save keeps the name without them');
+});
+
+test('a report that is saved has no unsaved changes, until it is changed again', () => {
+  const saved = afterSave(withReport());
+
+  assert.equal(hasUnsavedChanges(saved), false);
+  assert.equal(hasUnsavedChanges(setPeriod(saved, 'last30')), true);
+});
+
+test('a change that is made while the report is being saved is not saved by it', () => {
+  const state = withReport();
+  const sent = reportOf(state);
+  const changedMeanwhile = setName(state, 'Renamed while saving');
+
+  const saved = reportSaved(changedMeanwhile, 'report-1', sent);
+
+  assert.equal(saved.name, 'Renamed while saving');
+  assert.equal(hasUnsavedChanges(saved), true);
+  assert.equal(hasUnsavedChanges(setName(saved, state.name)), false, 'it is what was saved again');
+});
+
+test('a report without a widget has nothing that Save could keep, so it has no unsaved changes', () => {
+  let emptied = opened();
+  for (const { id } of emptied.template.widgets) emptied = removeWidget(emptied, id);
+
+  assert.equal(hasUnsavedChanges(emptied), false);
+  assert.equal(hasUnsavedChanges(setName(setPeriod(initialState(NOW), 'last30'), 'Draft')), false);
+});
+
+test('the report that was saved is a copy of its own: a template that is changed in place is changed', () => {
+  const state = opened();
+
+  state.template.widgets[0].displayName = 'Changed in place';
+
+  assert.equal(hasUnsavedChanges(state), true);
 });

@@ -25,7 +25,7 @@ export class OrMwcTabs extends OrElement {
       border: 0;
       border-bottom: 2px solid transparent;
       background: none;
-      color: var(--or-app-color3, #4c4c4c);
+      color: var(--or-color-text-body);
       font: inherit;
       font-size: 14px;
       font-weight: 600;
@@ -35,17 +35,17 @@ export class OrMwcTabs extends OrElement {
     }
 
     button:hover {
-      background: #f3f4f6;
+      background: var(--or-color-contrast-5pct);
     }
 
     button:focus-visible {
-      outline: 2px solid var(--or-app-color4, #4d9d2a);
+      outline: 2px solid var(--or-color-primary);
       outline-offset: -2px;
     }
 
     button[aria-selected='true'] {
-      border-bottom-color: var(--or-app-color4, #4d9d2a);
-      color: var(--or-app-color4, #4d9d2a);
+      border-bottom-color: var(--or-color-primary);
+      color: var(--or-color-primary);
     }
   `;
 

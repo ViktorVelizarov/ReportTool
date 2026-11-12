@@ -27,8 +27,8 @@ class OrLoadingIndicator extends OrElement {
     .spinner {
       width: 28px;
       height: 28px;
-      border: 3px solid #e0e0e0;
-      border-top-color: var(--or-app-color4, #4d9d2a);
+      border: 3px solid var(--or-color-contrast-20pct);
+      border-top-color: var(--or-color-primary);
       border-radius: 50%;
       animation: spin 0.9s linear infinite;
     }
@@ -58,7 +58,7 @@ class OrColourInput extends OrElement {
       width: 28px;
       height: 28px;
       padding: 0;
-      border: 1px solid #c5cbd2;
+      border: 1px solid var(--or-color-contrast-30pct);
       border-radius: 50%;
       background: none;
       cursor: pointer;
