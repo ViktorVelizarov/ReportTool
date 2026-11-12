@@ -2,6 +2,7 @@ package com.example.reportservice.report;
 
 import com.example.reportservice.openremote.Ids;
 import com.example.reportservice.web.ApiException;
+import com.example.reportservice.web.NoContent;
 import com.example.reportservice.web.Request;
 import com.example.reportservice.web.Router;
 import java.io.IOException;
@@ -9,9 +10,10 @@ import java.nio.file.Path;
 import java.time.Clock;
 
 /**
- * The endpoints of the saved reports: {@code GET /reports}, {@code POST /reports}, {@code GET /reports/{id}} and
- * {@code PUT /reports/{id}}. They work on the reports of the realm of the {@code realm} query parameter, or of the
- * realm of the service user if there is none, and keep them in a {@link ReportStore}.
+ * The endpoints of the saved reports: {@code GET /reports}, {@code POST /reports}, {@code GET /reports/{id}},
+ * {@code PUT /reports/{id}} and {@code DELETE /reports/{id}}. They work on the reports of the realm of the
+ * {@code realm} query parameter, or of the realm of the service user if there is none, and keep them in a
+ * {@link ReportStore}.
  */
 public final class ReportEndpoints {
 
@@ -34,6 +36,7 @@ public final class ReportEndpoints {
         router.post("/reports", this::create);
         router.get("/reports/{id}", this::open);
         router.put("/reports/{id}", this::replace);
+        router.delete("/reports/{id}", this::remove);
     }
 
     /** {@code GET /reports?realm=}: the saved reports of the realm by name, each as {@code {id, name, updatedAt}}. */
@@ -62,6 +65,15 @@ public final class ReportEndpoints {
      */
     private Object replace(Request request) {
         return store.update(realm(request), id(request), ReportDraft.of(request.jsonBody()));
+    }
+
+    /**
+     * {@code DELETE /reports/{id}?realm=}: removes the saved report with the ID, whose name is then free again. The
+     * answer has no body; an ID that the realm does not have is a 404.
+     */
+    private Object remove(Request request) {
+        store.delete(realm(request), id(request));
+        return new NoContent();
     }
 
     private String realm(Request request) {

@@ -94,6 +94,24 @@ final class ReportStore {
         return report.summary();
     }
 
+    /**
+     * Removes a report, which frees its name. Only a file that is a report file is removed, whether it can be read or
+     * not, so that a damaged file can be got rid of.
+     *
+     * @throws ApiException 404 if the realm has no such report
+     */
+    synchronized void delete(String realm, String id) {
+        Path file = file(realm, id);
+        try {
+            if (!Files.isRegularFile(file) || !Files.deleteIfExists(file)) {
+                throw new ApiException(404, "report not found");
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Cannot remove " + file + ": " + e, e);
+        }
+        LOG.info("Removed the saved report {} of the realm {}", id, realm);
+    }
+
     private void requireFreeName(String realm, String name, String ownId) {
         String key = nameKey(name);
         for (SavedReport other : readAll(realm)) {

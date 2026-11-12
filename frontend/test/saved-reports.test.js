@@ -168,6 +168,63 @@ test('the id of a report is a part of the address as it is, also when it holds a
   assert.deepEqual(calls, ['/reports/a%2Fb?realm=manufacturer']);
 });
 
+// --- AC4: a saved report is deleted from the list and from the service ---
+
+test('a deleted report is no longer in the list, and it cannot be opened any more', async () => {
+  const kept = await SavedReports.add(reportOf(setName(withReport(), 'Weekly')));
+  const removed = await SavedReports.add(reportOf(withReport()));
+  calls.length = 0;
+
+  await SavedReports.remove(removed.id);
+
+  assert.deepEqual(calls, [`DELETE /reports/${removed.id}?realm=manufacturer`]);
+  assert.deepEqual((await SavedReports.list()).map(report => report.id), [kept.id]);
+  await assert.rejects(SavedReports.open(removed.id), error => error.status === 404);
+  assert.equal((await SavedReports.open(kept.id)).name, 'Weekly', 'the other report is as it was');
+});
+
+test('a report that is deleted twice, or was never there, is a 404 that changes nothing', async () => {
+  const saved = await SavedReports.add(reportOf(withReport()));
+  await SavedReports.remove(saved.id);
+
+  await assert.rejects(SavedReports.remove(saved.id), error => error.status === 404);
+  await assert.rejects(SavedReports.remove('no-such-report'), error => error.status === 404);
+  assert.deepEqual(await SavedReports.list(), []);
+});
+
+test('only a report of the realm of the page is deleted, and the name of a deleted report is free again', async () => {
+  const saved = await SavedReports.add(reportOf(withReport()));
+
+  ReportContext.realm = 'smartcity';
+  await assert.rejects(SavedReports.remove(saved.id), error => error.status === 404);
+  ReportContext.realm = REALM;
+  assert.equal((await SavedReports.list()).length, 1, 'the report of the other realm was not deleted');
+
+  await SavedReports.remove(saved.id);
+  await SavedReports.add(reportOf(withReport())); // not a 409: the name is free again
+
+  assert.deepEqual((await SavedReports.list()).map(report => report.name), ['Irrigation report']);
+});
+
+test('the id of a report that is deleted is a part of the address as it is, also when it holds a slash', async () => {
+  await assert.rejects(SavedReports.remove('a/b'), error => error.status === 404);
+
+  assert.deepEqual(calls, ['DELETE /reports/a%2Fb?realm=manufacturer']);
+});
+
+test('a report that the service cannot delete is an error with its message, and is still there', async () => {
+  const saved = await SavedReports.add(reportOf(withReport()));
+  const fake = ServiceClient.fetch;
+  ServiceClient.fetch = async (url, init) => (init?.method === 'DELETE'
+    ? { ok: false, status: 500, json: async () => ({ error: 'internal error' }) }
+    : fake(url, init));
+
+  await assert.rejects(SavedReports.remove(saved.id),
+    error => error.status === 500 && error.message === 'internal error');
+
+  assert.deepEqual((await SavedReports.list()).map(report => report.id), [saved.id]);
+});
+
 // --- AC5: changes that are not saved are known, so that the author can be warned about them ---
 
 test('an opened report has no unsaved changes until it is changed, and saving it again ends them', async () => {

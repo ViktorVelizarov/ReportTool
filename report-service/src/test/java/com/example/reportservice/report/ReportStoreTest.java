@@ -2,6 +2,7 @@ package com.example.reportservice.report;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -153,6 +154,70 @@ class ReportStoreTest {
     }
 
     @Test
+    void removesAReportAndOnlyThatReport() throws Exception {
+        ReportSummary weekly = store.create("manufacturer", draft("Weekly"));
+        ReportSummary monthly = store.create("manufacturer", draft("Monthly"));
+        store.create("smartcity", draft("Weekly"));
+
+        store.delete("manufacturer", weekly.id());
+
+        assertEquals(List.of("Monthly"), names(store.list("manufacturer")));
+        assertEquals(List.of("Weekly"), names(store.list("smartcity")));
+        assertTrue(store.find("manufacturer", weekly.id()).isEmpty());
+        assertTrue(store.find("manufacturer", monthly.id()).isPresent());
+        assertFalse(Files.exists(root.resolve("manufacturer").resolve(weekly.id() + ".json")));
+        try (Stream<Path> files = Files.list(root.resolve("manufacturer"))) {
+            assertEquals(1, files.count(), "no file is left over");
+        }
+    }
+
+    @Test
+    void freesTheNameOfARemovedReport() throws Exception {
+        ReportSummary weekly = store.create("manufacturer", draft("Weekly"));
+        store.delete("manufacturer", weekly.id());
+
+        ReportSummary again = store.create("manufacturer", draft("WEEKLY"));
+
+        assertNotEquals(weekly.id(), again.id(), "it is another report");
+        assertEquals(List.of("WEEKLY"), names(store.list("manufacturer")));
+    }
+
+    @Test
+    void saysThatThereIsNoSuchReportToRemoveWhenItIsInAnotherRealmOrGone() throws Exception {
+        ReportSummary weekly = store.create("manufacturer", draft("Weekly"));
+
+        ApiException otherRealm = assertThrows(ApiException.class, () -> store.delete("smartcity", weekly.id()));
+        assertEquals(404, otherRealm.status());
+        assertEquals(1, store.list("manufacturer").size(), "the report of the other realm was not removed");
+
+        store.delete("manufacturer", weekly.id());
+        ApiException gone = assertThrows(ApiException.class, () -> store.delete("manufacturer", weekly.id()));
+        ApiException unknown = assertThrows(ApiException.class,
+                () -> store.delete("manufacturer", UUID.randomUUID().toString()));
+
+        assertEquals(404, gone.status());
+        assertEquals("report not found", gone.getMessage());
+        assertEquals(404, unknown.status());
+    }
+
+    @Test
+    void removesAFileThatCannotBeReadAsAReportButNothingThatIsNotAFile() throws Exception {
+        Path realm = Files.createDirectories(root.resolve("manufacturer"));
+        String damaged = UUID.randomUUID().toString();
+        Files.writeString(realm.resolve(damaged + ".json"), "{ this is not JSON");
+        String folderId = UUID.randomUUID().toString();
+        Path folderLikeAReport = Files.createDirectories(realm.resolve(folderId + ".json"));
+        Files.writeString(folderLikeAReport.resolve("notes.txt"), "kept");
+
+        store.delete("manufacturer", damaged);
+        ApiException notAFile = assertThrows(ApiException.class, () -> store.delete("manufacturer", folderId));
+
+        assertFalse(Files.exists(realm.resolve(damaged + ".json")));
+        assertEquals(404, notAFile.status());
+        assertTrue(Files.exists(folderLikeAReport.resolve("notes.txt")));
+    }
+
+    @Test
     void savesAReportAgainWhereItIsEvenWhenItsNameChanges() throws Exception {
         ReportSummary saved = store.create("manufacturer", draft("Weekly", "last7"));
         clock.millis = 5_000;
@@ -250,9 +315,12 @@ class ReportStoreTest {
     void refusesARealmOrAnIdThatCouldLeaveItsFolder() {
         for (String realm : List.of("..", "a/b", "a\\b", "", "a b", "../manufacturer")) {
             assertThrows(IllegalArgumentException.class, () -> store.list(realm), realm);
+            String id = UUID.randomUUID().toString();
+            assertThrows(IllegalArgumentException.class, () -> store.delete(realm, id), realm);
         }
         for (String id : List.of("..", "../x", "x", "", UUID.randomUUID().toString().toUpperCase())) {
             assertThrows(IllegalArgumentException.class, () -> store.find("manufacturer", id), id);
+            assertThrows(IllegalArgumentException.class, () -> store.delete("manufacturer", id), id);
         }
         assertFalse(Files.exists(folder.resolve("x")));
     }

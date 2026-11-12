@@ -70,8 +70,13 @@ which the pickers of the builder use, draws an `or-vaadin-dialog`. The calls the
 answered by `js/data/asset-service.js`, with the data of the realm from the report service.
 
 The top of the page is the page's own: one toolbar with the name of the report, the switch between editing and
-previewing, the time frame, the saved reports, and the buttons for saving, scheduling, writing text and exporting. Its
-buttons and menus are styled in `css/app.css`, not taken from the library.
+previewing, the time frame, the saved reports, and the buttons for saving, deleting, scheduling, writing text and
+exporting. Its fields, buttons and menus are those of OpenRemote's library (`or-vaadin-*`), placed by `css/app.css`.
+Save and Delete are only icons, with a title and a label for screen readers, and the time frames and the empty list of
+saved reports have short texts ("Last quarter", "View list"), so that the bar is one row from a width of about 1210 px,
+as it is in the manager on a screen of 1920 px. The name, the switch, the time frame and the saved reports make one
+group and the buttons another; on a narrower page the buttons take a row of their own, so that the name does not
+stretch across a row alone.
 
 ### License
 
@@ -92,13 +97,13 @@ closed repository. The alternative is a builder of our own that is written witho
 | Asset types and attributes | The asset model of the manager (`GET /model/assetInfos`): the types with their icons and colours, and the attributes with their value types and units. It is read once, when the page starts (`js/data/asset-model.js`) |
 | Data points | The stored history of an attribute, from the service. The service gives every point of a range, so the downsampling of a line chart and the average, minimum or maximum per interval are done in the browser |
 | Widgets | OpenRemote's, see above, with that data |
-| Time frames | Presets only: last 7, 30 and 90 days, last calendar month and last calendar quarter |
+| Time frames | Presets only: last 7, 30 and 90 days, last month and last quarter (the calendar month and quarter before the day the report is made) |
 | Instructions for the AI | "Generate text" first opens a dialog with two questions, which have to be answered: what the report shows, and what the AI should look out for. The answers are kept with the saved report, but nothing uses them yet. `js/model/prompt.js` can make the prompt from them (the answers, the figures of every widget and a few fixed rules), but the page neither shows nor sends it |
 | Generated text | Written from templates with the figures of the widgets (`js/model/ai.js`); there is no AI, so the text does not follow the answers |
 | Review | Generated text starts as a draft. Each block is a card with badges for its state (Draft, Approved or Editing) and the buttons Approve, Edit and Remove below the text; a notice above the blocks counts what is left to approve and approves or discards all of it at once. A block that is being written shows a progress bar. A PDF only includes approved text. The "AI" badge marks drafts only: an approved block, the preview and the printed report do not show it, nor the badges and buttons |
 | PDF export | Export, PDF report has the service make the PDF and saves it as `report-name_2026-10-04.pdf`, see [below](#the-pdf-export). The report and its approved text are posted to `POST /export/pdf`; the file looks as the report does in Preview, with the real data, and has no widget cut by a page break |
 | CSV and PNG export | The buttons show progress and the name of the file, but create nothing |
-| Saved reports | Kept by the service (`GET`, `POST` and `PUT /reports`, `js/data/saved-reports.js`), so they are there after a reload and for everyone who works in the realm, see [below](#saved-reports). The studio opens with an empty report. A saved report keeps its time frame, widgets, answers to the two questions and schedule, but not the generated text. Opening or starting another report, or leaving the page, with changes that are not saved asks first |
+| Saved reports | Kept by the service (`GET`, `POST`, `PUT` and `DELETE /reports`, `js/data/saved-reports.js`), so they are there after a reload and for everyone who works in the realm, see [below](#saved-reports). The studio opens with an empty report. A saved report keeps its time frame, widgets, answers to the two questions and schedule, but not the generated text. Opening or starting another report, or leaving the page, with changes that are not saved asks first. Delete removes the saved report that is open, after a question |
 | Schedule | A dialog sets when the report is made by itself, in OpenRemote's own scheduler (`or-scheduler`: once, or repeating every so many days, weeks, months or years, on days of the week or of the month, until a date or for a number of times), the report admin, whose email address is required and who gets a reminder on every day the report is made, to check it first, who gets the report by email, with which subject and message (with the placeholders `{report}`, `{period}` and `{date}`, filled in for every report) and as which files, and shows the next reports with the subject of the next email. When is an event of OpenRemote's calendar (`start`, `end` and a recurrence rule), the format that the manager uses. It is kept with the saved report, by the service; nothing is made or sent |
 
 What the live data looks like on the page:
@@ -153,7 +158,8 @@ out. Everything else is styled as it is on the screen.
 
 Save (also Ctrl+S, and Save in the schedule dialog) sends the setup of the report to the service (`reportOf` in
 `js/state.js`: name, time frame, template, answers for the AI and schedule), and the Saved reports menu lists what the
-service has for the realm and opens a report from it (`js/ui/saved-reports.js`).
+service has for the realm and opens a report from it, and Delete removes the saved report that is open
+(`js/ui/saved-reports.js`).
 
 - A saved report is the report with an ID that the service gave it, not a name. The page remembers which saved report is
   open (`state.reportId`), so Save puts the report over that one, also after it was renamed, and never adds a copy. A
@@ -183,8 +189,15 @@ service has for the realm and opens a report from it (`js/ui/saved-reports.js`).
   whether to stay or to leave (`warnBeforeLeaving`), in its own words, which a page cannot change: the author stays and
   saves, or leaves and loses the changes. Inside the manager the studio is a frame that the manager takes away when the
   author goes to another tab or to another realm, and a page cannot ask anything then, so nothing is asked in that case.
-- Not there yet: deleting a report, and saved reports of one author: the service does not know who the author is, so
-  everyone in the realm has the same ones.
+- Delete (next to Save) removes the saved report that is open. It asks first, in OpenRemote's confirm dialog in its
+  error theme, as the manager does for an Insights dashboard: "Are you sure?", and that this will delete the report
+  permanently, for everyone who works in the realm. On Delete the page calls `DELETE /reports/{id}` (`deleteCurrent`),
+  reads the list again, so that the report is gone from it and cannot be opened, and puts a new report in its place on
+  the page. A report that the service does not have any more is as good as deleted; any other failure is a message, and
+  the report stays. A report that was never saved has nothing to delete, so the button is disabled. It is done one at a
+  time with saving and opening, like those.
+- Not there yet: saved reports of one author: the service does not know who the author is, so everyone in the realm has
+  the same ones, and anyone can delete a report for all the others.
 
 ## Layout
 
@@ -222,15 +235,16 @@ npm test
 
 Uses the built-in test runner of Node.js (developed with Node 24); there is nothing to install. The tests cover the
 state, the report model, the prompt and the text, the schedule, the request for a PDF, the placing of widgets on pages,
-the data layer, the saved reports (saving, opening, a time frame that moves on, a report that is saved again, changes
-that are not saved), and the parts of the builder that need no browser: time windows, bar chart intervals and methods,
-the map, the keys, and the widget types with their default configs.
+the data layer, the saved reports (saving, opening, a time frame that moves on, a report that is saved again, deleting
+one, changes that are not saved), and the parts of the builder that need no browser: time windows, bar chart intervals
+and methods, the map, the keys, and the widget types with their default configs.
 The data layer is tested against a fake of the service (`test/helpers/service.js`) that has the asset model, the look of
 the realm and a few assets in the JSON that the service gives, with generated data points, and saved reports that it
 keeps in memory with the rules of the service; it records every call. `test/helpers/` also
 has the report that the tests of the report and the state use. The modules that need a browser are checked for valid
 syntax only. That includes `js/ui/saved-reports.js` (one thing at a time, the messages, the menu of saved reports, the
-questions about unsaved changes), so a change there has to be tried in a browser against the service.
+questions about unsaved changes and about deleting), so a change there has to be tried in a browser against the
+service.
 
 ## Towards the real thing
 
@@ -239,7 +253,7 @@ questions about unsaved changes), so a change there has to be tried in a browser
 - The CSV and PNG buttons (`mockExport` in `js/ui/export.js`) become real exports; ECharts can give a chart as an image
   (`getDataURL`).
 - The saved reports are a file for each report on the machine of the service. They are not tied to a user until the
-  service knows who the author is, and there is no way yet to delete one. A template is the same JSON as an Insights
+  service knows who the author is. A template is the same JSON as an Insights
   dashboard.
 - A schedule is stored by the service with its report already. A job in the service makes the report when it is due and
   mails it and the reminder to the report admin, which needs a mail server and a time zone for the schedule (the

@@ -1,8 +1,8 @@
 /**
  * The saved reports of the realm of the report, which the report service keeps: the list of them, and the calls to open
- * one, to save a new one and to save an old one again. A report is saved with its name, its time frame, its template,
- * the answers to the questions for the AI and its schedule. The time frame is relative (the last 30 days, say), not
- * two dates, so a report that is opened later is made for the days before that day.
+ * one, to save a new one, to save an old one again and to remove one. A report is saved with its name, its time frame,
+ * its template, the answers to the questions for the AI and its schedule. The time frame is relative (the last 30 days,
+ * say), not two dates, so a report that is opened later is made for the days before that day.
  */
 
 import { PERIODS } from '../model/periods.js';
@@ -48,4 +48,7 @@ export const SavedReports = {
 
   /** Saves the report over the saved report with the id, under the name it has now; gives { id, name, updatedAt }. */
   replace: (id, report) => ServiceClient.sendJson('PUT', `/reports/${encodeURIComponent(id)}`, report, realm()),
+
+  /** Removes the saved report with the id from the service, which then does not have it any more. */
+  remove: id => ServiceClient.send('DELETE', `/reports/${encodeURIComponent(id)}`, realm()),
 };

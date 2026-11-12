@@ -144,7 +144,17 @@ let savedReports = new Map();
 const summaryOf = ({ id, name, updatedAt }) => ({ id, name, updatedAt });
 const nameKey = name => name.toLowerCase();
 
-/** What the service does with saved reports: a name is unique in a realm, and a report is replaced in place. */
+/** The id of a report that is added: one that the realm does not have, also after a report was removed. */
+function newReportId(reports) {
+  let number = reports.size + 1;
+  while (reports.has(`report-${number}`)) number += 1;
+  return `report-${number}`;
+}
+
+/**
+ * What the service does with saved reports: a name is unique in a realm, a report is replaced in place, and a report
+ * that is removed is gone and does not answer with a body.
+ */
 function respondReports(method, id, realm, body) {
   if (!savedReports.has(realm)) savedReports.set(realm, new Map());
   const reports = savedReports.get(realm);
@@ -153,9 +163,13 @@ function respondReports(method, id, realm, body) {
     const byName = (a, b) => nameKey(a.name).localeCompare(nameKey(b.name));
     return answer(200, [...reports.values()].map(summaryOf).sort(byName));
   }
-  if (method === 'GET' || method === 'PUT') {
+  if (method === 'GET' || method === 'PUT' || method === 'DELETE') {
     if (!reports.has(id)) return answer(404, { error: 'report not found' });
     if (method === 'GET') return answer(200, reports.get(id));
+    if (method === 'DELETE') {
+      reports.delete(id);
+      return answer(204, null);
+    }
   }
 
   const name = body.name.trim();
@@ -163,7 +177,7 @@ function respondReports(method, id, realm, body) {
     return answer(409, { error: 'a report with this name exists already' });
   }
   const saved = {
-    id: id ?? `report-${reports.size + 1}`,
+    id: id ?? newReportId(reports),
     name,
     periodId: body.periodId,
     template: body.template,

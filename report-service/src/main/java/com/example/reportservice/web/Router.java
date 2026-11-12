@@ -18,12 +18,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Serves JSON endpoints on an {@link HttpServer}: GET routes that read, and POST and PUT routes that take a JSON body.
+ * Serves JSON endpoints on an {@link HttpServer}: GET routes that read, POST and PUT routes that take a JSON body, and
+ * DELETE routes.
  *
- * <p>A {@link Handler} returns the response body, which is written as JSON (or as it is, when it is a {@link Binary}),
- * or throws to report an error: {@link ApiException} sets the status itself, an {@link IOException} (a failed or
- * refused call to the manager) becomes a 502, an interruption a 503 and any other unexpected failure a 500, each with a
- * JSON {@code {"error": ...}} body.
+ * <p>A {@link Handler} returns the response body, which is written as JSON (or as it is, when it is a {@link Binary},
+ * or not at all when it is {@link NoContent}, which makes the status 204), or throws to report an error:
+ * {@link ApiException} sets the status itself, an {@link IOException} (a failed or refused call to the manager) becomes
+ * a 502, an interruption a 503 and any other unexpected failure a 500, each with a JSON {@code {"error": ...}} body.
  *
  * <p>The router handles every request of the server. A path that is not a route goes to the fallback handler, which
  * by default answers 404, so that something else (the web interface) can serve all other paths. A path that is a route
@@ -73,6 +74,11 @@ public final class Router {
     /** Adds a PUT route, which reads the body of the request with {@link Request#jsonBody()}. */
     public void put(String pattern, Handler handler) {
         routes.add(new Route("PUT", segments(pattern), handler));
+    }
+
+    /** Adds a DELETE route, whose handler answers with {@link NoContent} when it has done its work. */
+    public void delete(String pattern, Handler handler) {
+        routes.add(new Route("DELETE", segments(pattern), handler));
     }
 
     /**
@@ -134,6 +140,8 @@ public final class Router {
         try (exchange) {
             if (body instanceof Binary binary) {
                 send(exchange, status, binary.contentType(), binary.bytes());
+            } else if (body instanceof NoContent) {
+                exchange.sendResponseHeaders(204, -1);
             } else {
                 sendJson(exchange, status, body);
             }

@@ -2,12 +2,13 @@
 
 import { DAY, HOUR } from './time.js';
 
+/** The labels are short, as the select of the toolbar is: the last month and the last quarter are calendar ones. */
 export const PERIODS = [
   { id: 'last7', label: 'Last 7 days' },
   { id: 'last30', label: 'Last 30 days' },
   { id: 'last90', label: 'Last 90 days' },
-  { id: 'lastMonth', label: 'Last calendar month' },
-  { id: 'lastQuarter', label: 'Last calendar quarter' },
+  { id: 'lastMonth', label: 'Last month' },
+  { id: 'lastQuarter', label: 'Last quarter' },
 ];
 
 function bounds(id, now) {
