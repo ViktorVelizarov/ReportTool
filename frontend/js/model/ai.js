@@ -69,11 +69,9 @@ function describeValue({ asset, label, value }) {
     : `${label} at ${asset.name} is currently ${value}.`;
 }
 
-function describeListed({ type, assets, attributes }) {
+function describeListed({ assets, attributes }) {
   if (!assets.length || !attributes.length) return NOTHING_CONNECTED;
-  return type === 'table'
-    ? `Lists ${listNames(assets)} with ${listNames(attributes)}.`
-    : `Marks ${listNames(assets)} on the map, coloured by ${listNames(attributes)}.`;
+  return `Lists ${listNames(assets)} with ${listNames(attributes)}.`;
 }
 
 function describe(widget) {

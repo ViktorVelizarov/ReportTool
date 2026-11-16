@@ -9,12 +9,32 @@
   /* Lumo's large radius as the mockups draw it: 12 px (the em of this page's 14 px text would give 10.5 px) */
   --radius: 0.75rem;
 
-  /* The colours that the dashboard builder and its widgets read, the names of OpenRemote's legacy theme */
-  --or-app-color1: var(--or-color-base);
-  --or-app-color2: var(--or-color-base);
-  --or-app-color3: var(--or-color-text-body);
+  /* The colours that the dashboard builder, its widgets and its dialogs read, the names of OpenRemote's legacy theme,
+     as the app of the manager gives them to its pages: the defaults of OpenRemote, and the primary colour of the
+     realm */
+  --or-app-color1: #FFFFFF;
+  --or-app-color2: #F9F9F9;
+  --or-app-color3: #4c4c4c;
   --or-app-color4: var(--or-color-primary);
-  --or-app-color5: var(--or-color-contrast-30pct);
+  --or-app-color5: #CCCCCC;
+  --or-app-color8: #FFFFFF;
+}
+
+/* The dashboard builder, and what it opens, have the text of the manager's pages, as the app of the manager gives it */
+or-dashboard-preview,
+or-dashboard-sidebar,
+or-mwc-dialog,
+or-mwc-snackbar {
+  color: var(--or-app-color3);
+  font-size: 14px;
+  line-height: 1.625;
+}
+
+/* A dialog of the builder is above the page, the toolbar that stays in view above the report as well */
+or-mwc-dialog,
+or-asset-attribute-picker {
+  position: relative;
+  z-index: 100;
 }
 
 * { box-sizing: border-box; }
@@ -54,14 +74,16 @@ button { cursor: pointer; }
 
 .workspace { flex: 1; min-width: 0; }
 
-/* The widget types and the settings of the dashboard builder */
+/* The widget types and the settings of the dashboard builder: the sidebar of Insights, 300 px wide with a line at its
+   left, that is as high as the window and touches the edge of the page, out of the padding of the layout */
 or-dashboard-sidebar {
   position: sticky;
-  top: 8px;
+  top: 0;
   flex: none;
-  width: 320px;
-  height: calc(100vh - 16px);
-  border-radius: var(--radius);
+  box-sizing: content-box; /* the 300 px are those inside the line at the left, as in Insights */
+  width: 300px;
+  height: 100vh;
+  margin: -8px -8px -8px 0;
 }
 
 /* The controls of the toolbar are OpenRemote's own: buttons, selects, a menu bar and a text field */
@@ -78,7 +100,7 @@ or-vaadin-button.busy .icon { animation: spin 1.1s linear infinite; }
   display: flex;
   flex-wrap: wrap;
   align-items: end;
-  gap: 10px 14px;
+  gap: 10px 10px;
   padding: 16px;
   border-radius: var(--radius);
   background: var(--or-color-base);
@@ -97,13 +119,13 @@ or-vaadin-button.busy .icon { animation: spin 1.1s linear infinite; }
 .toolbar::before { bottom: 100%; height: 8px; }
 .toolbar::after { top: 100%; height: 4px; }
 
-/* The name, then the mode with the time frame and the saved report, then the actions. Wide enough, they are one row. If
-   not, the actions go to a row of their own and the name keeps the row of the other controls, instead of stretching
-   across a row alone */
-.toolbar .name-field { flex: 1 1 220px; min-width: 0; }
+/* The name (a fixed width, it does not grow), then the mode with the time frame and the saved report, then the actions.
+   Wide enough, they are one row. If not, the actions go to a second row, left aligned under the rest; the name only
+   grows to a limit */
+.toolbar .name-field { flex: 1 1 120px; min-width: 100px; max-width: 220px; }
 .toolbar-view, .toolbar-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
-/* Wide enough for the longest time frame ("Last 30 days" needs 144 px) and for a name of a saved report to show */
-.toolbar-select { width: 10rem; }
+/* Wide enough for the longest time frame ("Last 30 days" needs 144 px, 9.25rem is 148) and for a name of a saved report to show */
+.toolbar-select { width: 9.25rem; }
 
 /* The report */
 
@@ -232,7 +254,7 @@ or-vaadin-confirm-dialog::part(overlay) { min-width: min(36rem, 90vw); }
 
 @media (max-width: 1100px) {
   .layout { flex-direction: column; align-items: stretch; }
-  or-dashboard-sidebar { position: static; width: auto; height: 560px; }
+  or-dashboard-sidebar { position: static; width: auto; height: 560px; margin: 0; }
 }
 
 @media (max-width: 700px) {

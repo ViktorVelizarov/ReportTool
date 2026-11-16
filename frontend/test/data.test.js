@@ -311,6 +311,48 @@ test('an error of the service is passed on', async () => {
   }
 });
 
+test('"nearest" gives the newest data point at or before the time, and none before the history', async () => {
+  const lastHour = Math.floor(NOW / HOUR) * HOUR;
+  const nearest = (name, timestamp, id = drip1) => AssetService.getDatapoints(id, name, { type: 'nearest', timestamp });
+
+  assert.deepEqual((await nearest('flowWater', new Date(NOW).toISOString())).map(point => point.x), [lastHour]);
+  assert.deepEqual((await nearest('flowWater', lastHour)).map(point => point.x), [lastHour]); // the time is included
+  assert.deepEqual((await nearest('flowWater', lastHour - 3 * DAY - 20 * 60_000)).map(point => point.x),
+    [lastHour - 3 * DAY - HOUR]);
+  assert.deepEqual(await nearest('flowWater', NOW - 200 * DAY), []);
+  assert.deepEqual(await nearest('location', NOW), []); // no stored history
+  assert.deepEqual(await nearest('nope', NOW), []);
+  assert.deepEqual(await nearest('flowWater', NOW, 'nope'), []);
+});
+
+test('"nearest" looks further back in larger windows until it finds a data point', async () => {
+  const fetch = ServiceClient.fetch;
+  const asked = [];
+  let stored = [];
+  try {
+    ServiceClient.fetch = async url => {
+      const { pathname, searchParams } = new URL(url, 'http://localhost');
+      const answer = body => ({ ok: true, status: 200, json: async () => body });
+      if (pathname.endsWith('/period')) return answer({ oldestTimestamp: NOW - 100 * DAY, latestTimestamp: NOW });
+      const [from, to] = [Number(searchParams.get('from')), Number(searchParams.get('to'))];
+      asked.push(to - from);
+      return answer(stored.filter(point => point.timestamp >= from && point.timestamp <= to));
+    };
+    const nearest = () => AssetService.getDatapoints(drip1, 'flowWater', { type: 'nearest', timestamp: NOW });
+
+    stored = [{ timestamp: NOW - 10 * DAY, value: 7 }];
+    assert.deepEqual(await nearest(), [{ x: NOW - 10 * DAY, y: 7 }]);
+    assert.deepEqual(asked.map(window => window / HOUR), [1, 4, 16, 64, 256]); // 256 hours reach back 10 days
+
+    asked.length = 0;
+    stored = [];
+    assert.deepEqual(await nearest(), []);
+    assert.equal(asked.at(-1), 100 * DAY); // the search ends at the oldest data point that the attribute has
+  } finally {
+    ServiceClient.fetch = fetch;
+  }
+});
+
 test('lttb keeps the first and the last point and the requested number of points', async () => {
   const query = { fromTimestamp: NOW - 30 * DAY, toTimestamp: NOW };
   const all = await AssetService.getDatapoints(drip1, 'flowWater', query);
@@ -323,26 +365,60 @@ test('lttb keeps the first and the last point and the requested number of points
   assert.deepEqual(lttb(all.slice(0, 5), 90), all.slice(0, 5)); // nothing to remove
 });
 
-test('interval queries give one point per interval, minimum below average below maximum', async () => {
-  const query = { type: 'interval', interval: '1 day', fromTimestamp: NOW - 5 * DAY, toTimestamp: NOW };
-  const [avg, min, max] = await Promise.all(['AVG', 'MIN', 'MAX']
-    .map(formula => AssetService.getDatapoints(drip1, 'flowWater', { ...query, formula })));
+test('an interval query is passed on to the service, which has the manager make the intervals', async () => {
+  const fetch = ServiceClient.fetch;
+  const asked = [];
+  try {
+    ServiceClient.fetch = async url => {
+      asked.push(new URL(url, 'http://localhost'));
+      return {
+        ok: true,
+        status: 200,
+        json: async () => [
+          { timestamp: 1000, value: 5.5 }, { timestamp: 2000, value: null }, { timestamp: 3000, value: true },
+        ],
+      };
+    };
+    const points = await AssetService.getDatapoints(drip1, 'flowWater', {
+      type: 'interval', interval: '1 DAY', formula: 'AVG', gapFill: true,
+      fromTimestamp: NOW - DAY, toTimestamp: NOW - 1,
+    });
 
-  assert.ok(avg.length >= 5 && avg.length <= 6);
-  assert.ok(avg.every(p => p.x % DAY === 0));
-  avg.forEach((p, i) => assert.ok(min[i].y <= p.y && p.y <= max[i].y));
-  assert.ok(max.some((p, i) => p.y > min[i].y));
+    // an interval without data points has a point with no value, the value of a flag is a number
+    assert.deepEqual(points, [{ x: 1000, y: 5.5 }, { x: 2000, y: null }, { x: 3000, y: 1 }]);
+    const [url] = asked;
+    assert.equal(url.pathname, `${POINTS(drip1, 'flowWater')}/interval`);
+    assert.deepEqual(Object.fromEntries(url.searchParams), {
+      realm: REALM, from: String(NOW - DAY), to: String(NOW - 1), interval: '1 DAY', formula: 'AVG', gapFill: 'true',
+    });
+
+    // without gapFill the intervals that have no data points are left out, and a range backwards has no points
+    await AssetService.getDatapoints(drip1, 'flowWater',
+      { type: 'interval', interval: '1 hour', formula: 'MAX', fromTimestamp: NOW - HOUR, toTimestamp: NOW });
+    assert.equal(asked[1].searchParams.get('gapFill'), 'false');
+    assert.deepEqual(await AssetService.getDatapoints(drip1, 'flowWater',
+      { type: 'interval', interval: '1 hour', formula: 'MAX', fromTimestamp: NOW, toTimestamp: NOW - HOUR }), []);
+    assert.equal(asked.length, 2);
+  } finally {
+    ServiceClient.fetch = fetch;
+  }
 });
 
-test('the interval of a query is read from text; one that cannot be read gives all points', async () => {
-  const query = { type: 'interval', fromTimestamp: NOW - DAY, toTimestamp: NOW };
-  const points = interval => AssetService.getDatapoints(drip1, 'flowWater', { ...query, interval });
-  const steps = list => [...new Set(list.slice(1).map((point, i) => point.x - list[i].x))];
+test('an unknown attribute has no intervals, and a refusal of the service is passed on', async () => {
+  const query = { type: 'interval', interval: '1 day', formula: 'AVG', fromTimestamp: NOW - 2 * DAY, toTimestamp: NOW };
+  const fetch = ServiceClient.fetch;
+  try {
+    assert.deepEqual(await AssetService.getDatapoints(drip1, 'nope', query), []);
+    assert.deepEqual(await AssetService.getDatapoints('nope', 'flowWater', query), []);
 
-  assert.deepEqual(steps(await points('2 hours')), [2 * HOUR]);
-  assert.deepEqual(steps(await points('1 hour')), [HOUR]);
-  assert.deepEqual(steps(await points('soon')), [HOUR]);
-  assert.deepEqual(steps(await points(undefined)), [HOUR]);
+    ServiceClient.fetch = async () => ({
+      ok: false, status: 400, json: async () => ({ error: 'the data points cannot be made into intervals' }),
+    });
+    await assert.rejects(AssetService.getDatapoints(drip1, 'online', { ...query, formula: 'DIFFERENCE' }),
+      error => error.status === 400 && /made into intervals/.test(error.message));
+  } finally {
+    ServiceClient.fetch = fetch;
+  }
 });
 
 // --- asset model and helpers ---

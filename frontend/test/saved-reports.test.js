@@ -123,7 +123,7 @@ test('a report that is opened and saved again after a change is replaced and not
   assert.deepEqual(calls, [`PUT /reports/${opened.reportId}?realm=manufacturer`]);
   assert.equal(saved.id, opened.reportId);
   assert.equal((await SavedReports.list()).length, 1);
-  assert.equal((await SavedReports.open(opened.reportId)).template.widgets.length, 7);
+  assert.equal((await SavedReports.open(opened.reportId)).template.widgets.length, 6);
 });
 
 test('a report that is renamed and saved is the same saved report with a new name', async () => {

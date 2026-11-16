@@ -42,20 +42,46 @@ ported from TypeScript to plain JavaScript so that it runs here without the mana
   have a widget and its settings for every type, registered by their manifests as in Insights.
 - The same data. The layout of a report is a `DashboardTemplate` of `DashboardWidget`s (`widgetTypeId`, `gridItem`,
   `widgetConfig`), and every widget type has the config of Insights.
-- The same libraries for drawing: GridStack, ECharts and gauge.js (see [vendor](vendor/README.md)).
+- The same library for the grid: GridStack. The line chart, the bar chart, the KPI and the gauge are OpenRemote's own
+  `or-chart`, `or-attribute-barchart`, `or-attribute-card` and `or-gauge` from their npm packages, with the same data
+  as in Insights (see [vendor](vendor/README.md)).
 
-The widget types are line chart, bar chart, KPI, gauge, table, map and image. The differences with Insights:
+The widget types are line chart, bar chart, KPI, gauge, table and image. The differences with Insights:
 
-- A line chart, bar chart or KPI follows the time frame of the report. Its setting "Use the report time frame" can be
-  switched off; then it has a time window of its own, as in Insights.
-- The map is a drawing of the Netherlands instead of a MapLibre map with tiles from the manager, so it works offline.
+- A line chart or bar chart follows the time frame of the report. Its setting "Use the report time frame" can be
+  switched off; then it has a time window of its own, as in Insights. Neither chart has time controls or a "from" and
+  "to", nor the setting "Allow time range selection": the toolbar of the report chooses the time frame, and the
+  interval of the bar chart is a setting of the widget.
+- The legend of the line chart and the bar chart is a compact one under the chart, one line per attribute (a mark in
+  its colour, the asset and the attribute, the methods of the bars, the right axis), as Report Studio had before it
+  used `or-chart` and `or-attribute-barchart` (`js/builder/util/report-chart.js`). It never scrolls, because a report
+  is printed. Insights has an icon and three lines per attribute beside the chart, or under it with a scroll bar, so
+  that a small widget showed little more than its legend.
+- The line chart has no predicted data points: the report service has no forecasts of attributes.
+- There is no map widget, which Insights has.
+- The KPI has no period menu (the "Day" button) and not the setting "Allow time range selection": its period is a
+  setting of the widget.
+- A long widget title wraps onto more lines, where Insights cuts it off with "...", as a report is printed.
 - In preview mode, a chart, gauge or table has its download buttons (PNG or CSV) in its header.
 - Not ported: the attribute input and gateway widgets (they change things or open tunnels, which a report does not),
-  the time controls and zoom bar of the charts, the list of dashboards, who can see a dashboard and how often it
+  the list of dashboards, who can see a dashboard and how often it
   refreshes, and the preview sizes for phones and tablets.
 
-The builder uses parts of OpenRemote's component library: form fields, tabs, dialogs, the attribute picker,
-translations and icons. The text field, number field, text area, select, toggle, checkbox, radio button, button,
+The builder is made of the components of Insights, which are bundled here. The tabs of the sidebar, the table of the
+table widget, the dialogs, the messages, the asset tree, the attribute picker, the loading indicator and the colour
+input are OpenRemote's Material components (`or-mwc-tabs`, `or-mwc-table`, `or-mwc-dialog`, `or-mwc-snackbar`,
+`or-asset-tree`, `or-asset-attribute-picker`, `or-loading-indicator` and `or-mwc-input`), in `vendor/or-mwc.js`, as are
+the line chart (`or-chart`), the bar chart (`or-attribute-barchart`), the KPI (`or-attribute-card`) and the gauge
+(`or-gauge`). So they
+look and work as in Insights: the table shows its pages only when there are more rows than the smallest page, the
+picker is the tree of the assets of the realm with a filter and a sort, and the sidebar is 300 px wide with a line at
+its left, as high as the window and at the edge of the page. A widget is deleted after "Are you sure?", from the
+button of the sidebar and from the Delete key, as there. The builder, its dialogs and its messages have the
+colours, the text size and the line height that the app of the manager gives them (`css/app.css`). The components ask
+OpenRemote's core and its model for the manager and for the assets; the import map of `index.html` points those to
+`js/kit/core.js` and `js/kit/model.js`, which answer from the report service, through `js/data/asset-service.js` and
+`js/data/asset-query.js` (the queries of the tree). The rest of the library is the form fields and the dialogs of the
+page: the text field, number field, text area, select, toggle, checkbox, radio button, button,
 multi-select combo box, menu bar, badge, dialog and confirm dialog are OpenRemote's own `or-vaadin-*` components, and
 so are the scheduler (`or-scheduler`), `<or-translate>` and the `i18next` that it uses: all of them are bundled in
 `vendor/or-vaadin.js`. The settings of the builder, the review blocks and the dialogs are made of them, and the page
@@ -63,17 +89,15 @@ takes its colours, font and radii from OpenRemote's theme, `vendor/or-theme.css`
 and its cards are flat: only menus, dialogs and messages have a shadow. The library has no component
 for a message, a card or a progress bar, which the design system of OpenRemote has: a message (saved, exported, failed)
 is a notification of Vaadin, a block of generated text and the page that cannot start are cards of Vaadin, and text
-that is being written shows a progress bar of Vaadin, all in the colours of that theme. `js/kit/` has small stand-ins,
-with the same names, properties and events, for what is not bundled yet: tabs, the attribute picker, icons, the loading
-indicator and the colour input; it also gives `i18next` the texts of the page (`js/kit/i18n.js`). Its `OrMwcDialog`,
-which the pickers of the builder use, draws an `or-vaadin-dialog`. The calls the widgets make to the manager are
-answered by `js/data/asset-service.js`, with the data of the realm from the report service.
+that is being written shows a progress bar of Vaadin, all in the colours of that theme. `js/kit/i18n.js` gives
+`i18next` the texts of the page, and `js/kit/or-icon.js` draws the icons of `js/kit/mdi-icons.js` as OpenRemote's
+`<or-icon>` does.
 
 The top of the page is the page's own: one toolbar with the name of the report, the switch between editing and
 previewing, the time frame, the saved reports, and the buttons for saving, deleting, scheduling, writing text and
 exporting. Its fields, buttons and menus are those of OpenRemote's library (`or-vaadin-*`), placed by `css/app.css`.
 Save and Delete are only icons, with a title and a label for screen readers, and the time frames and the empty list of
-saved reports have short texts ("Last quarter", "View list"), so that the bar is one row from a width of about 1210 px,
+saved reports have short texts ("Last quarter", "View list"), so that the bar is one row from a width of about 1080 px,
 as it is in the manager on a screen of 1920 px. The name, the switch, the time frame and the saved reports make one
 group and the buttons another; on a narrower page the buttons take a row of their own, so that the name does not
 stretch across a row alone.
@@ -95,7 +119,7 @@ closed repository. The alternative is a builder of our own that is written witho
 | Assets, attributes and values | The assets of the realm and their current values, from the service (`GET /assets`, `GET /assets/{id}`), in OpenRemote's format (`js/data/asset-service.js`) |
 | Look of the realm | The primary colour and the logo that the realm has in the manager's configuration (`GET /branding`, `js/data/branding.js`), read when the page starts. The colour goes on the whole theme, as the manager does for a realm; the logo is on the cover. A realm that sets none looks like OpenRemote, in green and without a logo |
 | Asset types and attributes | The asset model of the manager (`GET /model/assetInfos`): the types with their icons and colours, and the attributes with their value types and units. It is read once, when the page starts (`js/data/asset-model.js`) |
-| Data points | The stored history of an attribute, from the service. The service gives every point of a range, so the downsampling of a line chart and the average, minimum or maximum per interval are done in the browser |
+| Data points | The stored history of an attribute, from the service. The service gives every point of a range, so the downsampling of a line chart is done in the browser. The data points per interval (one value per hour, day, week or month, for the bar chart) are made by the manager, through the service; the days, weeks and months are those of the clock of the manager's time zone. The newest point at or before a time (the line that carries the latest value on) is looked for backwards from the end of the history |
 | Widgets | OpenRemote's, see above, with that data |
 | Time frames | Presets only: last 7, 30 and 90 days, last month and last quarter (the calendar month and quarter before the day the report is made) |
 | Instructions for the AI | "Generate text" first opens a dialog with two questions, which have to be answered: what the report shows, and what the AI should look out for. The answers are kept with the saved report, but nothing uses them yet. `js/model/prompt.js` can make the prompt from them (the answers, the figures of every widget and a few fixed rules), but the page neither shows nor sends it |
@@ -108,12 +132,13 @@ closed repository. The alternative is a builder of our own that is written witho
 
 What the live data looks like on the page:
 
-- An attribute without a value shows a dash in a KPI, gauge, table, map and image; its gauge has no needle.
+- An attribute without a value shows a dash in a table and an image. A KPI and a gauge show "NaN", as in Insights.
 - OpenRemote only stores the history of attributes that have the `storeDataPoints` meta item, and some have stored
   nothing yet. A chart of attributes without data points in the time frame says so.
 - Units are those of the attribute, or else those of its type in the asset model, written with OpenRemote's symbols
   (`js/data/units.js`): the parts `litre`, `per` and `hour` give `l/h`.
-- The attribute picker lists all assets of the realm, grouped by asset type. It reads them all when it opens.
+- The attribute picker and the asset selector show the asset tree of the realm. They read all assets of the realm when
+  they open, which is what the tree does when a realm has fewer than 1,000 assets.
 
 Printing the page (Ctrl+P) prints the report on A4 landscape, scaled to the width of the page, as it is in Preview: the
 cover, the text, the widgets and the descriptions one after the other. It leaves out the controls (the toolbar, the
@@ -203,7 +228,8 @@ service has for the realm and opens a report from it, and Delete removes the sav
 
 - `index.html`, `render.html`, `css/app.css` - the page, the page that the service prints to make a PDF, and their
   styles. `css/app.css` is read after `vendor/or-theme.css` and gets its colours, font and radii from that theme.
-  The import map points `lit` to `vendor/lit.js`.
+  The import map points `lit` to `vendor/lit.js`, and the components of OpenRemote to the files that stand in for its
+  core, model and icons and to the bundle of the library.
 - `js/main.js` - starts the page; `js/render.js` starts the page that is printed. `js/state.js` - the report (its name,
   time frame and template, the generated text, which saved report is open, what the saved reports are called and what
   the report was when it was last saved) and the actions that change it, as pure functions.
@@ -222,9 +248,9 @@ service has for the realm and opens a report from it, and Delete removes the sav
   blocks, saving and opening reports (`saved-reports.js`), menus, dialogs (a question, the schedule, and the
   instructions for the AI), messages and icons, and the message for a page that cannot start. `js/dom.js` has the
   helpers they build the page with; nothing is built with `innerHTML`.
-- `js/kit/` - the stand-ins for the components of OpenRemote that are not bundled, see above, and the texts
-  (`texts.js`) and icons (`mdi-icons.js`) of the page. An icon that the page does not have shows as the icon of an
-  unknown type.
+- `js/kit/` - what the components of OpenRemote find in the page: its core and its model (`core.js`, `model.js`), its
+  element and its icon (`or-element.js`, `or-icon.js`), the texts (`texts.js`, `i18n.js`) and the icons
+  (`mdi-icons.js`) of the page. An icon that the page does not have shows as the icon of an unknown type.
 - `vendor/` - third-party libraries, OpenRemote's components, theme and font included. `test/` - the tests.
 
 ## Test
@@ -235,9 +261,10 @@ npm test
 
 Uses the built-in test runner of Node.js (developed with Node 24); there is nothing to install. The tests cover the
 state, the report model, the prompt and the text, the schedule, the request for a PDF, the placing of widgets on pages,
-the data layer, the saved reports (saving, opening, a time frame that moves on, a report that is saved again, deleting
-one, changes that are not saved), and the parts of the builder that need no browser: time windows, bar chart intervals
-and methods, the map, the keys, and the widget types with their default configs.
+the data layer (also the asset queries of the tree and the core that the components of OpenRemote ask), the saved
+reports (saving, opening, a time frame that moves on, a report that is saved again, deleting one, changes that are not
+saved), and the parts of the builder that need no browser: time windows, the
+keys, and the widget types with their default configs.
 The data layer is tested against a fake of the service (`test/helpers/service.js`) that has the asset model, the look of
 the realm and a few assets in the JSON that the service gives, with generated data points, and saved reports that it
 keeps in memory with the rules of the service; it records every call. `test/helpers/` also
@@ -250,8 +277,8 @@ service.
 
 - `js/model/ai.js` becomes a call to a language model with the prompt of `js/model/prompt.js`, which is made already;
   the review stays as it is.
-- The CSV and PNG buttons (`mockExport` in `js/ui/export.js`) become real exports; ECharts can give a chart as an image
-  (`getDataURL`).
+- The CSV and PNG buttons (`mockExport` in `js/ui/export.js`) become real exports; the charts are components of
+  OpenRemote that keep their ECharts and Chart.js charts to themselves, so an image of one is a picture of the canvas.
 - The saved reports are a file for each report on the machine of the service. They are not tied to a user until the
   service knows who the author is. A template is the same JSON as an Insights
   dashboard.
@@ -261,9 +288,10 @@ service.
   starts). The start of the event is when the first report is made; its end is not used. Whether the report waits for
   the admin before it goes out is still to be decided. Generated text has nobody to approve it when nobody is there, so
   it has to stay out of a scheduled report or go out marked as a draft; that is still to be decided.
-- The service gives every point of a range, at most 100,000. An endpoint that averages per interval would send far less
-  for a long time frame of an attribute that changes often.
-- The attribute picker reads all assets of a realm at once. For a large realm it needs a tree of the assets that loads
-  what is opened, as the manager's asset tree does.
+- The service gives every point of a range, at most 100,000, to the line chart, which thins them out itself. The
+  manager could do that as well (it has a query for it), which would send far less for a long time frame of an
+  attribute that changes often.
+- The asset tree reads all assets of a realm at once, which the manager's tree does as well below 1,000 assets. For a
+  larger realm the service would need to answer queries by parent, with an offset and a limit.
 - If Report Studio becomes part of the manager's own UI, it can use `@openremote/or-dashboard-builder` itself instead
   of this port.

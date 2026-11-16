@@ -99,7 +99,7 @@ test('a dropped widget is added and selected', () => {
 
   const state = addWidget(withText(), widget);
 
-  assert.equal(state.template.widgets.length, 9);
+  assert.equal(state.template.widgets.length, 8);
   assert.equal(state.selectedId, 'new');
   assert.equal(state.ai, null);
 });
@@ -109,7 +109,7 @@ test('a removed widget is deselected, and removing nothing changes nothing', () 
 
   const removed = removeWidget(state, 'irrigation-2');
 
-  assert.equal(removed.template.widgets.length, 7);
+  assert.equal(removed.template.widgets.length, 6);
   assert.equal(removed.selectedId, undefined);
   assert.equal(removeWidget(removed, 'irrigation-2'), removed);
   assert.equal(removeWidget(removed, undefined), removed);
@@ -219,7 +219,7 @@ test('a report that is saved is the report that is open from then on, and saving
 
 test('opening a saved report shows its widgets and time frame, with no text and nothing selected', () => {
   const report = savedAs(setPeriod(setName(withReport(), 'Quarterly irrigation'), 'lastQuarter'));
-  const state = selectWidget(finishGenerating(startGenerating(removeWidget(withReport(), 'irrigation-8')), TEXT),
+  const state = selectWidget(finishGenerating(startGenerating(removeWidget(withReport(), 'irrigation-7')), TEXT),
     'irrigation-1');
 
   const opened = loadReport(state, report, NOW + 1);
@@ -227,7 +227,7 @@ test('opening a saved report shows its widgets and time frame, with no text and 
   assert.equal(opened.reportId, 'report-1');
   assert.equal(opened.name, 'Quarterly irrigation');
   assert.equal(opened.periodId, 'lastQuarter');
-  assert.equal(opened.template.widgets.length, 8);
+  assert.equal(opened.template.widgets.length, 7);
   assert.deepEqual(opened.template, report.template);
   assert.notEqual(opened.template, report.template, 'the report keeps a copy of its own');
   assert.equal(opened.selectedId, undefined);
@@ -381,7 +381,7 @@ test('a change to what Save keeps is an unsaved change: name, time frame, widget
     'where a widget is': setTemplate(state, changeWidget(state, 'irrigation-1', widget => { widget.gridItem.y = 20; })),
     'the settings of a widget': setTemplate(state,
       changeWidget(state, 'irrigation-2', widget => { widget.widgetConfig.max = 2000; })),
-    'a removed widget': removeWidget(state, 'irrigation-8'),
+    'a removed widget': removeWidget(state, 'irrigation-7'),
     'the answers for the AI': setInstructions(state, INSTRUCTIONS),
     'the schedule': setSchedule(state, SCHEDULE),
   };

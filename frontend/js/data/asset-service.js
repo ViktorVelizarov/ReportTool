@@ -9,10 +9,6 @@ import { AssetModelUtil } from './asset-model.js';
 import { ReportContext } from './report-context.js';
 import { ServiceClient } from './service-client.js';
 
-const MINUTE = 60_000;
-const INTERVAL_UNITS = { minute: MINUTE, hour: HOUR, day: DAY, week: 7 * DAY, month: 30 * DAY, year: 365 * DAY };
-
-const round = value => Math.round(value * 1000) / 1000;
 const encode = encodeURIComponent;
 
 /**
@@ -90,26 +86,63 @@ export function lttb(points, amountOfPoints) {
   return sampled;
 }
 
-/** The length in milliseconds of an interval such as "1 hour" or "5 minute"; undefined when it cannot be read. */
-function intervalToMillis(interval) {
-  const [amount, unit] = String(interval ?? '').trim().split(/\s+/);
-  const length = INTERVAL_UNITS[unit?.replace(/s$/, '')];
-  return length && Number(amount) > 0 ? Number(amount) * length : undefined;
+/**
+ * The data points of an attribute per interval, as the manager's interval query gives them (the report service passes
+ * the query on): [{ x: the start of the interval, y: what the formula makes of its points, or null for an interval
+ * that has none (with gapFill) }], oldest first. The manager lines the intervals up on its own clock: a day starts at
+ * its midnight, a week on Monday and a month on the first.
+ */
+async function intervalPoints(assetId, attributeName, from, to, { interval, formula, gapFill }) {
+  try {
+    const points = await ServiceClient.getJson(
+      `/assets/${encode(assetId)}/attributes/${encode(attributeName)}/datapoints/interval`,
+      { realm: ReportContext.realm, from, to, interval, formula, gapFill: gapFill ?? false });
+    return points.map(({ timestamp, value }) => ({ x: timestamp, y: numeric(value) ?? null }));
+  } catch (error) {
+    if (error.status === 404) return [];
+    throw error;
+  }
 }
 
-/** One point per interval, on multiples of the interval, holding the average, minimum or maximum of its points. */
-function aggregate(points, intervalMs, formula = 'AVG') {
-  const buckets = new Map();
-  for (const { x, y } of points) {
-    const start = Math.floor(x / intervalMs) * intervalMs;
-    (buckets.get(start) ?? buckets.set(start, []).get(start)).push(y);
+/** The data points of an attribute from from to to (both included), newest first; none for an attribute without. */
+async function storedPoints(assetId, attributeName, from, to) {
+  try {
+    return await ServiceClient.getJson(
+      `/assets/${encode(assetId)}/attributes/${encode(attributeName)}/datapoints`,
+      { realm: ReportContext.realm, from, to });
+  } catch (error) {
+    if (error.status === 404) return [];
+    throw error;
   }
-  const reduce = {
-    AVG: values => values.reduce((a, b) => a + b, 0) / values.length,
-    MIN: values => Math.min(...values),
-    MAX: values => Math.max(...values),
-  }[formula] ?? (values => values.reduce((a, b) => a + b, 0) / values.length);
-  return [...buckets].map(([x, values]) => ({ x, y: round(reduce(values)) }));
+}
+
+/**
+ * The newest data point at or before the time, as the manager's "nearest" query gives it: the stored history ends where
+ * the service says, and the point is looked for backwards from there in windows that grow, one hour at first.
+ */
+async function nearestPoint(assetId, attributeName, timestamp) {
+  let period;
+  try {
+    period = await ServiceClient.getJson(
+      `/assets/${encode(assetId)}/attributes/${encode(attributeName)}/datapoints/period`,
+      { realm: ReportContext.realm });
+  } catch (error) {
+    if (error.status === 404) return [];
+    throw error;
+  }
+  const { oldestTimestamp, latestTimestamp } = period;
+  if (oldestTimestamp == null || latestTimestamp == null || oldestTimestamp > timestamp) return [];
+
+  const to = Math.min(timestamp, latestTimestamp);
+  for (let window = HOUR; ; window *= 4) {
+    const from = Math.max(oldestTimestamp, to - window);
+    const [newest] = await storedPoints(assetId, attributeName, from, to);
+    if (newest) {
+      const y = numeric(newest.value);
+      return y === undefined ? [] : [{ x: newest.timestamp, y }];
+    }
+    if (from === oldestTimestamp) return [];
+  }
 }
 
 export const AssetService = {
@@ -138,24 +171,23 @@ export const AssetService = {
   /**
    * The stored data points of an attribute in the range, oldest first, as the manager's data point query returns them:
    * [{ x: timestamp, y: value }]. The query has fromTimestamp and toTimestamp (the report moment by default), and a
-   * type: "lttb" with amountOfPoints keeps the shape of the line in fewer points, and "interval" with an interval such
-   * as "1 hour" and a formula (AVG, MIN or MAX) gives one point per interval. The service gives all points, so the
-   * downsampling is done here. An attribute without stored data points has none.
+   * type: "lttb" with amountOfPoints keeps the shape of the line in fewer points (the service gives all points, so that
+   * is done here), "interval" with an interval such as "1 hour" and a formula (MIN, AVG, MAX, DIFFERENCE, COUNT, SUM,
+   * MODE or MEDIAN) gives one point per interval, and with gapFill an interval without data points has a point with no
+   * value (see intervalPoints), and "nearest" with a timestamp (a time in milliseconds or text) gives the newest data
+   * point at or before it, however long ago that was. An attribute without stored data points has none.
    */
   async getDatapoints(assetId, attributeName, query = {}) {
+    if (query.type === 'nearest') {
+      const timestamp = new Date(query.timestamp ?? ReportContext.asOf).getTime();
+      return nearestPoint(assetId, attributeName, Math.round(timestamp));
+    }
     const to = Math.round(query.toTimestamp ?? ReportContext.asOf);
     const from = Math.round(query.fromTimestamp ?? to - DAY);
     if (from > to) return [];
+    if (query.type === 'interval') return intervalPoints(assetId, attributeName, from, to, query);
 
-    let stored;
-    try {
-      stored = await ServiceClient.getJson(
-        `/assets/${encode(assetId)}/attributes/${encode(attributeName)}/datapoints`,
-        { realm: ReportContext.realm, from, to });
-    } catch (error) {
-      if (error.status === 404) return [];
-      throw error;
-    }
+    const stored = await storedPoints(assetId, attributeName, from, to);
     const points = stored.toReversed() // the service gives the newest first
       .map(({ timestamp, value }) => ({ x: timestamp, y: numeric(value) }))
       .filter(point => point.y !== undefined);

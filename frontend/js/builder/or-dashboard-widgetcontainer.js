@@ -3,6 +3,7 @@
  * Original: Copyright 2026, OpenRemote Inc., AGPL-3.0-or-later (https://github.com/openremote/openremote).
  *
  * Added for the report: tools, buttons for the widget that show in its header while the report is not being edited.
+ * Changed: a long title wraps onto more lines instead of being cut off.
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -167,11 +168,11 @@ export class OrDashboardWidgetContainer extends OrElement {
     return html`
       <div id="widget-container"
         style="height: calc(100% - 16px); padding: 8px 16px 8px 16px; display: flex; flex-direction: column;">
-        <!-- Container title -->
+        <!-- Container title: it wraps onto more lines where Insights cuts it off, as a report is printed -->
         ${when(showHeader, () => html`
-          <div style="flex: 0 0 36px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
-            <span class="panel-title"
-              style="min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+          <div style="flex: none; min-height: 36px; display: flex; justify-content: space-between; align-items: center;
+            gap: 8px;">
+            <span class="panel-title" style="min-width: 0; flex: 1; overflow-wrap: anywhere; line-height: 1.25;">
               ${this.widget.displayName?.toUpperCase()}
             </span>
             ${when(tools.length, () => html`
@@ -184,7 +185,7 @@ export class OrDashboardWidgetContainer extends OrElement {
           </div>`)}
 
         <!-- Content -->
-        <div style="flex: 1; max-height: ${showHeader ? 'calc(100% - 36px)' : '100%'}; min-height: 0;">
+        <div style="flex: 1; min-height: 0;">
           ${when(
             !this.error && !this.loading,
             () => html`${this.orWidget}`,

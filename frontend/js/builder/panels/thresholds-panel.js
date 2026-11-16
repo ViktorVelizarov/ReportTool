@@ -1,6 +1,6 @@
 /*
  * Ported to plain JavaScript from OpenRemote's or-dashboard-builder (src/panels/thresholds-panel.ts), the list of
- * colour thresholds of the gauge and the map. Original: Copyright 2026, OpenRemote Inc., AGPL-3.0-or-later
+ * colour thresholds of the gauge. Original: Copyright 2026, OpenRemote Inc., AGPL-3.0-or-later
  * (https://github.com/openremote/openremote).
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -129,11 +129,11 @@ export class ThresholdsPanel extends OrElement {
           ${[...this.thresholds].sort((x, y) => (x[0] < y[0] ? -1 : 1)).map((threshold, index) => html`
             <div class="threshold-list-item">
               <div class="threshold-list-item-colour">
-                <or-colour-input .value=${threshold[1]}
+                <or-mwc-input type="color" .value=${threshold[1]}
                   @or-mwc-input-changed=${event => {
                     threshold[1] = event.detail.value;
                     this.thresholds = [...this.thresholds];
-                  }}></or-colour-input>
+                  }}></or-mwc-input>
               </div>
               <or-vaadin-number-field .value=${String(threshold[0])}
                 min=${ifDefined(this.min)} max=${ifDefined(this.max)} ?disabled=${index === 0 && this.max}
@@ -160,9 +160,9 @@ export class ThresholdsPanel extends OrElement {
           ${[[true, 'True'], [false, 'False']].map(([isTrue, text]) => html`
             <div class="threshold-list-item">
               <div class="threshold-list-item-colour">
-                <or-colour-input .value=${this.colorValue(this.boolColors?.[isTrue ? 'true' : 'false'])}
+                <or-mwc-input type="color" .value=${this.colorValue(this.boolColors?.[isTrue ? 'true' : 'false'])}
                   @or-mwc-input-changed=${event => this.onBoolColorChange(isTrue, event.detail.value)}>
-                </or-colour-input>
+                </or-mwc-input>
               </div>
               <or-vaadin-text-field .value=${text} readonly></or-vaadin-text-field>
             </div>`)}` : null}
@@ -172,11 +172,11 @@ export class ThresholdsPanel extends OrElement {
           ${this.textColors.map((threshold, index) => html`
             <div class="threshold-list-item">
               <div class="threshold-list-item-colour">
-                <or-colour-input .value=${threshold[1]}
+                <or-mwc-input type="color" .value=${threshold[1]}
                   @or-mwc-input-changed=${event => {
                     this.textColors[index][1] = event.detail.value;
                     this.textColors = [...this.textColors];
-                  }}></or-colour-input>
+                  }}></or-mwc-input>
               </div>
               <or-vaadin-text-field .value=${threshold[0]}
                 @change=${event => {

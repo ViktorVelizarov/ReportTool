@@ -2,6 +2,7 @@ package com.example.reportservice.datapoint;
 
 import static com.example.reportservice.support.TestServer.json;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.example.reportservice.support.FakeManager;
@@ -21,6 +22,7 @@ class DatapointEndpointsTest {
     private static final String POINTS = "POST /asset/datapoint/" + ID + "/temperature";
     private static final String PERIOD = "GET /asset/datapoint/periods";
     private static final String POINTS_URL = "/assets/" + ID + "/attributes/temperature/datapoints";
+    private static final String INTERVAL_URL = POINTS_URL + "/interval";
     private static final String QUERY = "POST /asset/query";
 
     private FakeManager manager;
@@ -93,6 +95,77 @@ class DatapointEndpointsTest {
         assertEquals(400, server.get(POINTS_URL + "?from=2026-01-01T00:00:00").statusCode()); // no offset
         assertEquals(400, server.get(POINTS_URL + "?from=2000&to=1000").statusCode());
         assertTrue(manager.calls().isEmpty()); // none of these reached the manager
+    }
+
+    @Test
+    void returnsTheDatapointsPerInterval() throws Exception {
+        manager.respond(POINTS, "[{\"x\":1000,\"y\":21.5},{\"x\":4600000,\"y\":null}]");
+
+        HttpResponse<String> response = server.get(INTERVAL_URL + "?from=1000&to=9000000&interval=1%20hour&formula=avg"
+                + "&gapFill=true");
+
+        assertEquals(200, response.statusCode());
+        JsonNode json = json(response);
+        assertEquals(2, json.size());
+        assertEquals(1000, json.get(0).get("timestamp").asLong());
+        assertEquals(21.5, json.get(0).get("value").asDouble());
+        assertTrue(json.get(1).get("value").isNull());
+
+        JsonNode query = manager.lastBody(POINTS);
+        assertEquals("interval", query.get("type").asText());
+        assertEquals(1000, query.get("fromTimestamp").asLong());
+        assertEquals(9000000, query.get("toTimestamp").asLong());
+        assertEquals("1 hour", query.get("interval").asText());
+        assertEquals("AVG", query.get("formula").asText());
+        assertTrue(query.get("gapFill").asBoolean());
+    }
+
+    @Test
+    void leavesTheGapsOutUnlessTheyAreAskedFor() throws Exception {
+        server.get(INTERVAL_URL + "?from=1&interval=5%20minutes&formula=MAX");
+        assertFalse(manager.lastBody(POINTS).get("gapFill").asBoolean());
+
+        server.get(INTERVAL_URL + "?from=1&interval=1%20DAY&formula=COUNT&gapFill=false");
+        assertFalse(manager.lastBody(POINTS).get("gapFill").asBoolean());
+        assertEquals("1 DAY", manager.lastBody(POINTS).get("interval").asText());
+    }
+
+    @Test
+    void rejectsInvalidIntervalParameters() throws Exception {
+        String base = INTERVAL_URL + "?from=1&interval=1%20hour&formula=AVG";
+        assertEquals(400, server.get(INTERVAL_URL + "?interval=1%20hour&formula=AVG").statusCode()); // needs from
+        assertEquals(400, server.get(INTERVAL_URL + "?from=1&formula=AVG").statusCode()); // so is the interval
+        assertEquals(400, server.get(INTERVAL_URL + "?from=1&interval=1%20hour").statusCode()); // and the formula
+        List<String> intervals =
+                List.of("hour", "0%20hour", "1%20fortnight", "1%20hour;drop", "-1%20hour", "1000000%20day");
+        for (String interval : intervals) {
+            String url = INTERVAL_URL + "?from=1&formula=AVG&interval=" + interval;
+            assertEquals(400, server.get(url).statusCode(), interval);
+        }
+        assertEquals(400, server.get(INTERVAL_URL + "?from=1&interval=1%20hour&formula=MEAN").statusCode());
+        assertEquals(400, server.get(base + "&gapFill=yes").statusCode());
+        assertEquals(400, server.get(base + "&to=0").statusCode()); // from after to
+        assertTrue(manager.calls().isEmpty()); // none of these reached the manager
+    }
+
+    @Test
+    void readsTheIntervalsInTheRealmThatIsAskedFor() throws Exception {
+        assertEquals(200, server.get(INTERVAL_URL + "?from=1&interval=1%20day&formula=SUM&realm=smartcity")
+                .statusCode());
+        assertEquals("smartcity", checkedRealm());
+
+        manager.respond(QUERY, "[]"); // the realm does not have the asset
+        assertEquals(404, server.get(INTERVAL_URL + "?from=1&interval=1%20day&formula=SUM&realm=other")
+                .statusCode());
+    }
+
+    @Test
+    void explainsAnIntervalQueryThatTheManagerRefuses() throws Exception {
+        manager.failOnce(POINTS, 400); // a text attribute, or the difference of a flag
+        HttpResponse<String> response = server.get(INTERVAL_URL + "?from=1&interval=1%20day&formula=DIFFERENCE");
+
+        assertEquals(400, response.statusCode());
+        assertTrue(json(response).get("error").asText().contains("number or a flag"));
     }
 
     private String checkedRealm() {

@@ -10,7 +10,7 @@ import { EN } from './texts.js';
 i18next.init({
   lng: 'en',
   initAsync: false, // the texts are here already, so the first one can be asked for at once
-  keySeparator: false, // the keys of texts.js are flat: 'dashboard.zoom' is one key
+  keySeparator: false, // the keys of texts.js are flat: 'dashboard.faint' is one key
   nsSeparator: false,
   interpolation: { escapeValue: false }, // what is shown is escaped by Lit
   resources: { en: { translation: EN } },

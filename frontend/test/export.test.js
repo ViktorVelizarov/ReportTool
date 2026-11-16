@@ -77,7 +77,7 @@ test('the page that is printed loads the same scripts and styles as the page of 
     .map(match => match[1]).filter(address => address !== 'data:,' && !address.startsWith('js/'));
   const importMap = html => html.match(/<script type="importmap">(.*?)<\/script>/)?.[1];
 
-  assert.ok(assets(read('index.html')).length >= 5);
+  assert.ok(assets(read('index.html')).length >= 3); // the theme, the styles and GridStack
   assert.deepEqual(assets(read('render.html')), assets(read('index.html')));
   assert.equal(importMap(read('render.html')), importMap(read('index.html')));
   assert.match(read('index.html'), /<script type="module" src="js\/main\.js">/);

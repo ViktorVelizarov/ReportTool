@@ -26,7 +26,8 @@ export const WIDGET_SPECS = {
    *   attributeRefs, attributeColors ([[ref, colour]]), attributeSettings (the refs per option: rightAxisAttributes,
    *   faintAttributes and the methods methodAvgAttributes, methodMinAttributes, ...), datapointQuery, chartOptions (the
    *   minimum and maximum of the axes), defaultTimePrefixKey ("last"), defaultTimeWindowKey ("7Days"), defaultInterval,
-   *   showLegend, stacked, decimals, followReportPeriod, and showTimestampControls, which is kept but not used.
+   *   showLegend, stacked, decimals and followReportPeriod. Insights' showTimestampControls is left out: in a report
+   *   the bar chart has no time controls.
    */
   barchart: {
     displayName: 'Bar Chart', displayIcon: 'chart-bar',
@@ -37,7 +38,6 @@ export const WIDGET_SPECS = {
       attributeSettings: {},
       datapointQuery: { type: 'interval' },
       chartOptions: axesOptions(),
-      showTimestampControls: false,
       defaultTimeWindowKey: '7Days',
       defaultTimePrefixKey: 'last',
       defaultInterval: BarChartInterval.AUTO,
@@ -82,7 +82,9 @@ export const WIDGET_SPECS = {
 
   /*
    * The config of the KPI widget (KpiWidgetConfig): attributeRefs, period ("year" | "month" | "week" | "day" | "hour"),
-   * decimals, deltaFormat ("absolute" | "percentage"), showTimestampControls, and followReportPeriod.
+   * decimals and deltaFormat ("absolute" | "percentage"); Insights' showTimestampControls is left out, as the KPI has
+   * no period menu in a report. The KPI shows the last hour, day, week, month or year up to now, it does not follow the
+   * report.
    */
   kpi: {
     displayName: 'KPI', displayIcon: 'label',
@@ -92,17 +94,19 @@ export const WIDGET_SPECS = {
       period: 'day',
       decimals: 0,
       deltaFormat: 'absolute',
-      showTimestampControls: false,
-      followReportPeriod: true,
     }),
   },
 
   /*
    * The config of the chart widget (ChartWidgetConfig):
    *   attributeRefs, attributeColors ([[ref, colour]]), attributeConfig (the refs per option: rightAxisAttributes,
-   *   smoothAttributes, steppedAttributes, areaAttributes, faintAttributes, extendedAttributes), datapointQuery,
+   *   smoothAttributes, steppedAttributes, areaAttributes, faintAttributes, extendedAttributes), datapointQuery (the
+   *   number of points that a line is thinned to, amountOfPoints, is fixed: without it the chart takes a fifth of the
+   *   width that it has while it loads, which it does not yet know the first time, so a report would not look the same
+   *   every time it is drawn),
    *   chartOptions (the minimum and maximum of the axes), defaultTimePresetKey ("last7Days"), showLegend, stacked,
-   *   followReportPeriod, and showTimestampControls and showZoomBar, which are kept but not used.
+   *   followReportPeriod and showZoomBar. Insights' showTimestampControls is left out: in a report the line chart has
+   *   no time controls.
    */
   linechart: {
     displayName: 'Line Chart', displayIcon: 'chart-line',
@@ -110,41 +114,14 @@ export const WIDGET_SPECS = {
     getDefaultConfig: () => ({
       attributeRefs: [],
       attributeColors: [],
-      datapointQuery: { type: 'lttb' },
+      datapointQuery: { type: 'lttb', amountOfPoints: 200 },
       attributeConfig: {},
       chartOptions: axesOptions(),
-      showTimestampControls: false,
       defaultTimePresetKey: 'last7Days',
       showLegend: true,
       showZoomBar: false,
       stacked: false,
       followReportPeriod: true,
-    }),
-  },
-
-  /*
-   * The config of the map widget (MapWidgetConfig): assetType, allOfType, assetIds, attributeName and its valueType
-   * (number, boolean or text), thresholds ([[from value, colour]], for numbers), boolColors ({ true, false }),
-   * textColors ([[text, colour]]), showLabels, showUnits, showGeoJson, zoom, center ({ lng, lat }), min and max.
-   */
-  map: {
-    displayName: 'Map', displayIcon: 'map',
-    minColumnWidth: 2, minColumnHeight: 2, defaultColumnWidth: 5, defaultColumnHeight: 5, downloads: [],
-    getDefaultConfig: () => ({
-      attributeRefs: [],
-      showLabels: false,
-      showUnits: false,
-      showGeoJson: true,
-      boolColors: { type: 'boolean', false: '#ef5350', true: '#4caf50' },
-      textColors: [['example1', '#4caf50'], ['example2', '#ef5350']],
-      thresholds: THRESHOLDS(),
-      assetTypes: [],
-      assetType: undefined,
-      allOfType: true,
-      assetIds: [],
-      attributes: [],
-      attributeName: undefined,
-      valueType: undefined,
     }),
   },
 

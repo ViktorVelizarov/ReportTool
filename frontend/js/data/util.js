@@ -116,7 +116,8 @@ export function resolveUnits(units) {
   return (units ?? []).map(unitSymbol).join('');
 }
 
-function getAttributeUnits(attribute, descriptor) {
+/** The units of an attribute: its own, or those of its descriptor in the asset model. */
+export function getAttributeUnits(attribute, descriptor) {
   return attribute?.meta?.units ?? descriptor?.meta?.units;
 }
 

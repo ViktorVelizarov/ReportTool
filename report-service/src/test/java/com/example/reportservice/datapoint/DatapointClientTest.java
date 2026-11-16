@@ -55,6 +55,27 @@ class DatapointClientTest {
     }
 
     @Test
+    void readsTheDatapointsPerInterval() throws Exception {
+        manager.respond(POINTS, "[{\"x\":1000,\"y\":21.5},{\"x\":2000,\"y\":null},{\"x\":3000}]");
+
+        List<Datapoint> result = datapoints.interval(ID, "temperature", 100, 3500, "1 hour", "AVG", true);
+
+        assertEquals(3, result.size());
+        assertEquals(1000L, result.get(0).timestamp());
+        assertEquals(21.5, result.get(0).value().asDouble());
+        assertTrue(result.get(1).value().isNull());
+        assertNull(result.get(2).value());
+
+        JsonNode query = manager.lastBody(POINTS);
+        assertEquals("interval", query.get("type").asText());
+        assertEquals(100, query.get("fromTimestamp").asLong());
+        assertEquals(3500, query.get("toTimestamp").asLong());
+        assertEquals("1 hour", query.get("interval").asText());
+        assertEquals("AVG", query.get("formula").asText());
+        assertTrue(query.get("gapFill").asBoolean());
+    }
+
+    @Test
     void readsThePeriod() throws Exception {
         manager.respond(PERIOD, "{\"assetId\":\"" + ID + "\",\"attributeName\":\"temperature\","
                 + "\"oldestTimestamp\":1000,\"latestTimestamp\":2000}");
@@ -80,12 +101,22 @@ class DatapointClientTest {
     }
 
     @Test
+    void passesOnTheManagerRefusingAnIntervalQuery() {
+        manager.failOnce(POINTS, 400);
+
+        HttpStatusException e = assertThrows(HttpStatusException.class,
+                () -> datapoints.interval(ID, "temperature", 1, 2, "1 day", "DIFFERENCE", false));
+        assertEquals(400, e.status());
+    }
+
+    @Test
     void reportsUnexpectedResponsesAsIoErrors() {
         manager.respond(POINTS, "{}");
         assertThrows(IOException.class, () -> datapoints.all(ID, "temperature", 1, 2));
 
         manager.respond(POINTS, "[{\"y\":1}]");
         assertThrows(IOException.class, () -> datapoints.all(ID, "temperature", 1, 2));
+        assertThrows(IOException.class, () -> datapoints.interval(ID, "temperature", 1, 2, "1 day", "AVG", false));
 
         manager.respond(POINTS, "");
         assertThrows(IOException.class, () -> datapoints.all(ID, "temperature", 1, 2));

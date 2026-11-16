@@ -8,9 +8,8 @@ taken unchanged from its npm package, except where the table says otherwise.
 | `lit.js` | [Lit](https://lit.dev), the web components that OpenRemote's dashboard builder is made of | `lit` 3.3.3 | BSD-3-Clause (the notices are at the end of the file) |
 | `gridstack-all.js` | [GridStack](https://gridstackjs.com), the grid in which widgets are dragged, dropped and resized; the one Insights uses | `gridstack` 12.4.2 | MIT, see `gridstack-all.js.LICENSE.txt` |
 | `gridstack-css.js` | The stylesheet of GridStack as a module, for the shadow roots of the builder | `gridstack` 12.4.2 | MIT |
-| `echarts.min.js` | [Apache ECharts](https://echarts.apache.org), draws the line, bar and KPI charts; the library Insights uses | `echarts` 6.1.0 | Apache-2.0 (header of the file), see `echarts.min.js.NOTICE.txt` |
-| `gauge.min.js` | [gauge.js](https://bernii.github.io/gauge.js/), draws the gauge; the library OpenRemote's or-gauge uses | `gaugeJS` 1.3.9 | MIT, see `gauge.min.js.LICENSE.txt` |
-| `or-vaadin.js` | The controls of OpenRemote's component library that the page uses (`or-vaadin-badge`, `-button`, `-checkbox`, `-checkbox-group`, `-confirm-dialog`, `-dialog`, `-menu-bar`, `-multi-select-combo-box`, `-number-field`, `-radio-group`, `-select`, `-text-area`, `-text-field` and `-toggle`), OpenRemote's scheduler (`or-scheduler`) with the date and time pickers that it is made of, `i18next` with OpenRemote's `<or-translate>`, and Vaadin's card, notification and progress bar, which the library has no version of; with the Vaadin components, moment, rrule and the copy of Lit that they are made of | `@openremote/or-vaadin-components`, `@openremote/or-scheduler` and `@openremote/or-translate` 1.32.2, `@vaadin/*` 25.3.4, `lit` 3.3.3, `moment` 2.31.0, `rrule` 2.8.1, `i18next` 26.5.10 | AGPL-3.0-or-later (OpenRemote), Apache-2.0 (Vaadin), BSD-3-Clause (Lit, rrule), MIT (moment, i18next); the notices are at the end of the file |
+| `or-vaadin.js` | The controls of OpenRemote's component library that the page uses (`or-vaadin-badge`, `-button`, `-checkbox`, `-checkbox-group`, `-combo-box`, `-confirm-dialog`, `-dialog`, `-item`, `-list-box`, `-menu-bar`, `-multi-select-combo-box`, `-number-field`, `-radio-group`, `-select`, `-text-area`, `-text-field` and `-toggle`) and their helpers `comboBoxRenderer`, `createMenuBarItem`, `getConfirmDialogContent`, `showConfirmDialog` and `showErrorDialog`, OpenRemote's scheduler (`or-scheduler`) with the date and time pickers that it is made of, `i18next` and `translate` with OpenRemote's `<or-translate>`, the date and time picker `OrVaadinDateTimePicker` that the charts ask for, and Vaadin's card, notification and progress bar, which the library has no version of; with the Vaadin components, moment, rrule and the copy of Lit that they are made of | `@openremote/or-vaadin-components`, `@openremote/or-scheduler` and `@openremote/or-translate` 1.32.2, `@vaadin/*` 25.3.4, `lit` 3.3.3, `moment` 2.31.0, `rrule` 2.8.1, `i18next` 26.5.10 | AGPL-3.0-or-later (OpenRemote), Apache-2.0 (Vaadin), BSD-3-Clause (Lit, rrule), MIT (moment, i18next); the notices are at the end of the file |
+| `or-mwc.js` | The Material components of OpenRemote that its Insights page is made of: the tabs, table, dialog, messages and input (`or-mwc-tabs`, `or-mwc-table`, `or-mwc-dialog`, `or-mwc-snackbar` and `or-mwc-input`), the asset tree, the attribute pickers, the loading indicator, the gauge (`or-gauge`), the line chart (`or-chart`), the bar chart (`or-attribute-barchart`) and the KPI (`or-attribute-card`), with Material Components for the web, moment, qs, gauge.js, ECharts, Chart.js and the copy of Lit that they are made of. What they ask of OpenRemote's core, model, icons and translations, and of the library in `or-vaadin.js`, is left to the import map of the page | `@openremote/or-mwc-components`, `@openremote/or-asset-tree`, `@openremote/or-attribute-picker`, `@openremote/or-components`, `@openremote/or-gauge`, `@openremote/or-chart`, `@openremote/or-attribute-barchart` and `@openremote/or-attribute-card` 1.32.2, `@material/*` 9.0.0, `lit` 3.3.3, `moment` 2.31.0, `qs` 6.17.1, `lodash.debounce` 4.0.8, `gaugeJS` 1.3.9, `echarts` 6.1.0, `chart.js` 3.9.1, `chartjs-adapter-moment` 1.0.1, `@mdi/js` 5.9.55 | AGPL-3.0-or-later (OpenRemote), MIT (Material Components, moment, lodash.debounce, gauge.js, Chart.js), BSD-3-Clause (Lit, qs), Apache-2.0 (Material Design Icons, ECharts); the notices are at the end of the file |
 | `or-theme.css` | OpenRemote's theme: its colours (`--or-color-*`), the Vaadin Lumo variables they are mapped on (`--lumo-*`) and the styles of the controls, the card, the notification and the progress bar | `@openremote/theme` 1.32.2, `@vaadin/vaadin-lumo-styles` 25.3.4 | AGPL-3.0-or-later (OpenRemote), Apache-2.0 (Vaadin); the notices are at the end of the file |
 | `rrule.js` | [rrule](https://github.com/jakubroztocil/rrule), which finds the dates of a recurrence rule; the page uses it for the next reports of a schedule (the scheduler in `or-vaadin.js` has a copy of its own) | `rrule` 2.8.1 | BSD-3-Clause, see `rrule.js.LICENSE.txt` |
 | `fonts/Inter-*.woff2` | Inter regular, medium, semi-bold and bold, the font of the theme | `inter-ui` 4.1.1 | SIL OFL 1.1, see `fonts/LICENSE.txt` |
@@ -26,8 +25,6 @@ How each file is made:
   https://lit.dev */` (on one line).
 - `gridstack-all.js` is `dist/gridstack-all.js` of `gridstack`, which sets `window.GridStack`.
 - `gridstack-css.js` is `export default "<the content of dist/gridstack.min.css>";` with a comment line on top.
-- `echarts.min.js` is `dist/echarts.min.js` of `echarts`, which sets `window.echarts`.
-- `gauge.min.js` is `dist/gauge.min.js` of `gaugeJS`, which sets `window.Gauge`.
 - `or-vaadin.js`, `or-theme.css`, `rrule.js` and `fonts/` are built from the packages that OpenRemote publishes, and
   from Vaadin's card, notification and progress bar, which neither the library nor the theme has anything for. In an
   empty folder `work/`, install them:
@@ -37,16 +34,25 @@ How each file is made:
     @openremote/theme@1.32.2 @vaadin/card@25.3.4 @vaadin/notification@25.3.4 @vaadin/progress-bar@25.3.4
   ```
 
-  and add these small files next to `node_modules/`:
+  and pin what npm would take in a newer version than the one that the files were made with, with this in the
+  `package.json` next to `node_modules/` before the install: `"overrides": { "i18next": "26.5.10", "@vaadin/<name>":
+  "25.3.4" }`, with a line for every `@vaadin/` package of `node_modules/` that has the version 25 (the install brings
+  `@vaadin/vaadin-lumo-styles` as well). Then add these small files next to `node_modules/`:
 
   - `entry.js` has one line for each control: `import '@openremote/or-vaadin-components/or-vaadin-badge';`, and the
-    same for `or-vaadin-button`, `or-vaadin-checkbox`, `or-vaadin-checkbox-group`, `or-vaadin-confirm-dialog`,
-    `or-vaadin-dialog`, `or-vaadin-menu-bar`, `or-vaadin-multi-select-combo-box`, `or-vaadin-number-field`,
-    `or-vaadin-radio-group` (which brings the radio button), `or-vaadin-select`, `or-vaadin-text-area`,
-    `or-vaadin-text-field` and `or-vaadin-toggle`; then `import '@openremote/or-scheduler';`,
-    `import '@vaadin/card';`, `import '@vaadin/notification';` and `import '@vaadin/progress-bar';`; and the two things
-    that the page asks the bundle for: `export { INTUITIVE_NOT_APPLICABLE } from '@openremote/or-scheduler';` and
-    `export { i18next } from '@openremote/or-translate';`.
+    same for `or-vaadin-button`, `or-vaadin-checkbox`, `or-vaadin-checkbox-group`, `or-vaadin-combo-box`,
+    `or-vaadin-confirm-dialog`, `or-vaadin-dialog`, `or-vaadin-item`, `or-vaadin-list-box`, `or-vaadin-menu-bar`,
+    `or-vaadin-multi-select-combo-box`, `or-vaadin-number-field`, `or-vaadin-radio-group` (which brings the radio
+    button), `or-vaadin-select`, `or-vaadin-text-area`, `or-vaadin-text-field` and `or-vaadin-toggle`; then
+    `import '@openremote/or-scheduler';`, `import '@vaadin/card';`, `import '@vaadin/notification';` and
+    `import '@vaadin/progress-bar';`; and what the page and `or-mwc.js` ask the bundle for:
+    `export { INTUITIVE_NOT_APPLICABLE } from '@openremote/or-scheduler';`,
+    `export { comboBoxRenderer } from '@openremote/or-vaadin-components/or-vaadin-combo-box';`,
+    `export { getConfirmDialogContent, showConfirmDialog, showErrorDialog } from
+    '@openremote/or-vaadin-components/or-vaadin-confirm-dialog';`,
+    `export { createMenuBarItem } from '@openremote/or-vaadin-components/or-vaadin-menu-bar';`,
+    `export { i18next, translate } from '@openremote/or-translate';` and
+    `export { OrVaadinDateTimePicker } from '@openremote/or-vaadin-components/or-vaadin-date-time-picker';`.
   - `theme.css` is `@import "@openremote/theme/default.css";` and, on the next lines,
     `@import "@vaadin/vaadin-lumo-styles/components/card.css";`, the same for `notification.css` and then for
     `progress-bar.css`.
@@ -99,5 +105,48 @@ How each file is made:
   becomes `rrule.js.LICENSE.txt`, and `LICENSE.txt` of `inter-ui` becomes `fonts/LICENSE.txt`. The controls bring
   their own copy of Lit, which does not interact with `lit.js`, and the scheduler brings its own copy of rrule. The
   other controls of the library are left out until the page uses them.
+- `or-mwc.js` is built in a second empty folder, with the same pins in its `package.json`:
+
+  ```
+  npm install --ignore-scripts @openremote/or-mwc-components@1.32.2 @openremote/or-asset-tree@1.32.2 \
+    @openremote/or-attribute-picker@1.32.2 @openremote/or-components@1.32.2 @openremote/or-gauge@1.32.2 \
+    @openremote/or-chart@1.32.2 @openremote/or-attribute-barchart@1.32.2 @openremote/or-attribute-card@1.32.2
+  ```
+
+  `entry.js` starts with a comment `/*! gaugeJS 1.3.9 (MIT) ... */` that holds the `LICENSE.md` of `gaugeJS`, which the
+  bundle has no notice of, and then imports `@openremote/or-asset-tree`, `@openremote/or-attribute-barchart`,
+  `@openremote/or-attribute-card`, `@openremote/or-chart`, `@openremote/or-components/or-loading-indicator`,
+  `@openremote/or-gauge`, `@openremote/or-mwc-components/or-mwc-input`, `.../or-mwc-table` and `.../or-mwc-tabs`, and
+  exports what the page uses: `OrMwcDialog` and `showDialog` of `.../or-mwc-dialog`, `ListType` of `.../or-mwc-list`,
+  `showSnackbar` of `.../or-mwc-snackbar`, `OrAssetAttributePicker` and `OrAssetAttributePickerPickedEvent` of
+  `@openremote/or-attribute-picker`, `OrAttributeBarChart` of `@openremote/or-attribute-barchart`, which the bar chart
+  widget extends for a report (`or-chart` is extended the same way, its class taken from `customElements`) and whose
+  lists of time windows and intervals its settings use, and `Chart` of `chart.js`, which the page that is printed
+  sets not to animate. With `$BANNER` the comment `/*! OpenRemote or-mwc-components, or-asset-tree, or-attribute-picker,
+  or-components, or-gauge, or-chart, or-attribute-barchart and or-attribute-card 1.32.2 (AGPL-3.0-or-later, Copyright
+  OpenRemote Inc.) with Material Components for the web 9.0.0 (MIT), Lit 3.3.3 (BSD-3-Clause), moment 2.31.0 (MIT), qs
+  6.17.1 (BSD-3-Clause), lodash.debounce 4.0.8 (MIT), gaugeJS 1.3.9 (MIT), ECharts 6.1.0 (Apache-2.0), Chart.js 3.9.1
+  (MIT), chartjs-adapter-moment 1.0.1 (MIT) and Material Design Icons 5.9.55 (Apache-2.0) -
+  https://github.com/openremote/openremote */` (on one line), build it with everything that the page provides left out
+  of it:
+
+  ```
+  esbuild entry.js --bundle --format=esm --minify --legal-comments=eof --loader:.css=text --banner:js="$BANNER" \
+    --external:@openremote/core --external:@openremote/model --external:@openremote/or-icon \
+    --external:@openremote/or-translate --external:@openremote/rest \
+    --external:@openremote/or-vaadin-components/or-vaadin-combo-box \
+    --external:@openremote/or-vaadin-components/or-vaadin-confirm-dialog \
+    --external:@openremote/or-vaadin-components/or-vaadin-date-time-picker \
+    --external:@openremote/or-vaadin-components/or-vaadin-item \
+    --external:@openremote/or-vaadin-components/or-vaadin-list-box \
+    --external:@openremote/or-vaadin-components/or-vaadin-menu-bar --outfile=out/or-mwc.js
+  ```
+
+  The import map of the page (`index.html` and `render.html`) says where the left out imports are: core, model and
+  icons are `js/kit/core.js`, `js/kit/model.js` and `js/kit/or-icon.js`, which answer from the report service, the
+  REST client is `js/kit/rest.js` (the one thing that the charts ask of it is whether an error is one of axios), and the
+  translations and the library are `or-vaadin.js`, which has the same `i18next` as the page and the elements that the
+  tree and the charts use. The Material styles of the components (`@material/*/dist/*.css`) are in the file as text, as
+  the components ask for them with `require`. The icons that the components draw are in `js/kit/mdi-icons.js`.
 
 To update one, replace the file in the same way and run the frontend tests and the page.

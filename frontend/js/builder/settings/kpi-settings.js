@@ -2,13 +2,14 @@
  * Ported to plain JavaScript from OpenRemote's or-dashboard-builder (src/settings/kpi-settings.ts).
  * Original: Copyright 2026, OpenRemote Inc., AGPL-3.0-or-later (https://github.com/openremote/openremote).
  *
- * Added: the choice to follow the time frame of the report. Not ported: allowing the viewer to change the time range,
- * a report is a document.
+ * The KPI of OpenRemote shows the last hour, day, week, month or year up to now, so it does not follow the time frame
+ * of the report, and its settings have no choice for that. Left out: "Allow time range selection", as the KPI has no
+ * period menu in a report (see kpi-widget.js).
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { css, html, when } from 'lit';
+import { html } from 'lit';
 import { NUMERIC_VALUE_TYPES } from '../../data/asset-model.js';
 import { i18next } from '../../kit/i18n.js';
 import '../../kit/inputs.js';
@@ -16,30 +17,13 @@ import { AssetWidgetSettings } from '../util/or-asset-widget.js';
 import '../panels/attributes-panel.js';
 import '../util/settings-panel.js';
 
-const styling = css`
-  .switchMwcInputContainer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
-
-  .hint {
-    color: #6b7280;
-    font-size: 13px;
-  }
-`;
-
 const attributeFilter = attribute => NUMERIC_VALUE_TYPES.includes(attribute.type);
 
-/** The periods a KPI can show when it does not follow the report. */
+/** The periods that a KPI can show. */
 const KPI_PERIODS = ['year', 'month', 'week', 'day', 'hour'];
 
 export class KpiSettings extends AssetWidgetSettings {
-  static styles = [...super.styles, styling];
-
   render() {
-    const follow = this.widgetConfig.followReportPeriod !== false;
     return html`
       <div>
         <!-- Attribute selector -->
@@ -52,20 +36,12 @@ export class KpiSettings extends AssetWidgetSettings {
         <!-- Display settings -->
         <settings-panel displayName="display" expanded>
           <div style="display: flex; flex-direction: column; gap: 8px;">
-            <div class="switchMwcInputContainer">
-              <span><or-translate value="report.followReport"></or-translate></span>
-              <or-vaadin-toggle ?checked=${follow}
-                @change=${event => this.onFollowReportToggle(event)}></or-vaadin-toggle>
-            </div>
-            ${when(follow,
-              () => html`<span class="hint"><or-translate value="report.followReportHint"></or-translate></span>`,
-              () => html`
-                <or-vaadin-select
-                  .items=${KPI_PERIODS.map(item => ({ value: item, label: i18next.t(item) }))}
-                  .value=${this.widgetConfig.period}
-                  @change=${event => this.onTimeframeSelect(event)}>
-                  <or-translate slot="label" value="timeframe"></or-translate>
-                </or-vaadin-select>`)}
+            <or-vaadin-select
+              .items=${KPI_PERIODS.map(item => ({ value: item, label: i18next.t(item) }))}
+              .value=${this.widgetConfig.period}
+              @change=${event => this.onTimeframeSelect(event)}>
+              <or-translate slot="label" value="timeframe"></or-translate>
+            </or-vaadin-select>
           </div>
         </settings-panel>
 
@@ -95,11 +71,6 @@ export class KpiSettings extends AssetWidgetSettings {
       const asset = event.detail.assets.find(item => item.id === attributeRef.id);
       this.setDisplayName(asset ? `${asset.name} - ${attributeRef.name}` : `${attributeRef.name}`);
     }
-    this.notifyConfigUpdate();
-  }
-
-  onFollowReportToggle(event) {
-    this.widgetConfig.followReportPeriod = event.currentTarget.checked;
     this.notifyConfigUpdate();
   }
 

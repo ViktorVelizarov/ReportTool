@@ -14,6 +14,7 @@
  * page (see model/pages.js).
  */
 
+import { Chart } from '../vendor/or-mwc.js';
 import { registerWidgetTypes } from './builder/index.js';
 import { loadAssetModel } from './data/asset-model.js';
 import { loadBranding } from './data/branding.js';
@@ -29,6 +30,10 @@ import { createStore } from './state.js';
 import { mountBuilder } from './ui/builder.js';
 import { mountPaper } from './ui/paper.js';
 import { showStartupError } from './ui/startup-error.js';
+
+// The report is printed as soon as it is drawn: a chart of Chart.js (the graph of a KPI) that animates would be half
+// drawn then.
+Chart.defaults.animation = false;
 
 const POLL_MS = 50;
 
@@ -75,6 +80,8 @@ function isBusy(preview, widgetCount, pending) {
     || !preview.grid || preview.isLoading || preview.rerenderActive || drawn < widgetCount
     || document.fonts.status === 'loading'
     || selectDeep(document, 'or-loading-indicator').length > 0
+    // an or-gauge makes its gauge when it has had its size, some 200 ms after it is shown, and says nothing about it
+    || selectDeep(document, 'or-gauge').some(gauge => !gauge.gauge)
     || selectDeep(document, 'img').some(image => !image.complete);
 }
 

@@ -7,10 +7,25 @@
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="vendor/or-theme.css">
   <link rel="stylesheet" href="css/app.css">
-  <script type="importmap">{ "imports": { "lit": "./vendor/lit.js" } }</script>
+  <script type="importmap">
+    {
+      "imports": {
+        "lit": "./vendor/lit.js",
+        "@openremote/core": "./js/kit/core.js",
+        "@openremote/model": "./js/kit/model.js",
+        "@openremote/or-icon": "./js/kit/or-icon.js",
+        "@openremote/rest": "./js/kit/rest.js",
+        "@openremote/or-vaadin-components/or-vaadin-combo-box": "./vendor/or-vaadin.js",
+        "@openremote/or-vaadin-components/or-vaadin-confirm-dialog": "./vendor/or-vaadin.js",
+        "@openremote/or-vaadin-components/or-vaadin-date-time-picker": "./vendor/or-vaadin.js",
+        "@openremote/or-vaadin-components/or-vaadin-item": "./vendor/or-vaadin.js",
+        "@openremote/or-vaadin-components/or-vaadin-list-box": "./vendor/or-vaadin.js",
+        "@openremote/or-vaadin-components/or-vaadin-menu-bar": "./vendor/or-vaadin.js",
+        "@openremote/or-translate": "./vendor/or-vaadin.js"
+      }
+    }
+  </script>
   <script src="vendor/gridstack-all.js"></script>
-  <script src="vendor/echarts.min.js"></script>
-  <script src="vendor/gauge.min.js"></script>
 </head>
 <body>
   <main class="layout">

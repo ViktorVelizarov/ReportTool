@@ -172,8 +172,7 @@ test('a report has the figures of its widgets in reading order', async () => {
   assert.equal(report.period.id, 'last7');
   assert.equal(report.generatedAt.getTime(), NOW);
   assert.deepEqual(report.widgets.map(widget => widget.name), [
-    'Water flow', 'Tank level', 'Nutrients', 'Salinity', 'Soil temperature', 'Irrigation', 'Irrigation map',
-    'Site plan',
+    'Water flow', 'Tank level', 'Nutrients', 'Salinity', 'Soil temperature', 'Irrigation', 'Site plan',
   ]);
   assert.deepEqual(readingOrder(REPORT.template.widgets).map(widget => widget.displayName),
     report.widgets.map(widget => widget.name));
@@ -240,25 +239,21 @@ test('gauges and images give the current value as the widget shows it', async ()
   assert.equal(image.entries[2].value, undefined, 'an attribute that has no value yet has nothing to show');
 });
 
-test('tables and maps list their assets and the attributes they show', async () => {
+test('a table lists its assets and the attributes it shows', async () => {
   const { widgets } = await buildReport(REPORT, contextFor('last7'));
 
   const table = widgets.find(widget => widget.type === 'table');
   assert.deepEqual(table.assets, ['Soil drip 1', 'Soil drip 2']);
   assert.deepEqual(table.attributes, ['Flow water', 'Tank level']);
-
-  const map = widgets.find(widget => widget.type === 'map');
-  assert.deepEqual(map.assets, ['Soil drip 1', 'Soil drip 2']);
-  assert.deepEqual(map.attributes, ['Tank level']);
 });
 
 test('a widget without data has nothing to sum up', async () => {
-  const template = buildTemplate('empty', ['linechart', 'gauge', 'table', 'map'].map((type, index) =>
+  const template = buildTemplate('empty', ['linechart', 'gauge', 'table'].map((type, index) =>
     ({ type, name: type, box: [0, index * 5, 6, 5], config: {} })));
 
   const { widgets } = await buildReport({ name: 'Empty', template }, contextFor('last7'));
 
-  assert.deepEqual(widgets.map(widget => widget.entries ?? widget.assets), [[], [], [], []]);
+  assert.deepEqual(widgets.map(widget => widget.entries ?? widget.assets), [[], [], []]);
 });
 
 test('a reference to an asset that the realm does not have is left out', async () => {
@@ -289,9 +284,9 @@ const entry = (id, name, label, unit, current, previous) => ({
 test('the summary names the time frame, the number of widgets and the assets', async () => {
   const text = generateText(await buildReport(REPORT, contextFor('last7')));
 
-  assert.equal(text.summary, 'This report covers 27 Sept – 4 Oct 2026 (last 7 days) and presents 8 widgets for '
+  assert.equal(text.summary, 'This report covers 27 Sept – 4 Oct 2026 (last 7 days) and presents 7 widgets for '
     + 'Soil drip 1, Soil drip 2 and Soil sensor.');
-  assert.equal(Object.keys(text.descriptions).length, 8);
+  assert.equal(Object.keys(text.descriptions).length, 7);
 });
 
 test('a report of real attributes is described with what they have: no value, no data points, no units', async () => {
@@ -304,7 +299,7 @@ test('a report of real attributes is described with what they have: no value, no
   assert.match(descriptions['irrigation-4'], /OpenRemote has no unit configured for this attribute/);
   assert.equal(descriptions['irrigation-5'], 'Temperature at Soil sensor has no data points in this time frame.');
   assert.equal(descriptions['irrigation-6'], 'Lists Soil drip 1 and Soil drip 2 with Flow water and Tank level.');
-  assert.equal(descriptions['irrigation-8'],
+  assert.equal(descriptions['irrigation-7'],
     'Flow water at Soil drip 1 is currently 9.6 l/h. Tank level at Soil drip 1 is currently 936 l. '
     + 'Temperature at Soil sensor has no value yet.');
 });
@@ -356,9 +351,8 @@ test('every widget gets a description, also when nothing is connected to it', ()
       { id: 'gauge', type: 'gauge', entries: [{ asset: asset('e', 'Site E'), label: 'Oil temp', value: '61 °C' }] },
       { id: 'none', type: 'gauge', entries: [{ asset: asset('f', 'Site F'), label: 'Oil temp', value: undefined }] },
       { id: 'table', type: 'table', assets: ['A', 'B', 'C', 'D'], attributes: ['Load', 'Oil temperature'] },
-      { id: 'map', type: 'map', assets: ['Hub'], attributes: ['Status'] },
       { id: 'empty', type: 'image', entries: [] },
-      { id: 'unset', type: 'map', assets: [], attributes: [] },
+      { id: 'unset', type: 'table', assets: [], attributes: [] },
     ],
   };
 
@@ -371,7 +365,6 @@ test('every widget gets a description, also when nothing is connected to it', ()
     gauge: 'Oil temp at Site E is currently 61 °C.',
     none: 'Oil temp at Site F has no value yet.',
     table: 'Lists A, B, C and 1 more with Load and Oil temperature.',
-    map: 'Marks Hub on the map, coloured by Status.',
     empty: 'No data is connected to this widget yet.',
     unset: 'No data is connected to this widget yet.',
   });
@@ -433,20 +426,21 @@ test('the figures list the widgets in reading order, each with what it shows', a
 
   const groups = figures.text.split('\n\n');
   assert.deepEqual(groups.map(group => group.split('\n')[0]), [
-    '1. Water flow (Line Chart)', '2. Tank level (Gauge)', '3. Nutrients (Bar Chart)', '4. Salinity (KPI)',
-    '5. Soil temperature (KPI)', '6. Irrigation (Table)', '7. Irrigation map (Map)', '8. Site plan (Image)',
-  ]);
+    '1. Water flow (Line Chart)', '2. Tank level (Gauge)', '3. Nutrients (Bar Chart)',
+    '4. Salinity (KPI), 3 Oct – 4 Oct 2026', '5. Soil temperature (KPI), 3 Oct – 4 Oct 2026',
+    '6. Irrigation (Table)', '7. Site plan (Image)',
+  ]); // a KPI shows the day before now, not the time frame of the report
   const flow = 'Flow water, Soil drip \\d: average [\\d.]+ l\\/h, lowest [\\d.]+ l\\/h, highest [\\d.]+ l\\/h; '
     + 'the previous period averaged [\\d.]+ l\\/h \\([+-]?[\\d.]+%\\)';
   assert.match(groups[0], new RegExp(`^1\\. Water flow \\(Line Chart\\)\\n- ${flow}\\n- ${flow}$`));
   assert.equal(groups[1], '2. Tank level (Gauge)\n- Tank level, Soil drip 1: currently 936 l');
-  assert.match(groups[3],
-    /^4\. Salinity \(KPI\)\n- Salinity, Soil sensor: average [\d.]+, lowest [\d.]+, highest [\d.]+; /);
-  assert.equal(groups[4], '5. Soil temperature (KPI)\n- Temperature, Soil sensor: no data points in this time frame');
+  assert.match(groups[3], new RegExp('^4\\. Salinity \\(KPI\\), 3 Oct – 4 Oct 2026\\n'
+    + '- Salinity, Soil sensor: average [\\d.]+, lowest [\\d.]+, highest [\\d.]+; '));
+  assert.equal(groups[4], '5. Soil temperature (KPI), 3 Oct – 4 Oct 2026\n'
+    + '- Temperature, Soil sensor: no data points in this time frame');
   assert.equal(groups[5],
     '6. Irrigation (Table)\n- assets Soil drip 1 and Soil drip 2; attributes Flow water and Tank level');
-  assert.equal(groups[6], '7. Irrigation map (Map)\n- assets Soil drip 1 and Soil drip 2; coloured by Tank level');
-  assert.equal(groups[7], '8. Site plan (Image)\n- Flow water, Soil drip 1: currently 9.6 l/h\n'
+  assert.equal(groups[6], '7. Site plan (Image)\n- Flow water, Soil drip 1: currently 9.6 l/h\n'
     + '- Tank level, Soil drip 1: currently 936 l\n- Temperature, Soil sensor: no value yet');
 });
 
@@ -477,7 +471,7 @@ test('the figures say what is missing: a number, data points, earlier data, a va
         ],
       },
       { id: 'table', name: 'Sites', type: 'table', assets: ['A', 'B', 'C', 'D'], attributes: ['Load'] },
-      { id: 'map', name: 'Nothing', type: 'map', assets: [], attributes: [] },
+      { id: 'nothing', name: 'Nothing', type: 'table', assets: [], attributes: [] },
       { id: 'image', type: 'image', entries: [] },
       { id: 'same', name: 'Gauge', type: 'gauge', entries: [] },
     ],
@@ -498,7 +492,7 @@ test('the figures say what is missing: a number, data points, earlier data, a va
     '3. Sites (Table)',
     '- assets A, B, C and 1 more; attributes Load',
     '',
-    '4. Nothing (Map)',
+    '4. Nothing (Table)',
     '- nothing is connected yet',
     '',
     '5. Image',

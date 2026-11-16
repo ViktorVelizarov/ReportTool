@@ -5,8 +5,8 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+import { showSnackbar } from '../../../vendor/or-mwc.js';
 import { AssetService } from '../../data/asset-service.js';
-import { showSnackbar } from '../../kit/snackbar.js';
 import { OrWidget } from './or-widget.js';
 import { WidgetSettings } from './widget-settings.js';
 
