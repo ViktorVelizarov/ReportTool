@@ -10,7 +10,7 @@ import { AssetService } from '../data/asset-service.js';
 import { ReportContext } from '../data/report-context.js';
 import { getAttributeLabel, getAttributeValueAsString, resolveUnits } from '../data/util.js';
 import { previousRange } from './periods.js';
-import { summarize } from './stats.js';
+import { cardChange, summarize } from './stats.js';
 
 /** What the text needs to know about an attribute of an asset. */
 function describeAttribute(asset, attribute) {
@@ -49,17 +49,31 @@ async function seriesEntry({ ref, asset, attribute }, range) {
 }
 
 /**
- * The current value of an attribute as the widget shows it, with its unit: the gauge rounds it to its decimals, the
- * image shows it as OpenRemote does. Undefined when the attribute has no value.
+ * The current value of an attribute as the widget shows it, with its unit: the gauge and the KPI round it to their
+ * decimals, the image shows it as OpenRemote does. Undefined when the attribute has no value.
  */
 function shownValue(type, config, attribute) {
   const { value } = attribute;
   if (value == null) return undefined;
-  if (type === 'gauge' && typeof value === 'number') {
+  if ((type === 'gauge' || type === 'kpi') && typeof value === 'number') {
     const unit = resolveUnits(attribute.meta?.units);
     return `${Number(value.toFixed(config.decimals))}${unit ? ` ${unit}` : ''}`;
   }
   return getAttributeValueAsString(attribute, undefined, true);
+}
+
+/**
+ * An attribute of a KPI: its figures over the period of the KPI, and the two figures that the card itself shows, which
+ * are the current value and the change from the first to the last data point of the period. The change is null without
+ * data points, where the card shows a 0.
+ */
+async function kpiEntry(item, range, config) {
+  const entry = await seriesEntry(item, range);
+  return {
+    ...entry,
+    value: shownValue('kpi', config, item.attribute),
+    change: entry.stats ? cardChange(entry.stats, config.deltaFormat === 'percentage') : null,
+  };
 }
 
 /** The assets that a table widget lists, with the labels of the attributes it shows. */
@@ -78,8 +92,8 @@ async function listedAssets({ assetType, allOfType, assetIds, attributeNames = [
 
 /**
  * The figures of a widget: { id, name, type } and, by type, the entries of the attributes it shows over time (barchart,
- * kpi, linechart: with range, stats and previous), or at this moment (gauge, image: with value, as the widget shows
- * it), or the assets and attribute labels it lists (table).
+ * kpi, linechart: with range, stats and previous; kpi also with value and change, as the card shows them), or at this
+ * moment (gauge, image: with value, as the widget shows it), or the assets and attribute labels it lists (table).
  */
 async function figuresOf({ id, displayName, widgetTypeId: type, widgetConfig: config }, context) {
   const widget = { id, name: displayName, type };
@@ -89,7 +103,8 @@ async function figuresOf({ id, displayName, widgetTypeId: type, widgetConfig: co
     case 'linechart': {
       const range = configRange(type, config, context);
       const found = await resolveRefs(config.attributeRefs);
-      const entries = await Promise.all(found.map(item => seriesEntry(item, range)));
+      const entries = await Promise.all(found.map(item =>
+        (type === 'kpi' ? kpiEntry(item, range, config) : seriesEntry(item, range))));
       return { ...widget, range, entries };
     }
     case 'gauge':
