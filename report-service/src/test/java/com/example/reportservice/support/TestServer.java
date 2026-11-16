@@ -10,6 +10,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
 /** A local HTTP server for tests, and a client to call it. */
@@ -22,6 +23,8 @@ public final class TestServer implements AutoCloseable {
     public TestServer(Consumer<HttpServer> setup) throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         setup.accept(server);
+        // a thread for each request, as the service has, so that requests can run at the same time
+        server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.start();
     }
 
@@ -53,6 +56,17 @@ public final class TestServer implements AutoCloseable {
     public HttpResponse<String> send(String method, String path, String body)
             throws IOException, InterruptedException {
         return http.send(jsonRequest(method, path, body), HttpResponse.BodyHandlers.ofString());
+    }
+
+    /** Sends the body with the method as this content type, or without a content type when it is null. */
+    public HttpResponse<String> sendAs(String contentType, String method, String path, String body)
+            throws IOException, InterruptedException {
+        HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(url() + path))
+                .method(method, HttpRequest.BodyPublishers.ofString(body));
+        if (contentType != null) {
+            request.header("Content-Type", contentType);
+        }
+        return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
     }
 
     /** Like {@link #post}, for an answer that is a file and not text. */

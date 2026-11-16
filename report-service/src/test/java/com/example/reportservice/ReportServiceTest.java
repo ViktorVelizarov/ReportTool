@@ -29,7 +29,7 @@ class ReportServiceTest {
 
     private static Config config(boolean globalService) {
         return new Config("http://manager", "http://manager/auth", "master", "id", "secret", 5000, false,
-                globalService, Path.of("reports"));
+                globalService, Path.of("reports"), null);
     }
 
     @Test
@@ -60,17 +60,19 @@ class ReportServiceTest {
                 .respond("POST /asset/query", FakeManager.ASSETS)
                 .respond("POST /asset/count", "2")
                 .respond("GET /model/assetInfos", FakeManager.ASSET_INFOS)) {
-            HttpServer server = ReportService.startServer(0, manager.client(), reports, false);
+            HttpServer server = ReportService.startServer(0, manager.client(), reports, false, null);
             try {
                 int port = server.getAddress().getPort();
 
                 assertTrue(get(port, "/assets").body().contains("\"total\":2"));
                 assertTrue(get(port, "/model/assetInfos").body().contains("RoomAsset"));
+                assertEquals("{\"available\":false}", get(port, "/ai/status").body());
+                assertEquals(503, send(port, "POST", "/ai/text", "{}").statusCode(), "AI text is not set up");
                 for (String page : List.of("/", "/manufacturer", "/smartcity")) {
                     assertPage(get(port, page), page);
                 }
                 // a realm that is named like an endpoint, or starts like one, still gets its page
-                for (String page : List.of("/assets-demo", "/assetsx", "/model", "/models", "/model-city",
+                for (String page : List.of("/ai", "/assets-demo", "/assetsx", "/model", "/models", "/model-city",
                         "/reports-demo", "/reportsx")) {
                     assertPage(get(port, page), page);
                 }
@@ -99,7 +101,7 @@ class ReportServiceTest {
     @Test
     void keepsTheSavedReportsInTheFolderItWasGiven(@TempDir Path reports) throws Exception {
         try (FakeManager manager = new FakeManager()) {
-            HttpServer server = ReportService.startServer(0, manager.client(), reports, false);
+            HttpServer server = ReportService.startServer(0, manager.client(), reports, false, null);
             try {
                 int port = server.getAddress().getPort();
                 String report = "{\"name\":\"Weekly\",\"periodId\":\"last7\",\"template\":{\"widgets\":[]}}";
@@ -128,10 +130,11 @@ class ReportServiceTest {
                 .respond("POST /asset/query", FakeManager.ASSETS)
                 .respond("POST /asset/count", "2")
                 .respond("GET /model/assetInfos", FakeManager.ASSET_INFOS)) {
-            HttpServer server = ReportService.startServer(0, manager.client(), reports, false);
+            HttpServer server = ReportService.startServer(0, manager.client(), reports, false, null);
             try {
                 HttpRequest request = HttpRequest.newBuilder(
                         URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/export/pdf"))
+                        .header("Content-Type", "application/json")
                         .POST(HttpRequest.BodyPublishers.ofString(REPORT))
                         .build();
 
@@ -165,6 +168,7 @@ class ReportServiceTest {
     private static HttpResponse<String> send(int port, String method, String path, String body)
             throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
+                .header("Content-Type", "application/json")
                 .method(method, HttpRequest.BodyPublishers.ofString(body))
                 .build();
         return HTTP.send(request, HttpResponse.BodyHandlers.ofString());

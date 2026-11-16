@@ -151,6 +151,31 @@ class RouterTest {
     }
 
     @Test
+    void takesABodyOnlyWhenItIsSentAsJson() throws Exception {
+        String body = "{\"name\":\"wheel\"}";
+        // what a page of another website can have a browser send without asking the service first
+        for (String contentType : new String[] {"text/plain", "text/plain;charset=UTF-8",
+                "application/x-www-form-urlencoded", "multipart/form-data; boundary=x", "application/jsonp", null}) {
+            HttpResponse<String> response = server.sendAs(contentType, "POST", "/submit", body);
+
+            assertEquals(415, response.statusCode(), contentType);
+            assertEquals("the body must be sent as application/json", json(response).get("error").asText());
+        }
+        for (String contentType : List.of("application/json", "application/json; charset=utf-8",
+                "Application/JSON;charset=UTF-8")) {
+            assertEquals(200, server.sendAs(contentType, "POST", "/submit", body).statusCode(), contentType);
+        }
+    }
+
+    @Test
+    void asksForJsonOnlyWhereABodyIsTaken() throws Exception {
+        assertEquals(415, server.sendAs("text/plain", "PUT", "/rename/abc", "{}").statusCode(), "a PUT has one");
+        assertEquals(200, server.get("/things/abc").statusCode(), "a GET has no body");
+        assertEquals(204, server.send("DELETE", "/remove/abc").statusCode(), "nor has a DELETE");
+        assertEquals(405, server.sendAs("text/plain", "POST", "/things/abc", "{}").statusCode(), "not a POST route");
+    }
+
+    @Test
     void rejectsABodyThatIsNotAJsonObject() throws Exception {
         for (String body : List.of("", "{", "[1]", "\"text\"", "null")) {
             HttpResponse<String> response = server.post("/submit", body);

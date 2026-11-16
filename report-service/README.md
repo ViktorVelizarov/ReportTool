@@ -3,8 +3,9 @@
 An external service for [OpenRemote](https://openremote.io). It serves the Report Studio web interface (the
 [frontend](../frontend) folder) and registers itself in the manager's external service registry so the interface can
 be shown inside the manager UI. It also exposes live OpenRemote data (assets, attributes and their stored history) and
-the asset model as read-only JSON, makes the PDF of a report (see [PDF export](#pdf-export)) and keeps the reports that
-authors save (see [Saved reports](#saved-reports)).
+the asset model as read-only JSON, makes the PDF of a report (see [PDF export](#pdf-export)), keeps the reports that
+authors save (see [Saved reports](#saved-reports)) and has a language model write the text of a report, when one is
+set up (see [AI text](#ai-text)).
 
 On startup it registers as `report-service`, then sends a heartbeat every 20 seconds (the manager drops a service
 after 60 seconds without one). If the manager forgets it (for example after a restart) it registers again, and it
@@ -38,6 +39,10 @@ take precedence. Copy [.env.example](.env.example) to `.env` (git-ignored) to ge
 | `PORT`              | `5000`                       | Port this service listens on                                                                       |
 | `REPORTS_DIR`       | `data/reports`               | The folder that the saved reports are kept in, see [Saved reports](#saved-reports)                 |
 | `OR_INSECURE_TLS`   | `false`                      | Skip TLS certificate verification, also in the browser of the PDF export. **Local testing only.**  |
+| `AI_BASE_URL`       | none                         | Address of the API of the model that writes the text, see [AI text](#ai-text)                      |
+| `AI_MODEL`          | none                         | The name of that model, as the API knows it                                                        |
+| `AI_API_KEY`        | none                         | The key of the API. A local one needs none                                                         |
+| `AI_TIMEOUT_SECONDS`| `30`                         | How long the service waits for the model, in whole seconds                                         |
 
 The manager only accepts tokens whose issuer matches the `authServerUrl` it advertises at `/api/master/info`, so
 use the same host name for `OR_KEYCLOAK` that the manager and Keycloak are configured with (for example
@@ -113,8 +118,13 @@ the answer is a `404`.
 
 **The endpoints have no authentication of their own**: anyone who can reach the service's port can read whatever the
 service user can read, and for a super user that is every realm of the manager. The same goes for the
-[saved reports](#saved-reports), which anyone who can reach the port can also add, change and delete, in every realm.
+[saved reports](#saved-reports), which anyone who can reach the port can also add, change and delete, in every realm,
+and for the [AI text](#ai-text), which anyone who can reach the port can have written with the key of the service.
 Run the service on a trusted network, or put an authenticating proxy in front of it.
+
+One thing the service does guard against: a page of another website that has the browser of a visitor send a request to
+the service. Every `POST` and `PUT` must be sent as `application/json` (`415` otherwise). A browser only sends that to
+another site after it has asked the service, which does not allow it.
 
 ### Assets and attributes
 
@@ -184,11 +194,12 @@ the look of OpenRemote then. An unknown realm has no entry of its own and gets t
 ### Errors
 
 Errors are `{"error": "..."}`. `400` is an invalid parameter or body, `404` an unknown path, asset, attribute or saved
-report, `405` a method that the path does not take (`Allow` says which), `409` a name that another saved report has, and
-`413` a data point query that returns too much, or a body that is too large. `502` means OpenRemote failed or refused
-the service (for example the service user lacks a role, or may not read the realm that was asked for) or, for a PDF,
-that it could not be made; `503` that the request was interrupted, or that a PDF cannot be made now (see below), and
-`500` a bug in this service, or a saved report that cannot be read or written.
+report, `405` a method that the path does not take (`Allow` says which), `409` a name that another saved report has,
+`413` a data point query that returns too much, or a body that is too large, and `415` a body that is not sent as
+`application/json`. `502` means OpenRemote failed or refused the service (for example the service user lacks a role, or
+may not read the realm that was asked for) or, for a PDF, that it could not be made; `503` that the request was
+interrupted, or that a PDF cannot be made now (see below), and `500` a bug in this service, or a saved report that
+cannot be read or written. The AI text has failures of its own, see [AI text](#ai-text).
 
 ## PDF export
 
@@ -280,6 +291,79 @@ folder could overwrite each other. A report can be 2 MB at most (`413`). The ser
 them can remove a report for all the others, and when two people save the same report the last save wins. A
 failure to read or write a file is a `500`, with the cause in the log.
 
+## AI text
+
+The text of a report (an introduction, the findings, a description of each widget and a conclusion) is written by a
+language model. The service has no model of its own and no vendor's library: it is set up with the address of an API
+that is compatible with OpenAI's chat completions, which hosted models and local ones (Ollama, for example) both offer,
+so who runs the model is a setting and not code.
+
+| Setting | Example | Description |
+|---------|---------|-------------|
+| `AI_BASE_URL` | `https://api.anthropic.com/v1`, `http://localhost:11434/v1` | The address of the API, `http` or `https`, without a query. The service adds `/chat/completions` to it. |
+| `AI_MODEL` | `claude-haiku-5-5`, `llama3.2` | The name of the model as that API knows it. |
+| `AI_API_KEY` | | The key of a hosted API, which is sent as `Authorization: Bearer`. A local API needs none. |
+| `AI_TIMEOUT_SECONDS` | `30` | How long the service waits for the model, a whole number of seconds from 1. |
+
+AI text is set up when `AI_BASE_URL` and `AI_MODEL` are both there. With neither it is switched off, which is the
+default, and the rest of the service works as before. With only one of the two the service does not start and says
+which one is missing, and so it does for an address or a time limit that is not valid. A setting that is empty counts
+as one that is not there. The key is in `.env` or the environment only: the service does not log it, and no endpoint
+gives it.
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /ai/status` | Whether AI text is set up: `{"available": false}`, or `{"available": true, "model", "host", "timeoutSeconds"}` with the name of the model, the host of the API (not its whole address) and the time limit. |
+| `POST /ai/text` | The text that the model writes for the prompt in the body: `{"introduction", "findings", "descriptions", "conclusion"}`, where `descriptions` is a list with a text for each widget, in the order of the widgets. |
+
+The paths have two parts on purpose: a realm that is called `ai` can still be opened as `/ai`.
+
+**The prompt.** The body of `POST /ai/text` is a JSON object with `system` (the rules for the model), `user` (the
+report, its figures and what to write) and `descriptions` (how many widget descriptions the answer must have, a whole
+number from 0 to 100). The web interface is to make the prompt, from figures that it computes itself: the model words
+them and does not calculate. The service does not read or change the prompt. It adds the key, makes the call and checks
+the answer.
+
+**What is sent to the model.** One call, `POST {AI_BASE_URL}/chat/completions`, with the model, the two parts of the
+prompt as a `system` and a `user` message, and the shape of the answer as a strict JSON schema (`response_format` of
+the type `json_schema`). Nothing else: no sampling settings, no token limit and no streaming, which is the smallest
+request that hosted and local APIs alike accept. Nothing of the manager is sent that is not in the prompt.
+
+**The answer.** The service gives the text only when the model finished its answer (`finish_reason` is `stop`) and the
+answer is a JSON object with exactly the four kinds of text, none of them empty, and as many descriptions as were asked
+for. A schema cannot fix the length of a list, and not every model keeps to a schema, so the service checks this for
+every answer. It does not check what the text says: whether every number in it is a figure of the report is for the web
+interface to check, which knows the figures.
+
+**Failures.** Each is `{"error": "..."}` with a message that the web interface can show to the author.
+
+| Status | When |
+|--------|------|
+| `400` | The body has no `system`, no `user` or no valid `descriptions`. |
+| `413` | `system` and `user` are more than 60,000 characters together (some 15,000 tokens). |
+| `415` | The body is not sent as `application/json`. |
+| `429` | Two calls to the model are running, or ten have started in the last minute. |
+| `502` | The API cannot be reached, refuses the request (the key, the name of the model, a limit of its own) or gives an answer that cannot be used; the message says which. |
+| `503` | AI text is not set up. |
+| `504` | The model did not answer within `AI_TIMEOUT_SECONDS`. The time limit is for the whole call. |
+
+**Limits.** The two limits of `429` are for the whole service, which does not know who calls it. They, the size limit
+and the rule that a body must be JSON keep a stranger from spending much with the key; they do not replace
+authentication (see the note above). A call is not tried again: the author decides.
+
+**The log** gets a line for every call: the model, how long it took and how many tokens went in and out, or why it
+failed. For a request that the API refuses, that is what the API says about it, cut to 200 characters. The log never
+gets the prompt, the text or the key.
+
+**Which APIs.** The request was made to fit Anthropic's OpenAI-compatible API and Ollama's, by their documentation.
+Anthropic's accepts only this kind of `response_format` and refuses sampling settings on its current models, and
+Anthropic describes that API as one to test and compare models with, not one for production; its own Messages API
+would need a second client next to `ChatClient`. An Ollama server has a small context by default (4,096 tokens with
+less than 24 GiB of graphics memory), which a large report does not fit in: start it with `OLLAMA_CONTEXT_LENGTH` set
+higher. The service was tried with neither yet, only with a fake model.
+
+**Not there yet.** The web interface does not call these endpoints: the text that it generates is still mock.
+
 ## Test
 
 ```
@@ -296,7 +380,7 @@ The code is in `src/main/java/com/example/reportservice`, one package per concer
 
 - `ReportService` - entry point: wiring, the HTTP server and the shutdown hook. `BuildInfo` reads the project version
   that Gradle writes into `build-info.properties`, so the version is defined only in `build.gradle`.
-- `config` - `Config`: environment and `.env` settings.
+- `config` - `Config`: environment and `.env` settings, with those of the model that writes the text in `AiSettings`.
 - `json` - `Json`: the shared JSON mapper.
 - `web` - the small HTTP layer: `Router`, `Request` and `ApiException` (routing, parameters, bodies and error
   responses), `Binary` (an answer that is not JSON, such as a PDF), `NoContent` (an answer without a body, `204`) and
@@ -306,6 +390,9 @@ The code is in `src/main/java/com/example/reportservice`, one package per concer
   the realm of the service user), `ServiceRegistration` (registers, heartbeats and deregisters in
   `/api/{realm}/service`, or in `/api/master/service/global` for a global service) and `Ids` (the rules for asset IDs,
   names and realm names).
+- `ai` - `AiEndpoints` and the `ChatClient` that has the model write the text of a report, with one call to an API
+  that is compatible with OpenAI's; `TextAnswer` is the text, and checks that the answer has the right shape, and
+  `CallLimits` keeps the calls to two at a time and ten in a minute.
 - `asset` - `AssetEndpoints` and the client that reads assets from `/api/{realm}/asset`, with the realm to read in the
   query.
 - `branding` - `BrandingEndpoints` and the client that reads the colour and logo of a realm from
@@ -324,4 +411,4 @@ A new feature is a new package next to `asset`, `datapoint` and `model`, with an
 
 Other resources in `src/main/resources`: `logback.xml`, which sets the log format and level. The web interface is not
 in this folder: the build adds it from `../frontend`. The tests mirror the packages, and `support` holds the fake
-manager and test server they share.
+manager, the fake model and the test server they share.

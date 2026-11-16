@@ -19,7 +19,9 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Serves JSON endpoints on an {@link HttpServer}: GET routes that read, POST and PUT routes that take a JSON body, and
- * DELETE routes.
+ * DELETE routes. A POST or PUT must say that its body is JSON ({@code Content-Type: application/json}), or it is
+ * answered with 415: a page of another website can then not have a visitor's browser send one, as a browser asks the
+ * server first before it sends JSON to another site, and this server does not allow it.
  *
  * <p>A {@link Handler} returns the response body, which is written as JSON (or as it is, when it is a {@link Binary},
  * or not at all when it is {@link NoContent}, which makes the status 204), or throws to report an error:
@@ -119,6 +121,9 @@ public final class Router {
         int status = 200;
         Object body;
         try {
+            if (!route.method().equals("GET") && !route.method().equals("DELETE")) {
+                requireJson(exchange);
+            }
             body = route.handler().handle(new Request(pathParams, queryParams(exchange), readBody(exchange)));
         } catch (ApiException e) {
             status = e.status();
@@ -157,6 +162,15 @@ public final class Router {
         exchange.getResponseHeaders().set("Content-Type", contentType);
         exchange.sendResponseHeaders(status, body.length);
         exchange.getResponseBody().write(body);
+    }
+
+    /** Rejects a request that does not say that its body is JSON with 415; a charset after the type is fine. */
+    private static void requireJson(HttpExchange exchange) {
+        String contentType = exchange.getRequestHeaders().getFirst("Content-Type");
+        String mediaType = contentType == null ? "" : contentType.split(";", 2)[0].strip();
+        if (!mediaType.equalsIgnoreCase("application/json")) {
+            throw new ApiException(415, "the body must be sent as application/json");
+        }
     }
 
     /** The body of the request; one that is larger than {@link #MAX_BODY_BYTES} is rejected with 413. */

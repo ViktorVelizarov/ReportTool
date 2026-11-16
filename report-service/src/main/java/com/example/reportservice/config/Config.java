@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
  * @param realm         the realm of the service user, which is also the realm that is read when a request names none
  * @param globalService whether the service registers as a global service, which the manager shows in every realm
  * @param reportsDir    the folder in which the saved reports are kept
+ * @param ai            the model that writes the text of a report, or null when AI text is not set up
  */
 public record Config(
         String managerUrl,
@@ -26,7 +27,8 @@ public record Config(
         int port,
         boolean insecureTls,
         boolean globalService,
-        Path reportsDir) {
+        Path reportsDir,
+        AiSettings ai) {
 
     private static final Logger LOG = LoggerFactory.getLogger(Config.class);
     private static final Path ENV_FILE = Path.of(".env");
@@ -66,7 +68,8 @@ public record Config(
                 Integer.parseInt(optional(env, "PORT", "5000")),
                 Boolean.parseBoolean(optional(env, "OR_INSECURE_TLS", "false")),
                 globalService,
-                Path.of(optional(env, "REPORTS_DIR", "data/reports")));
+                Path.of(optional(env, "REPORTS_DIR", "data/reports")),
+                AiSettings.from(env));
     }
 
     /**
@@ -105,11 +108,11 @@ public record Config(
         return value;
     }
 
-    /** Keeps the client secret out of logs. */
+    /** Keeps the client secret out of logs; the settings of the model keep its key out themselves. */
     @Override
     public String toString() {
         return "Config[managerUrl=" + managerUrl + ", keycloakUrl=" + keycloakUrl + ", realm=" + realm
                 + ", clientId=" + clientId + ", port=" + port + ", insecureTls=" + insecureTls
-                + ", globalService=" + globalService + ", reportsDir=" + reportsDir + "]";
+                + ", globalService=" + globalService + ", reportsDir=" + reportsDir + ", ai=" + ai + "]";
     }
 }
