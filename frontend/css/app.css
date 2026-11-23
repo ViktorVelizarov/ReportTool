@@ -6,8 +6,14 @@
 
 :root {
   color-scheme: light;
-  /* Lumo's large radius as the mockups draw it: 12 px (the em of this page's 14 px text would give 10.5 px) */
-  --radius: 0.75rem;
+  /* The corners as OpenRemote's design system draws them (Shapes): 4, 8 and 12 px, whatever the size of the text. The
+     theme gives them as a part of the text size (0.25, 0.5 and 0.75 em), which only makes those sizes on 16 px text;
+     this page's text is 14 px */
+  --lumo-border-radius-s: 0.25rem;
+  --lumo-border-radius-m: 0.5rem;
+  --lumo-border-radius-l: 0.75rem;
+  /* A badge has the medium corner, as in the design system (Badge); the component is round by itself */
+  --vaadin-badge-border-radius: var(--lumo-border-radius-m);
 
   /* The colours that the dashboard builder, its widgets and its dialogs read, the names of OpenRemote's legacy theme,
      as the app of the manager gives them to its pages: the defaults of OpenRemote, and the primary colour of the
@@ -28,6 +34,16 @@ or-mwc-snackbar {
   color: var(--or-app-color3);
   font-size: 14px;
   line-height: 1.625;
+}
+
+/* The dashboard builder looks as Insights does, so it keeps the corners of the theme, which follow the size of the text */
+or-dashboard-preview,
+or-dashboard-sidebar,
+or-mwc-dialog,
+or-asset-attribute-picker {
+  --lumo-border-radius-s: 0.25em;
+  --lumo-border-radius-m: 0.5em;
+  --lumo-border-radius-l: 0.75em;
 }
 
 /* A dialog of the builder is above the page, the toolbar that stays in view above the report as well */
@@ -102,7 +118,7 @@ or-vaadin-button.busy .icon { animation: spin 1.1s linear infinite; }
   align-items: end;
   gap: 10px 10px;
   padding: 16px;
-  border-radius: var(--radius);
+  border-radius: var(--lumo-border-radius-l);
   background: var(--or-color-base);
 }
 
@@ -132,7 +148,7 @@ or-vaadin-button.busy .icon { animation: spin 1.1s linear infinite; }
 .paper {
   margin-top: 4px;
   padding: 36px 40px 24px;
-  border-radius: var(--radius);
+  border-radius: var(--lumo-border-radius-l);
   background: var(--or-color-base);
 }
 
@@ -222,7 +238,7 @@ or-vaadin-confirm-dialog::part(overlay) { min-width: min(36rem, 90vw); }
   grid-template-columns: minmax(0, 1fr);
   gap: var(--lumo-space-s);
   padding: var(--lumo-space-m);
-  border-radius: var(--radius);
+  border-radius: var(--lumo-border-radius-l);
   background: var(--or-color-base);
 }
 .dialog-card > h4 { margin: 0; }
