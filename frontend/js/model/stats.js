@@ -44,14 +44,8 @@ export function cardChange({ first, latest }, asPercentage) {
 
 // --- What else the data points of a time frame say, for the prompt of the AI ---
 
-/** How many standard deviations from the average a measurement is when it is outside the usual range. */
-export const UNUSUAL_DEVIATIONS = 3;
-
 /** A pause between two measurements is a time without data when it is this many times the usual pause, or more. */
 const GAP_FACTOR = 3;
-
-/** The fewest measurements that a usual range is worked out from. */
-const MIN_FOR_RANGE = 10;
 
 /** The fewest measurements in a row with the same value that count as a value that did not change. */
 const MIN_UNCHANGED = 6;
@@ -78,18 +72,6 @@ function median(values) {
 function usualPause(points) {
   const pauses = points.slice(1).map((point, index) => point.x - points[index].x);
   return pauses.length ? median(pauses) : null;
-}
-
-/**
- * How long each measurement stands: until the next one, the last one until the end of the time frame. A measurement
- * stands at most as long as a pause that is not yet a time without data.
- */
-function standingTimes(points, end, pause) {
-  const longest = GAP_FACTOR * pause;
-  return points.map((point, index) => {
-    const next = index + 1 < points.length ? points[index + 1].x : Math.max(end, point.x);
-    return Math.min(next - point.x, longest);
-  });
 }
 
 /**
@@ -179,34 +161,6 @@ function byWholeDay(points, [from, to]) {
 }
 
 /**
- * The usual range of the values, their average plus or minus UNUSUAL_DEVIATIONS standard deviations, and the
- * measurements outside it: how many, how long they stood in all, and the longest stretch of them in a row (from its
- * first to its last measurement). Null with too few measurements, or when all values are the same.
- */
-function unusualOf(points, standing, mean, deviation) {
-  if (points.length < MIN_FOR_RANGE || deviation === 0) return null;
-  const low = mean - UNUSUAL_DEVIATIONS * deviation;
-  const high = mean + UNUSUAL_DEVIATIONS * deviation;
-  let count = 0;
-  let time = 0;
-  let longest = null;
-  let run = null;
-  points.forEach((point, index) => {
-    if (point.y >= low && point.y <= high) {
-      run = null;
-      return;
-    }
-    count += 1;
-    time += standing[index];
-    run = run
-      ? { ...run, to: point.x, count: run.count + 1, time: run.time + standing[index] }
-      : { from: point.x, to: point.x, count: 1, time: standing[index] };
-    if (!longest || run.time > longest.time) longest = run;
-  });
-  return { low, high, count, total: points.length, time, longest };
-}
-
-/**
  * The longest time without measurements, also at the start and at the end of the time frame: { from, to, duration },
  * or null when no pause is GAP_FACTOR times the usual pause or longer.
  */
@@ -239,9 +193,9 @@ function longestUnchanged(points) {
 /**
  * What else the data points of a time frame [from, to] say, for the prompt of the AI: the biggest rise and drop between
  * two measurements in a row (rise, drop), the trend from the first half of the time frame to the second, the hours of
- * the day and the whole days with the highest and the lowest average (byHour, byDay), the usual range and the
- * measurements outside it (unusual), the longest time without measurements (gap) and the longest stretch with the same
- * value (unchanged). Each is null when there is too little data for it, or nothing to say. Null without data points.
+ * the day and the whole days with the highest and the lowest average (byHour, byDay), the longest time without
+ * measurements (gap) and the longest stretch with the same value (unchanged). Each is null when there is too little
+ * data for it, or nothing to say. Null without data points.
  */
 export function analyze(points, range) {
   if (!points.length) return null;
@@ -254,7 +208,6 @@ export function analyze(points, range) {
     trend: trendOf(points, range, deviation),
     byHour: byHourOfDay(points),
     byDay: byWholeDay(points, range),
-    unusual: unusualOf(points, standingTimes(points, range[1], pause ?? 0), mean, deviation),
     gap: longestGap(points, range, pause),
     unchanged: longestUnchanged(points),
   };

@@ -10,11 +10,11 @@
 
 import { WIDGET_SPECS } from '../builder/service/widget-specs.js';
 import {
-  formatDateTime, formatDay, formatDuration, formatNumber, formatRange, formatTime, formatValue, listNames, plural,
+  formatDateTime, formatDay, formatDuration, formatNumber, formatRange, formatTime, formatValue, listNames,
 } from './format.js';
 import { instructionsOf } from './instructions.js';
 import { previousRange } from './periods.js';
-import { percentChange, UNUSUAL_DEVIATIONS } from './stats.js';
+import { percentChange } from './stats.js';
 
 /**
  * The markers around the sections that are data, by the id of the section: the answers of the author and what the
@@ -32,10 +32,8 @@ const BEYOND_WIDGETS_RULE = '- An attribute also has figures that its widget doe
   + 'show only the current value; the figures under it are of the time frame of the report. What the figures of an '
   + 'attribute mean: a rise or a drop is the change between two measurements in a row. The trend compares the average '
   + 'of the first half of the time frame with that of the second half. "By hour of the day" and "by whole day" give '
-  + 'the hour and the day with the highest and the lowest average. The usual range is the average plus or minus '
-  + `${UNUSUAL_DEVIATIONS} standard deviations of that attribute in the time frame: a measurement outside it is `
-  + 'unusual for the attribute, which does not make it wrong or a fault. A kind of figure that an attribute does not '
-  + 'have was not found, or there were too few measurements for it.';
+  + 'the hour and the day with the highest and the lowest average. A kind of figure that an attribute does not have '
+  + 'was not found, or there were too few measurements for it.';
 
 /** The rule for the figures of the time before, when the model is given them (previousPeriod). */
 const PREVIOUS_PERIOD_RULE = '- Under "previous period" are the same kinds of figures for the time just before, which '
@@ -148,16 +146,6 @@ function extremesLine(title, extremes, nameOf, unit) {
     + `lowest ${nameOf(extremes.lowest.key)} (${lowest})`;
 }
 
-function unusualLine(unusual, unit) {
-  if (!unusual) return null;
-  const range = `usual range ${formatValue(unusual.low, unit)} to ${formatValue(unusual.high, unit)}`;
-  if (unusual.count === 0) return `${range}; no measurement outside it`;
-  const { longest } = unusual;
-  const stretch = longest.count === 1 ? `at ${moment(longest.from)}` : fromTo(longest.from, longest.to);
-  return `${range}; outside it for ${formatDuration(unusual.time)} in all (${unusual.count} of `
-    + `${plural(unusual.total, 'measurement')}), the longest stretch ${stretch}`;
-}
-
 function gapLine(gap) {
   return gap && `longest time without measurements: ${formatDuration(gap.duration)}, ${fromTo(gap.from, gap.to)}`;
 }
@@ -186,7 +174,6 @@ function analysisLines(analysis, unit) {
     trendLine(analysis.trend, unit),
     extremesLine('by hour of the day', analysis.byHour, hourOfDay, unit),
     extremesLine('by whole day', analysis.byDay, start => formatDay(new Date(start)), unit),
-    unusualLine(analysis.unusual, unit),
     gapLine(analysis.gap),
     unchangedLine(analysis.unchanged, unit),
   ].filter(Boolean);
