@@ -77,6 +77,21 @@ test('a block of text as wide as the report goes to the next page with everythin
   assert.deepEqual(placeOnPages([cover, text, box(0, 90, 100, 50), ...widgets], PAGE), [0, 0, 10, 10, 10]);
 });
 
+test('the conclusion below the descriptions is kept whole, with room for the line at the end', () => {
+  const cover = box(0, 0, 100, 20);
+  const widgets = [box(0, 20, 50, 40), box(50, 20, 50, 40)];
+  const descriptions = [box(0, 70, 100, 12), box(0, 82, 100, 10)];
+  const conclusion = top => box(0, top, 100, 20);
+  const parts = top => [cover, ...widgets, ...descriptions, conclusion(top)];
+
+  assert.deepEqual(placeOnPages(parts(92), PAGE), [0, 0, 0, 0, 0, 8], 'a page break would cut it');
+  assert.deepEqual(placeOnPages([cover, ...widgets, box(0, 70, 100, 10), conclusion(80)], PAGE), [0, 0, 0, 0, 0]);
+  // the line at the end goes with the conclusion, which is the lowest part
+  const short = [cover, ...widgets, box(0, 60, 100, 10), conclusion(70)];
+  assert.deepEqual(placeOnPages(short, PAGE), [0, 0, 0, 0, 0]);
+  assert.deepEqual(placeOnPages(reserveAtEnd(short, 15), PAGE), [0, 0, 0, 0, 30]);
+});
+
 test('a part taller than a page cannot be kept whole, and starts on a page of its own', () => {
   const boxes = [box(0, 0, 100, 30), box(0, 30, 100, 150), box(0, 180, 100, 20)];
 

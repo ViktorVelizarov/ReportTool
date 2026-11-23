@@ -11,17 +11,20 @@ import { REPORT } from './helpers/report.js';
 const NOW = Date.parse('2026-10-04T15:30:00Z');
 
 const TEXT = {
-  summary: 'Summary.',
+  introduction: 'Introduction.',
   findings: 'Findings.',
   descriptions: { 'irrigation-1': 'About the flow.' },
+  conclusion: 'Conclusion.',
 };
 
 const withReport = () =>
   setTemplate({ ...initialState(NOW), name: REPORT.name, periodId: REPORT.periodId }, REPORT.template);
 
-/** The report with generated text, of which only the summary is approved. */
-const withApprovedSummary = () =>
-  approveBlock(finishGenerating(startGenerating(withReport()), TEXT), 'summary');
+/** The report with generated text, of which only the introduction and the conclusion are approved. */
+function withApprovedEnds() {
+  const writing = startGenerating(withReport());
+  return approveBlock(approveBlock(finishGenerating(writing, writing.ai.run, TEXT), 'introduction'), 'conclusion');
+}
 
 test('the request for a PDF has the report and the realm it is about', () => {
   const request = pdfRequest(withReport(), 'manufacturer', 1798);
@@ -36,14 +39,16 @@ test('the request for a PDF has the report and the realm it is about', () => {
 });
 
 test('only generated text that is approved goes into the request', () => {
-  const request = pdfRequest(withApprovedSummary(), undefined, 1280);
+  const request = pdfRequest(withApprovedEnds(), undefined, 1280);
 
-  assert.deepEqual(request.text, { summary: 'Summary.' });
+  assert.deepEqual(request.text, { introduction: 'Introduction.', conclusion: 'Conclusion.' });
   assert.deepEqual(pdfRequest(startGenerating(withReport()), undefined, 1280).text, {}, 'text that is being written');
+  assert.deepEqual(pdfRequest(startGenerating(withApprovedEnds()), undefined, 1280).text, {},
+    'nor the text that was there before, while new text is written');
 });
 
 test('the page that makes the PDF opens the report of the request as in Preview, with the approved text', () => {
-  const sent = JSON.parse(JSON.stringify(pdfRequest(withApprovedSummary(), 'manufacturer', 1280)));
+  const sent = JSON.parse(JSON.stringify(pdfRequest(withApprovedEnds(), 'manufacturer', 1280)));
 
   const state = stateOfPdfRequest(sent);
 
@@ -53,9 +58,10 @@ test('the page that makes the PDF opens the report of the request as in Preview,
   assert.deepEqual(state.template, jsonCopy(REPORT.template));
   assert.equal(state.editMode, false);
   assert.equal(state.ai.status, 'ready');
-  assert.equal(countApproved(state.ai), 1);
+  assert.equal(countApproved(state.ai), 2);
   assert.equal(countDrafts(state.ai), 0);
-  assert.equal(state.ai.blocks.summary.text, 'Summary.');
+  assert.equal(state.ai.blocks.introduction.text, 'Introduction.');
+  assert.equal(state.ai.blocks.conclusion.text, 'Conclusion.');
 });
 
 test('a request without approved text has no generated text', () => {

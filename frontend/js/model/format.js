@@ -43,6 +43,25 @@ export function formatDateTime(date) {
   });
 }
 
+/** "Thu 12 Nov": a day of the week and the date, without the year. */
+export function formatDay(date) {
+  return date.toLocaleDateString(LOCALE, { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+/** A length of time, in whole minutes: "45 min", "14 h", "2 h 30 min", "3 days 4 h". */
+export function formatDuration(ms) {
+  const minutes = Math.round(ms / 60_000);
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  const rest = minutes % 60;
+  const parts = [
+    days > 0 && plural(days, 'day'),
+    hours > 0 && `${hours} h`,
+    rest > 0 && days === 0 && `${rest} min`,
+  ].filter(Boolean);
+  return parts.length ? parts.join(' ') : '0 min';
+}
+
 /** "28 Sep – 4 Oct 2026"; both years are shown when the range crosses a year. */
 export function formatRange(start, end) {
   const from = start.getFullYear() === end.getFullYear() ? formatShortDate(start) : formatDate(start);

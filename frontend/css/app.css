@@ -196,14 +196,15 @@ or-dashboard-preview { display: block; margin: 0 -5px; }
   font-size: var(--lumo-font-size-xxs);
 }
 
-/* The notice above the generated text: what is left to approve, as the notice in the attribute rows of the manager */
+/* The notice above the generated text: what is left to approve, as the notice in the attribute rows of the manager.
+   It and the blocks of text under it are 8 px apart, as boxes in a white card are in the manager mockups */
 .ai-banner {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--lumo-space-xs) var(--lumo-space-m);
-  margin-bottom: var(--lumo-space-m);
-  padding: var(--lumo-space-xs) var(--lumo-space-m);
+  margin-bottom: var(--lumo-space-s);
+  padding: var(--lumo-space-s) var(--lumo-space-m);
   border-radius: var(--lumo-border-radius-m);
   background: var(--or-color-contrast-5pct);
 }

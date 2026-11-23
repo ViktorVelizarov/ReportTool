@@ -3,8 +3,9 @@ import { test } from 'node:test';
 
 import { newSchedule } from '../js/model/schedule.js';
 import {
-  addWidget, approveAllBlocks, approveBlock, countApproved, countDrafts, createStore, editBlock, finishGenerating,
-  hasUnsavedChanges, initialState, jsonCopy, loadReport, newReport, removeAllBlocks, removeBlock, removeWidget,
+  addWidget, approveAllBlocks, approveBlock, countApproved, countDrafts, createStore, editBlock, failGenerating,
+  finishGenerating, hasUnsavedChanges, initialState, jsonCopy, loadReport, newReport, removeAllBlocks, removeBlock,
+  removeWidget,
   reportOf, reportSaved, selectWidget, setEditMode, setInstructions, setName, setPeriod, setSavedReports, setSchedule,
   setTemplate, startGenerating, updateWidget,
 } from '../js/state.js';
@@ -13,17 +14,24 @@ import { REPORT } from './helpers/report.js';
 const NOW = Date.parse('2026-10-04T15:30:00Z');
 
 const TEXT = {
-  summary: 'Summary.',
+  introduction: 'Introduction.',
   findings: 'Findings.',
   descriptions: { 'irrigation-1': 'About the flow.', 'irrigation-2': 'About the tank.' },
+  conclusion: 'Conclusion.',
 };
 
 /** The state with the test report open, as if the user had built it. */
 const withReport = () =>
   setTemplate({ ...initialState(NOW), name: REPORT.name, periodId: REPORT.periodId }, REPORT.template);
 
+/** The state after text was asked for and the run wrote it: the text is ready for review. */
+function written(state, text = TEXT) {
+  const writing = startGenerating(state);
+  return finishGenerating(writing, writing.ai.run, text);
+}
+
 /** The state with the test report open and generated text that is ready. */
-const withText = () => finishGenerating(startGenerating(withReport()), TEXT);
+const withText = () => written(withReport());
 
 /** The state after the page saved its report as the saved report with the id. */
 const afterSave = (state, id = 'report-1') => reportSaved(state, id, reportOf(state));
@@ -320,36 +328,105 @@ test('instructions are saved with the report, opened with it, and gone from a ne
 
 // --- generated text ---
 
-test('generated text arrives as drafts: a summary, findings and a description per widget', () => {
+test('generated text arrives as drafts: an introduction, findings, a description per widget and a conclusion', () => {
   const state = withText();
 
   assert.equal(state.ai.status, 'ready');
-  assert.deepEqual(Object.keys(state.ai.blocks), ['summary', 'findings', 'desc:irrigation-1', 'desc:irrigation-2']);
+  assert.deepEqual(Object.keys(state.ai.blocks),
+    ['introduction', 'findings', 'desc:irrigation-1', 'desc:irrigation-2', 'conclusion'], 'in the order of the report');
+  assert.deepEqual(state.ai.blocks.introduction, { text: 'Introduction.', state: 'draft' });
   assert.equal(state.ai.blocks['desc:irrigation-1'].text, 'About the flow.');
-  assert.equal(countDrafts(state.ai), 4);
+  assert.deepEqual(state.ai.blocks.conclusion, { text: 'Conclusion.', state: 'draft' });
+  assert.equal(countDrafts(state.ai), 5);
   assert.equal(countApproved(state.ai), 0);
+});
+
+test('a report without widgets still gets its introduction, findings and conclusion', () => {
+  const state = written(initialState(NOW), { ...TEXT, descriptions: {} });
+
+  assert.deepEqual(Object.keys(state.ai.blocks), ['introduction', 'findings', 'conclusion']);
+});
+
+test('every run that writes text has a number of its own', () => {
+  const first = startGenerating(withReport());
+  assert.deepEqual(first.ai, { status: 'loading', run: 1, previous: null });
+
+  const second = startGenerating(finishGenerating(first, 1, TEXT));
+  assert.equal(second.ai.run, 2);
+  assert.equal(startGenerating(setPeriod(second, 'last30')).ai.run, 3, 'also after the report changed');
+  assert.equal(startGenerating(newReport(second)).ai.run, 3, 'and in another report');
+});
+
+test('the answer of an earlier run is not taken for the run that is writing', () => {
+  const first = startGenerating(withReport());
+  const second = startGenerating(setPeriod(first, 'last30')); // the report changed, and text was asked for again
+
+  const late = finishGenerating(second, first.ai.run, { ...TEXT, introduction: 'About the last 7 days.' });
+
+  assert.equal(late, second, 'the second run is still writing');
+  assert.equal(finishGenerating(second, second.ai.run, TEXT).ai.blocks.introduction.text, 'Introduction.');
+});
+
+test('a run that fails puts the text back that was on the page, with its edits and approvals', () => {
+  const reviewed = approveBlock(editBlock(withText(), 'findings', 'My own findings.'), 'introduction');
+  const writing = startGenerating(reviewed);
+  assert.equal(writing.ai.status, 'loading', 'the earlier text is not shown while new text is written');
+
+  const failed = failGenerating(writing, writing.ai.run);
+
+  assert.equal(failed.ai, reviewed.ai);
+  assert.equal(failed.ai.blocks.findings.text, 'My own findings.');
+  assert.equal(failed.ai.blocks.introduction.state, 'approved');
+  assert.equal(failed.textRuns, 2, 'the next run has a new number');
+});
+
+test('a first run that fails leaves the report without text', () => {
+  const writing = startGenerating(withReport());
+
+  assert.equal(failGenerating(writing, writing.ai.run).ai, null);
+});
+
+test('the failure of a run that is not writing any more changes nothing', () => {
+  const first = startGenerating(withReport());
+  const changed = setPeriod(first, 'last30');
+  assert.equal(failGenerating(changed, first.ai.run), changed, 'the report changed');
+
+  const second = startGenerating(changed);
+  assert.equal(failGenerating(second, first.ai.run), second, 'another run is writing');
+
+  const ready = finishGenerating(second, second.ai.run, TEXT);
+  assert.equal(failGenerating(ready, second.ai.run), ready, 'its text is there already');
+});
+
+test('text that was on the page is gone when the report changes while new text is written', () => {
+  const writing = startGenerating(withText());
+
+  const changed = setPeriod(writing, 'last30');
+
+  assert.equal(changed.ai, null);
+  assert.equal(failGenerating(changed, writing.ai.run).ai, null, 'the earlier text was about the report as it was');
 });
 
 test('text for a report that changed while it was written is dropped', () => {
   const writing = startGenerating(withReport());
   const changed = setPeriod(writing, 'last30');
 
-  assert.equal(finishGenerating(changed, TEXT), changed);
+  assert.equal(finishGenerating(changed, writing.ai.run, TEXT), changed);
   assert.equal(countDrafts(writing.ai), 0);
 });
 
 test('blocks are approved, edited and removed; without blocks there is no text', () => {
-  let state = approveBlock(withText(), 'summary');
-  assert.equal(state.ai.blocks.summary.state, 'approved');
+  let state = approveBlock(withText(), 'introduction');
+  assert.equal(state.ai.blocks.introduction.state, 'approved');
 
-  state = editBlock(state, 'summary', 'New summary.');
-  assert.deepEqual(state.ai.blocks.summary, { text: 'New summary.', state: 'draft' });
+  state = editBlock(state, 'introduction', 'New introduction.');
+  assert.deepEqual(state.ai.blocks.introduction, { text: 'New introduction.', state: 'draft' });
 
   state = removeBlock(state, 'findings');
   assert.equal(state.ai.blocks.findings, undefined);
 
   state = approveAllBlocks(state);
-  assert.equal(countApproved(state.ai), 3);
+  assert.equal(countApproved(state.ai), 4);
   assert.equal(countDrafts(state.ai), 0);
 
   for (const id of Object.keys(state.ai.blocks)) state = removeBlock(state, id);

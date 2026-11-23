@@ -1,16 +1,15 @@
 /**
  * The dialog in which the author instructs the AI before it writes: what the report shows and what to look out for.
- * Only the design is real; the answers are not sent anywhere, and the text is still written from templates
- * (model/ai.js).
+ * The answers go into the prompt with the figures of the report, which are read while the author writes. The dialog
+ * says which model the prompt is sent to, and where that model is.
  */
 
+import { AiService } from '../data/ai-service.js';
 import { h } from '../dom.js';
 import '../kit/inputs.js';
 import { instructionsComplete, MAX_LENGTH, QUESTIONS } from '../model/instructions.js';
 import { buildReport } from '../model/report.js';
 import { icon } from './icons.js';
-
-const DEMO_NOTE = 'Demo only: no AI is called. The text is written from templates.';
 
 /**
  * Opens the dialog for the report that is open. When the author asks the AI to write, the dialog closes and
@@ -19,6 +18,7 @@ const DEMO_NOTE = 'Demo only: no AI is called. The text is written from template
 export function openInstructions(store, onGenerate) {
   const state = store.get();
   const replaces = state.ai?.status === 'ready';
+  const { model, host } = AiService.status;
   const draft = { ...state.instructions };
   let report = null; // the figures of the report, once they are read
   let failed = false;
@@ -62,7 +62,8 @@ export function openInstructions(store, onGenerate) {
       answers,
       failure,
       h('p', { class: 'dialog-text' },
-        replaces && 'Generating again replaces the text on the page, with your edits and approvals. ', DEMO_NOTE)),
+        replaces && 'Generating again replaces the text on the page, with your edits and approvals. ',
+        `Your answers and the figures of the report are sent to the AI model ${model} at ${host}.`)),
     h('div', { slot: 'footer', class: 'dialog-footer' },
       h('or-vaadin-button', { theme: 'tertiary', onclick: () => dialog.close() }, 'Cancel'),
       generateTip));

@@ -1,16 +1,17 @@
 /** The bar above the report: its name, editing or previewing, the time frame, saved reports, text and export. */
 
 import { downloadsOf } from '../builder/service/widget-specs.js';
+import { AiService } from '../data/ai-service.js';
 import { ReportContext } from '../data/report-context.js';
 import { h, onChange, replaceChildren } from '../dom.js';
 import '../kit/inputs.js';
-import { generateText } from '../model/ai.js';
 import { exportFileName, pdfRequest } from '../model/exports.js';
 import { plural } from '../model/format.js';
 import { PERIODS } from '../model/periods.js';
+import { craftPrompt, promptMessages, textOfAnswer } from '../model/prompt.js';
 import { describeSchedule } from '../model/schedule.js';
 import {
-  approveAllBlocks, countApproved, countDrafts, finishGenerating, removeAllBlocks, setEditMode, setInstructions,
+  approveAllBlocks, countApproved, countDrafts, failGenerating, finishGenerating, setEditMode, setInstructions,
   setName, setPeriod, startGenerating,
 } from '../state.js';
 import { ask } from './dialog.js';
@@ -22,22 +23,45 @@ import { chooseSavedReport, deleteCurrent, saveCurrent, savedReportItems } from 
 import { openSchedule } from './schedule.js';
 import { showToast } from './toast.js';
 
-/** How long the "AI" takes at least to write the text; the text itself is made from templates. */
-const WRITING_MS = 1400;
+/** How long the message stays that says why the text could not be written: long enough to read the reason. */
+const FAILURE_MS = 10_000;
 
-const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+/** Why something failed, to go after a colon: the message of the error, which the service words for the author. */
+const reasonOf = error => error.message.replace(/^The /, 'the ');
 
-/** Has the text written for the figures of the report, after the author instructed the AI; the author reviews it. */
+/**
+ * Writes the prompt to the console of the browser, as it is sent, so that the author can see what the model is given:
+ * a collapsed group with the two messages.
+ */
+function logPrompt({ system, user }) {
+  const { model, host } = AiService.status;
+  console.groupCollapsed(`Prompt sent to the AI model ${model} at ${host} (${system.length + user.length} characters)`);
+  console.info(`SYSTEM MESSAGE\n\n${system}`);
+  console.info(`USER MESSAGE\n\n${user}`);
+  console.groupEnd();
+}
+
+/**
+ * Has the model write the text for the figures of the report, after the author instructed the AI; the author reviews
+ * it. The prompt is made here and sent through the report service. When the text cannot be written, a message says
+ * why, and the report is as it was: with the text that it had, and with the answers of the author, to try again.
+ */
 async function generate(store, { instructions, report }) {
   store.update(state => startGenerating(setInstructions(state, instructions)));
+  const { run } = store.get().ai;
   try {
-    const text = generateText(report);
-    await wait(WRITING_MS);
-    store.update(state => finishGenerating(state, text));
+    const prompt = promptMessages(craftPrompt(report, instructions));
+    logPrompt(prompt);
+    const answer = await AiService.write({ ...prompt, descriptions: report.widgets.length });
+    store.update(state => finishGenerating(state, run, textOfAnswer(answer, report)));
   } catch (error) {
     console.error(error);
-    store.update(removeAllBlocks);
-    showToast('The text could not be written. Try again.', { tone: 'error' });
+    const writing = store.get();
+    store.update(state => failGenerating(state, run));
+    // nothing is said about a run that was no longer writing: the report changed, so its text was not wanted any more
+    if (store.get() !== writing) {
+      showToast(`The text could not be written: ${reasonOf(error)}.`, { tone: 'error', durationMs: FAILURE_MS });
+    }
   }
 }
 
@@ -167,10 +191,12 @@ export function mountToolbar(root, store, moment) {
     onclick: () => openInstructions(store, input => generate(store, input)),
   });
   const exportMenu = libraryMenu('Download the report');
+  // Without a model there is no text to generate, so the button is not there
   replaceChildren(root,
     name,
     h('div', { class: 'toolbar-view' }, modeButton, periodSelect, savedSelect),
-    h('div', { class: 'toolbar-actions' }, saveTip, deleteTip, scheduleTip, generateTip, exportMenu.bar));
+    h('div', { class: 'toolbar-actions' },
+      saveTip, deleteTip, scheduleTip, AiService.status.available && generateTip, exportMenu.bar));
 
   // The select of the saved reports shows the saved report that is open; what is chosen is done, and then it shows
   // again what is open, also when nothing could be done

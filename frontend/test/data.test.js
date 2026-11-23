@@ -145,6 +145,32 @@ test('a call with a body sends it as JSON with its method and parameters, and gi
   }
 });
 
+test('a call with a time limit is given up when the service does not answer within it', async () => {
+  const fetch = ServiceClient.fetch;
+  const limits = [];
+  try {
+    // a service that never answers: the call ends when its signal does, as a call of the browser does
+    ServiceClient.fetch = (path, init) => new Promise((resolve, reject) => {
+      limits.push(init.signal);
+      init.signal.addEventListener('abort', () => reject(init.signal.reason));
+    });
+    await assert.rejects(ServiceClient.sendJson('POST', '/ai/text', {}, {}, 20),
+      error => error.message === 'The report service did not answer in time' && error.status === undefined);
+    assert.equal(limits.length, 1);
+
+    ServiceClient.fetch = async (path, init) => {
+      limits.push(init.signal);
+      return { ok: true, status: 200, json: async () => ({ done: true }) };
+    };
+    assert.deepEqual(await ServiceClient.sendJson('POST', '/ai/text', {}, {}, 5000), { done: true });
+    assert.equal(limits[1].aborted, false);
+    await ServiceClient.sendJson('POST', '/reports', {});
+    assert.equal(limits[2], undefined, 'a call without a time limit has no signal');
+  } finally {
+    ServiceClient.fetch = fetch;
+  }
+});
+
 // --- assets ---
 
 test('assets come in the shape of OpenRemote with only the requested attributes', async () => {

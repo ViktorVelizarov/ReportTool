@@ -90,9 +90,9 @@ The interface is the [frontend](../frontend) folder, a static site. The build co
 service's resources (see `processResources` in `build.gradle`) and `StaticHandler` serves it from there, so the
 service is still a single jar with nothing else to deploy. A change in `../frontend` needs a new build; `./gradlew run`
 does that. The interface is a prototype that reads the assets, attributes, data points and asset model of a realm
-through the endpoints below, has its PDFs made by this service and its reports saved by it, while its generated text,
-CSV and PNG exports and schedules are still mock; the [frontend README](../frontend/README.md) says what is real and
-what is mock.
+through the endpoints below, has its PDFs made by this service, its reports saved by it and the text of a report
+written through it, while its CSV and PNG exports and schedules are still mock; the
+[frontend README](../frontend/README.md) says what is real and what is mock.
 
 The widgets of the interface are the dashboard builder of OpenRemote's Insights, ported to plain JavaScript, and its
 form controls and theme are OpenRemote's own components, bundled. That code is licensed under the AGPL-3.0-or-later,
@@ -313,16 +313,16 @@ gives it.
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /ai/status` | Whether AI text is set up: `{"available": false}`, or `{"available": true, "model", "host", "timeoutSeconds"}` with the name of the model, the host of the API (not its whole address) and the time limit. |
+| `GET /ai/status` | The web interface reads this when it starts: it offers generated text only when a model is set up, and tells the author which model the figures go to. Whether AI text is set up: `{"available": false}`, or `{"available": true, "model", "host", "timeoutSeconds"}` with the name of the model, the host of the API (not its whole address) and the time limit. |
 | `POST /ai/text` | The text that the model writes for the prompt in the body: `{"introduction", "findings", "descriptions", "conclusion"}`, where `descriptions` is a list with a text for each widget, in the order of the widgets. |
 
 The paths have two parts on purpose: a realm that is called `ai` can still be opened as `/ai`.
 
 **The prompt.** The body of `POST /ai/text` is a JSON object with `system` (the rules for the model), `user` (the
 report, its figures and what to write) and `descriptions` (how many widget descriptions the answer must have, a whole
-number from 0 to 100). The web interface is to make the prompt, from figures that it computes itself: the model words
-them and does not calculate. The service does not read or change the prompt. It adds the key, makes the call and checks
-the answer.
+number from 0 to 100). The web interface makes the prompt (`js/model/prompt.js` of the [frontend](../frontend)), from
+figures that it computes itself: the model words them and does not calculate. The service does not read or change the
+prompt. It adds the key, makes the call and checks the answer.
 
 **What is sent to the model.** One call, `POST {AI_BASE_URL}/chat/completions`, with the model, the two parts of the
 prompt as a `system` and a `user` message, and the shape of the answer as a strict JSON schema (`response_format` of
@@ -353,7 +353,8 @@ authentication (see the note above). A call is not tried again: the author decid
 
 **The log** gets a line for every call: the model, how long it took and how many tokens went in and out, or why it
 failed. For a request that the API refuses, that is what the API says about it, cut to 200 characters. The log never
-gets the prompt, the text or the key.
+gets the prompt, the text or the key: what the API says when it refuses the key is left out, because it can repeat a
+part of the key (OpenAI's does).
 
 **Which APIs.** The request was made to fit Anthropic's OpenAI-compatible API and Ollama's, by their documentation.
 Anthropic's accepts only this kind of `response_format` and refuses sampling settings on its current models, and
@@ -361,8 +362,6 @@ Anthropic describes that API as one to test and compare models with, not one for
 would need a second client next to `ChatClient`. An Ollama server has a small context by default (4,096 tokens with
 less than 24 GiB of graphics memory), which a large report does not fit in: start it with `OLLAMA_CONTEXT_LENGTH` set
 higher. The service was tried with neither yet, only with a fake model.
-
-**Not there yet.** The web interface does not call these endpoints: the text that it generates is still mock.
 
 ## Test
 

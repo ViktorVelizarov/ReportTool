@@ -1,6 +1,7 @@
 /**
  * The report as it will be exported: the cover and the generated text around the grid of the dashboard builder, which
- * is already on the page (root holds it), and below the grid the descriptions of the widgets.
+ * is already on the page (root holds it). The introduction and the findings are above the grid; below it are the
+ * descriptions of the widgets and then the conclusion.
  */
 
 import { WIDGET_SPECS } from '../builder/service/widget-specs.js';
@@ -24,14 +25,16 @@ const hasDescriptions = ai =>
 export function mountPaper(root, store) {
   const cover = h('header', { class: 'cover' });
   const banner = h('div', { class: 'ai-banner', hidden: true });
-  const summary = createBlockView(store, 'summary', 'Summary');
+  const introduction = createBlockView(store, 'introduction', 'Introduction');
   const findings = createBlockView(store, 'findings', 'Key findings');
+  const conclusion = createBlockView(store, 'conclusion', 'Conclusion');
   const descriptionList = h('div', { class: 'description-list' });
   const descriptions = h('section', { class: 'descriptions', hidden: true },
     h('h2', null, 'Widget descriptions'), descriptionList);
-  root.prepend(cover, banner, summary.element, findings.element);
+  root.prepend(cover, banner, introduction.element, findings.element);
   const source = ReportContext.realm ? `OpenRemote, realm ${ReportContext.realm}` : 'OpenRemote';
-  root.append(descriptions, h('footer', { class: 'paper-foot' }, `Data from ${source} · Prepared with Report Studio`));
+  root.append(descriptions, conclusion.element,
+    h('footer', { class: 'paper-foot' }, `Data from ${source} · Prepared with Report Studio`));
 
   const views = new Map(); // the description views by widget id and title; a renamed widget gets a new view
   let shownViews = [];
@@ -94,7 +97,7 @@ export function mountPaper(root, store) {
     if (reordered || state.ai !== lastAi) {
       lastAi = state.ai;
       drawBanner(state.ai);
-      [summary, findings, ...shownViews].forEach(view => view.update(state.ai));
+      [introduction, findings, ...shownViews, conclusion].forEach(view => view.update(state.ai));
       descriptions.hidden = !hasDescriptions(state.ai);
     }
   }

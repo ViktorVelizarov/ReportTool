@@ -14,10 +14,12 @@ export const ServiceClient = {
 
   /**
    * The JSON that the service answers to a call with a JSON body, such as a POST that adds something or a PUT that
-   * replaces it; parameters that are undefined are left out.
+   * replaces it; parameters that are undefined are left out. With timeoutMs the call is given up after that long.
    */
-  async sendJson(method, path, body, params = {}) {
-    return (await call(addressOf(path, params), jsonRequest(method, body))).json();
+  async sendJson(method, path, body, params = {}, timeoutMs = undefined) {
+    const request = jsonRequest(method, body);
+    const limited = timeoutMs === undefined ? request : { ...request, signal: AbortSignal.timeout(timeoutMs) };
+    return (await call(addressOf(path, params), limited)).json();
   },
 
   /** Makes a call that is answered without a body, such as a DELETE; parameters that are undefined are left out. */
@@ -43,13 +45,18 @@ const jsonRequest = (method, body) => ({
   body: JSON.stringify(body),
 });
 
-/** The answer of the service. It is an error when the service cannot be reached or does not answer with a success. */
+/**
+ * The answer of the service. It is an error when the service cannot be reached, does not answer within the time that
+ * the call has, or does not answer with a success.
+ */
 async function call(address, init) {
   let response;
   try {
     response = await ServiceClient.fetch(address, init);
-  } catch {
-    throw new Error('The report service cannot be reached');
+  } catch (error) {
+    throw new Error(error?.name === 'TimeoutError'
+      ? 'The report service did not answer in time'
+      : 'The report service cannot be reached');
   }
   if (!response.ok) throw await refusal(response);
   return response;

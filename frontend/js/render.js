@@ -98,11 +98,11 @@ async function whenDrawn(preview, widgetCount, pending) {
 
 /**
  * Puts the report on the pages of the given height in pixels of the layout. The paper starts at the top of the first
- * page and has these parts, one after the other: the cover and the blocks of text, the widgets of the grid, and the
- * descriptions of the widgets (the heading goes with the first one), then the line at the end. A part that a page break
- * would cut gets an empty space before it, or for a widget a place lower in the grid, that reaches to the top of the
- * next page. The line at the end is not a part of its own: the lowest parts keep room for it, so that it is not left
- * alone on a page.
+ * page and has these parts, one after the other: the cover and the blocks of text above the grid (the introduction and
+ * the findings), the widgets of the grid, the descriptions of the widgets (the heading goes with the first one) and
+ * the block of text below them (the conclusion), then the line at the end. A part that a page break would cut gets an
+ * empty space before it, or for a widget a place lower in the grid, that reaches to the top of the next page. The line
+ * at the end is not a part of its own: the lowest parts keep room for it, so that it is not left alone on a page.
  */
 function placeOnPaper(paper, preview, pageHeight) {
   preview.grid.setAnimation(false); // the widgets are put in their place, not slid into it
@@ -115,7 +115,10 @@ function placeOnPaper(paper, preview, pageHeight) {
   };
   const shown = elements => [...elements].filter(element => element.getBoundingClientRect().height > 0);
 
-  const before = shown(paper.querySelectorAll(':scope > .cover, :scope > .ai-block'));
+  const isBelowGrid = element => Boolean(preview.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING);
+  const blocks = shown(paper.querySelectorAll(':scope > .cover, :scope > .ai-block'));
+  const before = blocks.filter(block => !isBelowGrid(block));
+  const after = blocks.filter(isBelowGrid);
   const heading = paper.querySelector(':scope > .descriptions > h2');
   const cards = shown(paper.querySelectorAll(':scope > .descriptions .ai-block'));
   const footer = paper.querySelector(':scope > .paper-foot');
@@ -128,6 +131,7 @@ function placeOnPaper(paper, preview, pageHeight) {
       const box = boxOf(card);
       return index === 0 ? { ...box, top: boxOf(heading).top } : box;
     }),
+    ...after.map(boxOf),
   ];
   if (boxes.length === 0) return;
   const space = footer ? Math.max(0, boxOf(footer).bottom - Math.max(...boxes.map(box => box.bottom))) : 0;
@@ -140,6 +144,7 @@ function placeOnPaper(paper, preview, pageHeight) {
   };
   const startOfItems = before.length;
   const startOfCards = startOfItems + items.length;
+  const startOfAfter = startOfCards + cards.length;
   before.forEach((element, index) => moveTo(element, boxes[index].top + shifts[index]));
 
   if (items.length > 0) {
@@ -156,8 +161,10 @@ function placeOnPaper(paper, preview, pageHeight) {
   }
   cards.forEach((card, index) =>
     moveTo(index === 0 ? heading : card, boxes[startOfCards + index].top + shifts[startOfCards + index]));
+  after.forEach((element, index) =>
+    moveTo(element, boxes[startOfAfter + index].top + shifts[startOfAfter + index]));
 
-  const placed = [...before, ...items, ...(cards.length > 0 ? [heading] : []), ...cards].map(boxOf);
+  const placed = [...before, ...items, ...(cards.length > 0 ? [heading] : []), ...cards, ...after].map(boxOf);
   const cut = cutBoxes(placed, pageHeight).filter(index => placed[index].bottom - placed[index].top <= pageHeight);
   if (cut.length > 0) console.error(`${cut.length} parts of the report are cut by a page break`);
 }

@@ -1,4 +1,5 @@
 import { registerWidgetTypes } from './builder/index.js';
+import { AiService } from './data/ai-service.js';
 import { loadAssetModel } from './data/asset-model.js';
 import { loadBranding } from './data/branding.js';
 import { realmOf } from './data/realm.js';
@@ -24,8 +25,9 @@ async function start() {
     // The builder asks for the asset types without waiting, so the model is read before the report is shown. The look
     // of the realm is read with it, so that the page is not drawn in the colour of OpenRemote first, and so are the
     // saved reports, so that the menu of them is complete from the start. The page starts without them if they cannot
-    // be read: the menu then offers to try again.
-    await Promise.all([loadAssetModel(), loadBranding(), readSaved(store)]);
+    // be read: the menu then offers to try again. Whether a model is set up to write text is read with them too: the
+    // toolbar has no button for it when there is none.
+    await Promise.all([loadAssetModel(), loadBranding(), readSaved(store), AiService.loadStatus()]);
   } catch (error) {
     console.error(error);
     showStartupError(document.querySelector('main'), error.message);

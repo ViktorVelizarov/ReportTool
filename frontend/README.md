@@ -6,9 +6,9 @@ report shows and what to look out for, review the text it suggests, and export.
 
 **This is a prototype.** The assets, attributes and data points in it are the live data of a realm of OpenRemote, which
 the page reads through the [report service](../report-service), and the PDF of a report is made by that service, which
-also keeps the saved reports. The generated text, the CSV and PNG exports and the schedules are still mock behaviour;
-the table [below](#what-is-real-and-what-is-mock) says what is what. It is a static site (plain ES modules, no build
-step, nothing to install) that the report service serves.
+also keeps the saved reports and has a language model write the text of a report. The CSV and PNG exports and the
+schedules are still mock behaviour; the table [below](#what-is-real-and-what-is-mock) says what is what. It is a static
+site (plain ES modules, no build step, nothing to install) that the report service serves.
 
 ## Run
 
@@ -122,8 +122,8 @@ closed repository. The alternative is a builder of our own that is written witho
 | Data points | The stored history of an attribute, from the service. The service gives every point of a range, so the downsampling of a line chart is done in the browser. The data points per interval (one value per hour, day, week or month, for the bar chart) are made by the manager, through the service; the days, weeks and months are those of the clock of the manager's time zone. The newest point at or before a time (the line that carries the latest value on) is looked for backwards from the end of the history |
 | Widgets | OpenRemote's, see above, with that data |
 | Time frames | Presets only: last 7, 30 and 90 days, last month and last quarter (the calendar month and quarter before the day the report is made) |
-| Instructions for the AI | "Generate text" first opens a dialog with two questions, which have to be answered: what the report shows, and what the AI should look out for. The answers are kept with the saved report, but nothing uses them yet. `js/model/prompt.js` makes the prompt from them, as the two messages that a model is sent: the fixed rules, and the data (the two answers, the report and the figures of every widget, each between markers) with the task after it. The page does the arithmetic, so that the model only words the figures: every average, lowest and highest value and change is computed by `js/model/report.js` from the data that the widgets read, and a KPI also gets the current value and the change that its card shows. The page neither shows nor sends the prompt yet |
-| Generated text | Written from templates with the figures of the widgets (`js/model/ai.js`); there is no AI, so the text does not follow the answers |
+| Instructions for the AI | "Generate text" first opens a dialog with two questions, which have to be answered: what the report shows, and what the AI should look out for. The answers are kept with the saved report. The dialog says which model the prompt goes to, and at which host. `js/model/prompt.js` makes the prompt, as the two messages that the model is sent: the fixed rules, and the data (the two answers, the report and the figures of every widget, each between markers) with the task after it. The page does the arithmetic, so that the model only words the figures: every figure is computed by `js/model/report.js` and `js/model/stats.js` from the stored data points that the widgets read. For each attribute over time: the average, the lowest and the highest value with their time, the last measurement, the change of the average against the previous period, the biggest rise and drop between two measurements in a row, the trend (first half against second half of the time frame), the hour of the day and the whole day with the highest and the lowest average, the usual range (the average plus or minus 3 standard deviations) and how long the values were outside it, the longest time without measurements, and the longest time with an unchanged value; each only when there is enough data for it. Hours and days are those of the browser's time zone. A KPI also gets the current value and the change that its card shows |
+| Generated text | Written by a language model, through the service (`POST /ai/text`, `js/data/ai-service.js`): the page sends the prompt, and the service adds the key, calls the model and checks the shape of the answer. Four kinds: an introduction and the key findings above the widgets, a description of each widget below them, and a conclusion at the end. Which model writes is a setting of the service (`GET /ai/status`); without one the toolbar has no "Generate text". When the text cannot be written (the model does not answer in time, refuses, or cannot be reached) a message says why, and the report is as it was, with the text that it had. The page does not check yet whether every number of the text is a figure of the report: the author does, in the review. Every prompt that is sent is written to the console of the browser (a collapsed group, "Prompt sent to the AI model ..."), so that it can be read |
 | Review | Generated text starts as a draft. Each block is a card with badges for its state (Draft, Approved or Editing) and the buttons Approve, Edit and Remove below the text; a notice above the blocks counts what is left to approve and approves or discards all of it at once. A block that is being written shows a progress bar. A PDF only includes approved text. The "AI" badge marks drafts only: an approved block, the preview and the printed report do not show it, nor the badges and buttons |
 | PDF export | Export, PDF report has the service make the PDF and saves it as `report-name_2026-10-04.pdf`, see [below](#the-pdf-export). The report and its approved text are posted to `POST /export/pdf`; the file looks as the report does in Preview, with the real data, and has no widget cut by a page break |
 | CSV and PNG export | The buttons show progress and the name of the file, but create nothing |
@@ -141,10 +141,10 @@ What the live data looks like on the page:
   they open, which is what the tree does when a realm has fewer than 1,000 assets.
 
 Printing the page (Ctrl+P) prints the report on A4 landscape, scaled to the width of the page, as it is in Preview: the
-cover, the text, the widgets and the descriptions one after the other. It leaves out the controls (the toolbar, the
-sidebar, the download buttons of the widgets and the buttons of a table) and the text that is not approved. The grid
-puts every widget at a fixed place, so a page break can still cut through a widget when you print the page yourself; the
-PDF export does not.
+cover, the introduction and the findings, the widgets, their descriptions and the conclusion one after the other. It
+leaves out the controls (the toolbar, the sidebar, the download buttons of the widgets and the buttons of a table) and
+the text that is not approved. The grid puts every widget at a fixed place, so a page break can still cut through a
+widget when you print the page yourself; the PDF export does not.
 
 ## The PDF export
 
@@ -168,7 +168,8 @@ buttons of a table (its count of rows stays).
 
 The report is printed as one flow, as it is in Preview, and only where a page break would cut a part is that part moved
 to the next page. `placeOnPages` in `js/model/pages.js` decides where the parts go, and `placeOnPaper` in `js/render.js`
-moves them: the cover, each block of text, each widget, and each description (the heading goes with the first one). A
+moves them: the cover, each block of text (the introduction and the findings above the widgets, the conclusion at the
+end), each widget, and each description (the heading goes with the first one). A
 part that would cross the bottom of a page goes to the top of the next page, together with every part below it in its
 column, and a part never goes to an earlier page than the one before it in reading order, so the report reads in the
 order it was built. A part that is taller than a page cannot be kept whole; it starts on a page of its own. The line at
@@ -238,16 +239,18 @@ service has for the realm and opens a report from it, and Delete removes the sav
 - `js/data/` - what the page knows of OpenRemote: the realm of the address (`realm.js`), the calls to the report
   service (`service-client.js`), the assets and data points that the widgets ask for (`asset-service.js`), the asset
   model (`asset-model.js`), the colour and logo of the realm (`branding.js`), the saved reports (`saved-reports.js`),
-  the unit symbols, the time windows, and the context of the report (its realm, moment and time frame) that the
-  widgets read when they fetch data.
+  the model that writes the text and the call that has it written (`ai-service.js`), the unit symbols, the time
+  windows, and the context of the report (its realm, moment and time frame) that the widgets read when they fetch
+  data.
 - `js/model/` - the report apart from the page: time frames, statistics, the figures of the widgets for the text
-  (`report.js`), the questions for the AI (`instructions.js`), the prompt they make (`prompt.js`), the text templates,
+  (`report.js`), the questions for the AI (`instructions.js`), the prompt they make (`prompt.js`),
   the schedule (`schedule.js`, which finds the dates of a repeat with `vendor/rrule.js`), formatting, the file names and
   the request for a PDF (`exports.js`), and the pages of a printed report (`pages.js`).
-- `js/ui/` - the page around the builder: the toolbar, the paper (cover, text blocks, widget descriptions), the review
-  blocks, saving and opening reports (`saved-reports.js`), menus, dialogs (a question, the schedule, and the
-  instructions for the AI), messages and icons, and the message for a page that cannot start. `js/dom.js` has the
-  helpers they build the page with; nothing is built with `innerHTML`.
+- `js/ui/` - the page around the builder: the toolbar, the paper (the cover, the introduction and the findings above
+  the widgets, the widget descriptions and the conclusion below them), the review blocks, saving and opening reports
+  (`saved-reports.js`), menus, dialogs (a question, the schedule, and the instructions for the AI), messages and icons,
+  and the message for a page that cannot start. `js/dom.js` has the helpers they build the page with; nothing is built
+  with `innerHTML`.
 - `js/kit/` - what the components of OpenRemote find in the page: its core and its model (`core.js`, `model.js`), its
   element and its icon (`or-element.js`, `or-icon.js`), the texts (`texts.js`, `i18n.js`) and the icons
   (`mdi-icons.js`) of the page. An icon that the page does not have shows as the icon of an unknown type.
@@ -260,14 +263,16 @@ npm test
 ```
 
 Uses the built-in test runner of Node.js (developed with Node 24); there is nothing to install. The tests cover the
-state, the report model, the prompt and the text, the schedule, the request for a PDF, the placing of widgets on pages,
-the data layer (also the asset queries of the tree and the core that the components of OpenRemote ask), the saved
-reports (saving, opening, a time frame that moves on, a report that is saved again, deleting one, changes that are not
+state, the report model, the prompt and what becomes of its answer, the schedule, the request for a PDF, the placing
+of widgets on pages, the data layer (also the asset queries of the tree, the core that the components of OpenRemote
+ask, and the call that has the text written), the saved reports (saving, opening, a time frame that moves on, a report
+that is saved again, deleting one, changes that are not
 saved), and the parts of the builder that need no browser: time windows, the
 keys, and the widget types with their default configs.
 The data layer is tested against a fake of the service (`test/helpers/service.js`) that has the asset model, the look of
-the realm and a few assets in the JSON that the service gives, with generated data points, and saved reports that it
-keeps in memory with the rules of the service; it records every call. `test/helpers/` also
+the realm and a few assets in the JSON that the service gives, with generated data points, saved reports that it
+keeps in memory with the rules of the service, and a model that writes the same text for every prompt; it records
+every call. `test/helpers/` also
 has the report that the tests of the report and the state use. The modules that need a browser are checked for valid
 syntax only. That includes `js/ui/saved-reports.js` (one thing at a time, the messages, the menu of saved reports, the
 questions about unsaved changes and about deleting), so a change there has to be tried in a browser against the
@@ -275,8 +280,8 @@ service.
 
 ## Towards the real thing
 
-- `js/model/ai.js` becomes a call to a language model with the prompt of `js/model/prompt.js`, which is made already;
-  the review stays as it is.
+- The numbers of a generated text are checked against the figures of the prompt, and a text with a number that is
+  not among them is marked in the review. Until then the author checks them.
 - The CSV and PNG buttons (`mockExport` in `js/ui/export.js`) become real exports; the charts are components of
   OpenRemote that keep their ECharts and Chart.js charts to themselves, so an image of one is a picture of the canvas.
 - The saved reports are a file for each report on the machine of the service. They are not tied to a user until the

@@ -54,7 +54,9 @@ export function initialState(asOf = Date.now()) {
     reportId: undefined, // the id of the saved report that is open; undefined for a report that was never saved
     editMode: true,
     selectedId: undefined, // the id of the widget that is selected in the builder
-    ai: null, // null | { status: 'loading' } | { status: 'ready', blocks: { id: { text, state } } }
+    // null | { status: 'loading', run, previous } | { status: 'ready', blocks: { id: { text, state } } }
+    ai: null,
+    textRuns: 0, // how often text was asked for: the number of the last run
     saved: null, // null | [{ id, name, updatedAt }]: the saved reports of the realm, null while they are not known
     asOf,
   });
@@ -190,19 +192,41 @@ export const hasUnsavedChanges = state =>
 
 // --- Generated text ---
 
-export const startGenerating = state => ({ ...state, ai: { status: 'loading' } });
+/**
+ * Text is being written for the report. Every run has a number (ai.run), so that an answer can be told from the
+ * answer of another run. The text that was on the page is kept (ai.previous) for when this run fails.
+ */
+export function startGenerating(state) {
+  const run = state.textRuns + 1;
+  const previous = state.ai?.status === 'loading' ? state.ai.previous : state.ai;
+  return { ...state, textRuns: run, ai: { status: 'loading', run, previous } };
+}
 
-export function finishGenerating(state, text) {
-  if (state.ai?.status !== 'loading') return state; // the report changed while the text was being written
-  const blocks = {
-    summary: { text: text.summary, state: 'draft' },
-    findings: { text: text.findings, state: 'draft' },
-  };
+/** Whether the run with the number is the one that is writing now: the report did not change, and no run followed. */
+const isWriting = (state, run) => state.ai?.status === 'loading' && state.ai.run === run;
+
+/**
+ * The text that the run wrote becomes blocks for the author to review, in the order that the report has them: the
+ * introduction, the findings, a description of each widget (the block desc:<widget id>) and the conclusion. The text is
+ * { introduction, findings, descriptions: { widget id: text }, conclusion }. The text of a run that is not writing any
+ * more is dropped: the report changed while it was being written, or it is the answer of an earlier run.
+ */
+export function finishGenerating(state, run, text) {
+  if (!isWriting(state, run)) return state;
+  const draft = written => ({ text: written, state: 'draft' });
+  const blocks = { introduction: draft(text.introduction), findings: draft(text.findings) };
   for (const [widgetId, description] of Object.entries(text.descriptions)) {
-    blocks[`desc:${widgetId}`] = { text: description, state: 'draft' };
+    blocks[`desc:${widgetId}`] = draft(description);
   }
+  blocks.conclusion = draft(text.conclusion);
   return { ...state, ai: { status: 'ready', blocks } };
 }
+
+/**
+ * The run could not write its text: the text that was on the page before it is back, with its edits and approvals, and
+ * there is no text when there was none. A run that is not writing any more changes nothing.
+ */
+export const failGenerating = (state, run) => (isWriting(state, run) ? { ...state, ai: state.ai.previous } : state);
 
 /**
  * Applies change(block, id) to every block; a block it turns into null is removed, and without blocks there is no

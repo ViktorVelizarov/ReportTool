@@ -1,9 +1,9 @@
 /**
  * A fake of the report service for the tests: the asset model, the look and a few assets of a realm in the JSON that
- * the service gives, data points that are generated from the time (one every full hour), and saved reports that it
- * keeps in memory. Every call that the page makes is recorded: the address, and for a call that sends something the
- * method in front of it. It answers like the service does, also with the errors, but it checks little: the tests look
- * at the calls.
+ * the service gives, data points that are generated from the time (one every full hour), saved reports that it keeps
+ * in memory, and a model that is set up and writes the same text for every prompt. Every call that the page makes is
+ * recorded: the address, and for a call that sends something the method in front of it. It answers like the service
+ * does, also with the errors, but it checks little: the tests look at the calls.
  */
 
 import { ServiceClient } from '../../js/data/service-client.js';
@@ -58,6 +58,17 @@ const ASSET_INFOS = [
 
 /** The look of the realm of the report, as the service gives it: the logo is an address at the manager. */
 export const BRANDING = { primaryColour: '#29ABE2', logo: 'https://localhost/images/logo_manufacturer.svg' };
+
+/** The model that is set up to write the text of a report, as the service says it. */
+export const AI_STATUS = { available: true, model: 'writer-1', host: 'ai.example.org', timeoutSeconds: 30 };
+
+/** The text that the model writes: the four kinds, with as many descriptions as the prompt asks for. */
+export const writtenText = descriptions => ({
+  introduction: 'An introduction.',
+  findings: 'The findings.',
+  descriptions: Array.from({ length: descriptions }, (_, index) => `Description ${index + 1}.`),
+  conclusion: 'A conclusion.',
+});
 
 const attribute = (name, type, value, meta = {}) => ({ name, type, value, timestamp: NOW - HOUR, meta });
 const stored = { storeDataPoints: true };
@@ -200,6 +211,8 @@ function respond(url, init) {
 
   if (pathname === '/model/assetInfos') return answer(200, ASSET_INFOS);
   if (pathname === '/branding') return answer(200, BRANDING);
+  if (pathname === '/ai/status') return answer(200, AI_STATUS);
+  if (pathname === '/ai/text') return answer(200, writtenText(JSON.parse(init.body).descriptions));
   if (first === 'reports') {
     return respondReports(init?.method ?? 'GET', id, searchParams.get('realm') ?? SERVICE_USER_REALM,
       init?.body && JSON.parse(init.body));

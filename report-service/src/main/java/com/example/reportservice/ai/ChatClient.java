@@ -30,7 +30,8 @@ import org.slf4j.LoggerFactory;
  * be used.
  *
  * <p>The log gets the model, how long the call took and how many tokens it used, or why it failed, which for a request
- * that the API refuses is what the API says about it, cut short. It never gets the prompt, the text or the key.
+ * that the API refuses is what the API says about it, cut short. It never gets the prompt, the text or the key: what an
+ * API says when it refuses the key is left out, as it can repeat a part of the key.
  */
 final class ChatClient {
 
@@ -82,9 +83,12 @@ final class ChatClient {
             request.header("Authorization", "Bearer " + settings.apiKey());
         }
         HttpResponse<byte[]> response = send(request.build());
-        if (response.statusCode() / 100 != 2) {
-            LOG.warn("The AI service answered {}: {}", response.statusCode(), reasonOf(response.body()));
-            throw new ApiException(502, refusal(response.statusCode()));
+        int status = response.statusCode();
+        if (status / 100 != 2) {
+            LOG.warn("The AI service answered {}: {}", status,
+                    refusedKey(status) ? "its words are left out, as they can repeat a part of the key"
+                            : reasonOf(response.body()));
+            throw new ApiException(502, refusal(status));
         }
         try {
             return Json.read(response.body());
@@ -155,10 +159,16 @@ final class ChatClient {
         return new ApiException(502, "the AI gave an answer that cannot be used: " + why);
     }
 
+    private static boolean refusedKey(int status) {
+        return status == 401 || status == 403;
+    }
+
     /** What the author is told when the API refuses the request. What the API says itself is for the log. */
     private static String refusal(int status) {
+        if (refusedKey(status)) {
+            return "the AI service refused the key (AI_API_KEY)";
+        }
         return switch (status) {
-            case 401, 403 -> "the AI service refused the key (AI_API_KEY)";
             case 404 -> "the AI service does not know the model or the address (AI_MODEL, AI_BASE_URL)";
             case 429 -> "the AI service is over its own limit: try again later";
             default -> "the AI service answered HTTP " + status;

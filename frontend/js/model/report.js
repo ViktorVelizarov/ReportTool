@@ -10,7 +10,7 @@ import { AssetService } from '../data/asset-service.js';
 import { ReportContext } from '../data/report-context.js';
 import { getAttributeLabel, getAttributeValueAsString, resolveUnits } from '../data/util.js';
 import { previousRange } from './periods.js';
-import { cardChange, summarize } from './stats.js';
+import { analyze, cardChange, summarize } from './stats.js';
 
 /** What the text needs to know about an attribute of an asset. */
 function describeAttribute(asset, attribute) {
@@ -36,16 +36,21 @@ async function resolveRefs(refs = []) {
   });
 }
 
-/** An attribute over the time of a widget and the time just before it: { ...attribute, range, stats, previous }. */
+/**
+ * An attribute over the time of a widget and the time just before it: { ...attribute, range, stats, previous,
+ * analysis }, with what else its data points say over the time of the widget as analysis (see analyze in stats.js).
+ */
 async function seriesEntry({ ref, asset, attribute }, range) {
   const described = describeAttribute(asset, attribute);
-  if (!described.numeric) return { ...described, range, stats: null, previous: null };
+  if (!described.numeric) return { ...described, range, stats: null, previous: null, analysis: null };
   const [[from, to], [previousFrom, previousTo]] = [range, previousRange(range)];
   const [points, before] = await Promise.all([
     AssetService.getDatapoints(ref.id, ref.name, { fromTimestamp: from, toTimestamp: to }),
     AssetService.getDatapoints(ref.id, ref.name, { fromTimestamp: previousFrom, toTimestamp: previousTo }),
   ]);
-  return { ...described, range, stats: summarize(points), previous: summarize(before) };
+  return {
+    ...described, range, stats: summarize(points), previous: summarize(before), analysis: analyze(points, range),
+  };
 }
 
 /**

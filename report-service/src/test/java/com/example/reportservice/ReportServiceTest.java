@@ -89,7 +89,7 @@ class ReportServiceTest {
     /** A report of one table widget, as the web interface posts it (see model/exports.js in the frontend). */
     private static final String REPORT = """
             {"realm":"master","width":1400,"name":"Rooms","periodId":"last7","asOf":1790000000000,
-             "text":{"summary":"All rooms are as they should be."},
+             "text":{"introduction":"All rooms are as they should be."},
              "template":{"id":"rooms","columns":12,"maxScreenWidth":4000,
                "screenPresets":[{"id":"mobile","displayName":"dashboard.size.mobile","breakpoint":640,
                                  "scalingPreset":"WRAP_TO_SINGLE_COLUMN"}],
