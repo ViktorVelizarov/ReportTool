@@ -229,6 +229,24 @@ vaadin-notification-card:is([theme~='success'], [theme~='error']) .toast or-vaad
   --vaadin-button-tertiary-text-color: currentColor;
 }
 
+/* What lies behind a dialog is dimmed with Contrast 20%, a grey of the design system (Colors), as strong as the bluish
+   shade of Vaadin's theme that it replaces */
+or-vaadin-dialog::part(backdrop),
+or-vaadin-confirm-dialog::part(backdrop) { background-color: var(--or-color-contrast-20pct); }
+
+/* A dialog as OpenRemote's manager mockups draw it (OR user interface): the large shadow, and 16 px between its edge and
+   what is in it, at the title, the content and the buttons. The theme gives the extra large shadow and 24 px */
+or-vaadin-dialog::part(overlay),
+or-vaadin-confirm-dialog::part(overlay) { box-shadow: 0 0 0 1px var(--lumo-shade-5pct), var(--lumo-box-shadow-l); }
+or-vaadin-dialog::part(header),
+or-vaadin-dialog::part(footer),
+or-vaadin-confirm-dialog::part(header),
+or-vaadin-confirm-dialog::part(footer) { padding: var(--lumo-space-m); }
+or-vaadin-dialog::part(title),
+or-vaadin-confirm-dialog::part(header) { margin-inline-start: 0; }
+or-vaadin-dialog::part(content),
+or-vaadin-confirm-dialog::part(content) { padding-inline: var(--lumo-space-m); }
+
 /* OpenRemote's theme makes a dialog as wide as the window, and a dialog sets its own limit, as the scheduler does with
    max-width; here the width of a dialog is that of its content */
 or-vaadin-dialog::part(overlay) { max-width: fit-content; }
@@ -236,8 +254,9 @@ or-vaadin-dialog::part(overlay) { max-width: fit-content; }
 /* The confirm dialog is wide enough for three buttons, so that Cancel stands at the left and the others at the right */
 or-vaadin-confirm-dialog::part(overlay) { min-width: min(36rem, 90vw); }
 
-/* The content of the dialogs of OpenRemote: its sections are white cards on the green-grey of the dialog */
-.dialog-body { display: grid; gap: var(--lumo-space-m); width: min(600px, 80vw); }
+/* The content of the dialogs of OpenRemote: its sections are white cards on the green-grey of the dialog, 8 px apart as
+   in the manager mockups */
+.dialog-body { display: grid; gap: var(--lumo-space-s); width: min(600px, 80vw); }
 .dialog-text { color: var(--or-color-text-secondary); font-size: var(--lumo-font-size-s); }
 .dialog-card {
   display: grid;
@@ -255,8 +274,8 @@ or-vaadin-confirm-dialog::part(overlay) { min-width: min(36rem, 90vw); }
 
 /* The dialog for the schedule of a report: cards in two columns, as OpenRemote's dialog for sending a notification */
 .schedule-body { width: min(960px, 80vw); }
-.schedule-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--lumo-space-m); }
-.dialog-column { display: grid; align-content: start; gap: var(--lumo-space-m); min-width: 0; }
+.schedule-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--lumo-space-s); }
+.dialog-column { display: grid; align-content: start; gap: var(--lumo-space-s); min-width: 0; }
 .dialog-card or-scheduler { display: block; }
 /* The addresses are typed, there is nothing to choose from */
 .schedule-body or-vaadin-multi-select-combo-box::part(toggle-button) { display: none; }
