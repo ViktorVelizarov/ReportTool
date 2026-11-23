@@ -62,8 +62,9 @@ export function formatDuration(ms) {
   return parts.length ? parts.join(' ') : '0 min';
 }
 
-/** "28 Sep – 4 Oct 2026"; both years are shown when the range crosses a year. */
+/** "28 Sep – 4 Oct 2026"; both years are shown when the range crosses a year, one date when it is within a day. */
 export function formatRange(start, end) {
+  if (start.toDateString() === end.toDateString()) return formatDate(end);
   const from = start.getFullYear() === end.getFullYear() ? formatShortDate(start) : formatDate(start);
   return `${from} – ${formatDate(end)}`;
 }

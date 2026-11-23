@@ -69,14 +69,25 @@ test('calendar periods reach back across the new year', () => {
   assert.equal(february.end.toISOString(), '2025-12-31T23:59:59.999Z');
 });
 
-test('the previous range is as long and ends right before the range starts', () => {
-  for (const { id } of PERIODS) {
-    const { start, end } = resolvePeriod(id, new Date(NOW));
-    const [from, to] = previousRange([start.getTime(), end.getTime()]);
+test('the previous range is as long, starts at the same time of day and ends right before the range starts', () => {
+  for (const moment of [NOW, Date.parse('2026-11-23T00:00:00Z')]) {
+    for (const { id } of PERIODS) {
+      const { start, end } = resolvePeriod(id, new Date(moment));
+      const [from, to] = previousRange([start.getTime(), end.getTime()]);
 
-    assert.equal(to, start.getTime() - 1, id);
-    assert.equal(to - from, end.getTime() - start.getTime(), id);
+      assert.equal(to, start.getTime() - 1, id);
+      const length = end.getTime() - start.getTime();
+      assert.ok(Math.abs((to + 1 - from) - length) <= 1, `${id}: as long, to the millisecond`);
+      assert.equal(from % HOUR, start.getTime() % HOUR, `${id}: on the hour, as the range starts`);
+    }
   }
+  // the last 7 days up to midnight, which end when the next day starts, and a calendar month, which ends at its last
+  // millisecond: the time before both starts at midnight
+  const before = (from, to) => previousRange([Date.parse(from), Date.parse(to)]).map(at => new Date(at).toISOString());
+  assert.deepEqual(before('2026-11-16T00:00:00Z', '2026-11-23T00:00:00Z'),
+    ['2026-11-09T00:00:00.000Z', '2026-11-15T23:59:59.999Z']);
+  assert.deepEqual(before('2026-10-01T00:00:00Z', '2026-10-31T23:59:59.999Z'),
+    ['2026-08-31T00:00:00.000Z', '2026-09-30T23:59:59.999Z']);
 });
 
 test('an unknown period is rejected', () => {
@@ -281,6 +292,8 @@ test('a range shows the year once, or twice when it spans two years', () => {
 
   assert.equal(range('2026-09-28', '2026-10-04'), '28 Sept – 4 Oct 2026');
   assert.equal(range('2025-12-01', '2026-01-31'), '1 Dec 2025 – 31 Jan 2026');
+  assert.equal(formatRange(new Date('2026-11-21T00:00:00Z'), new Date('2026-11-21T23:59:59.999Z')), '21 Nov 2026',
+    'a range within a day is that day');
 });
 
 // --- export names ---
@@ -588,6 +601,20 @@ test('the prompt names the report, its time frame and the time before it', async
     + 'Time frame: Last 7 days, 27 Sept – 4 Oct 2026\n'
     + 'Previous period, for comparison: 20 Sept – 27 Sept 2026');
   assert.match(sectionsById({ name: '  ', period: PERIOD, widgets: [] }).report.text, /^Name: Untitled report\n/);
+});
+
+test('a report made at midnight names the days of the time before as they are', async () => {
+  const midnight = Date.parse('2026-10-04T00:00:00Z');
+  const context = { asOf: midnight, period: resolvePeriod('last7', new Date(midnight)), now: () => new Date(midnight) };
+
+  const { report, figures } = sectionsById(await buildReport(REPORT, context));
+
+  assert.equal(report.text, 'Name: Irrigation report\n'
+    + 'Time frame: Last 7 days, 27 Sept – 4 Oct 2026\n'
+    + 'Previous period, for comparison: 20 Sept – 26 Sept 2026', 'seven days, the last one the day before 27 Sept');
+  const salinity = figures.text.split('\n\n')[3].split('\n');
+  assert.equal(salinity[0], '4. Salinity (KPI), 3 Oct – 4 Oct 2026', 'the day before midnight, up to midnight');
+  assert.ok(salinity.includes('  - previous period, 2 Oct 2026'), 'the day before that');
 });
 
 test('the figures list the widgets in reading order, each with what it shows', async () => {

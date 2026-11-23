@@ -4,17 +4,21 @@
  * AGPL-3.0-or-later (https://github.com/openremote/openremote).
  *
  * Differences: an attribute that the asset no longer has is left out, so that the widget says that no attribute is
- * connected, where the original fails to draw; the card has no period menu (see ReportAttributeCard).
+ * connected, where the original fails to draw; the card has no period menu, and shows the period before the moment of
+ * the report instead of the period before the clock of the browser (see ReportAttributeCard).
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import { css, html, when } from 'lit';
 import '../../../vendor/or-mwc.js';
+import manager from '../../kit/core.js';
 import '../../kit/inputs.js';
+import { isAxiosError } from '../../kit/rest.js';
 import { KpiSettings } from '../settings/kpi-settings.js';
 import { WIDGET_SPECS } from '../service/widget-specs.js';
 import { OrAssetWidget } from '../util/or-asset-widget.js';
+import { configRange } from '../util/widget-time.js';
 
 // vendor/or-mwc.js registers <or-attribute-card> but does not export its class
 const OrAttributeCard = customElements.get('or-attribute-card');
@@ -29,6 +33,67 @@ class ReportAttributeCard extends OrAttributeCard {
       display: none;
     }
   `];
+
+  /**
+   * OpenRemote's loadData of or-attribute-card 1.32.2, with one change: the card shows the period before the moment of
+   * the report (configRange, as the figures of the generated text have it), where the original takes the period before
+   * the clock of the browser. They differ when the report is made for another moment: a saved report opened with
+   * ?asOf=, or a page that has been open for a while. The current value is still the attribute's value now.
+   */
+  async loadData() {
+    if (this.data || !this.assetAttributes || !this.assets || this.assets.length === 0
+      || this.assetAttributes.length === 0 || !this.period) {
+      return;
+    }
+    // A request that comes in replaces the one that is running
+    if (this._dataAbortController) {
+      this._dataAbortController.abort('Data request overridden');
+      delete this._dataAbortController;
+    }
+    this._loading = true;
+    [this._startOfPeriod, this._endOfPeriod] = configRange('kpi', { period: this.period });
+    const assetId = this.assets[0].id;
+    const attributeName = this.assetAttributes[0][1].name;
+    this._dataAbortController = new AbortController();
+    try {
+      const response = await manager.rest.api.AssetDatapointResource.getDatapoints(assetId, attributeName, {
+        type: 'lttb', fromTimestamp: this._startOfPeriod, toTimestamp: this._endOfPeriod, amountOfPoints: 20,
+      }, { signal: this._dataAbortController.signal });
+      this._loading = false;
+      if (response.status === 200) {
+        this.data = response.data;
+        this.delta = this.getFormattedDelta(this.getFirstKnownMeasurement(this.data),
+          this.getLastKnownMeasurement(this.data));
+        this.deltaPlus = this.delta && this.delta.val > 0 ? '+' : '';
+        this._error = undefined;
+      }
+    } catch (error) {
+      console.error(error);
+      if (error?.message === 'canceled') return; // replaced by another request, which is loading now
+      this._loading = false;
+      if (isAxiosError(error)) {
+        if (error.message.includes('timeout')) {
+          this._error = 'noAttributeDataTimeout';
+          return;
+        }
+        if (error.response?.status === 413) {
+          this._error = 'datapointRequestTooLarge';
+          return;
+        }
+      }
+      this._error = 'couldNotRetrieveAttribute';
+    } finally {
+      // Then the current value, as OpenRemote reads it
+      this.mainValue = undefined;
+      this.formattedMainValue = undefined;
+      const current = await manager.events.sendEventWithReply({
+        eventType: 'read-asset-attribute',
+        ref: { id: assetId, name: attributeName },
+      });
+      this.mainValue = current.value;
+      this.formattedMainValue = this.getFormattedValue(this.mainValue);
+    }
+  }
 }
 
 customElements.define('report-attribute-card', ReportAttributeCard);
