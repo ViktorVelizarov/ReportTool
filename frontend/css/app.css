@@ -1,8 +1,9 @@
 /* Report Studio prototype. The colours, the font and the radii are those of the OpenRemote theme, which
-   vendor/or-theme.css defines (--or-color-*, --lumo-*). The colours are used by the names that OpenRemote's design
-   system gives them (Primary, Body Text, Base, Contrast 10% and so on) and not under names of our own, so that the
-   primary colour that a realm chooses is followed everywhere. As in OpenRemote's manager the page, its bars and its
-   cards are flat: only what opens above the page (a menu, a dialog, a message) has a shadow. */
+   vendor/or-theme.css defines (--or-color-*, --lumo-*), apart from the two Warning colours that are set below. The
+   colours are used by the names that OpenRemote's design system gives them (Primary, Body Text, Base, Contrast 10%
+   and so on) and not under names of our own, so that the primary colour that a realm chooses is followed everywhere.
+   As in OpenRemote's manager the page, its bars and its cards are flat: only what opens above the page (a menu, a
+   dialog, a message) has a shadow. */
 
 :root {
   color-scheme: light;
@@ -14,6 +15,11 @@
   --lumo-border-radius-l: 0.75rem;
   /* A badge has the medium corner, as in the design system (Badge); the component is round by itself */
   --vaadin-badge-border-radius: var(--lumo-border-radius-m);
+
+  /* Warning as OpenRemote's design system draws it (Colors): orange, with red text. The theme still has a yellow
+     Warning with brown text. Warning 10% and Warning, Contrast are the same in both, so the theme gives those */
+  --or-color-warning: #FF7300;
+  --or-color-text-warning: #D7251B;
 
   /* The colours that the dashboard builder, its widgets and its dialogs read, the names of OpenRemote's legacy theme,
      as the app of the manager gives them to its pages: the defaults of OpenRemote, and the primary colour of the
