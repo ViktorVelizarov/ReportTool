@@ -10,7 +10,9 @@ import { exportFileName } from '../js/model/exports.js';
 import {
   formatDay, formatDuration, formatNumber, formatRange, formatValue, listNames,
 } from '../js/model/format.js';
-import { instructionsComplete, newInstructions, QUESTIONS } from '../js/model/instructions.js';
+import {
+  instructionsComplete, instructionsOf, newInstructions, QUESTIONS, SWITCHES,
+} from '../js/model/instructions.js';
 import { PERIODS, previousRange, resolvePeriod } from '../js/model/periods.js';
 import { craftPrompt, promptMessages, textOfAnswer } from '../js/model/prompt.js';
 import { buildReport, readingOrder } from '../js/model/report.js';
@@ -348,11 +350,14 @@ test('charts and KPIs sum up the data points of the time frame and of the time b
   const points = await AssetService.getDatapoints(IDS.drip1, 'flowWater', { fromTimestamp: from, toTimestamp: to });
   assert.equal(points.length, 7 * 24 + 1);
   assert.deepEqual(line.entries[0].stats, summarize(points));
-  const [previousFrom, previousTo] = previousRange(range);
+  assert.deepEqual(line.entries[0].analysis, analyze(points, range), 'what else the data points of the time say');
+  const previous = previousRange(range);
+  const [previousFrom, previousTo] = previous;
   const before = await AssetService.getDatapoints(IDS.drip1, 'flowWater',
     { fromTimestamp: previousFrom, toTimestamp: previousTo });
-  assert.deepEqual(line.entries[0].previous, summarize(before));
-  assert.deepEqual(line.entries[0].analysis, analyze(points, range), 'what else the data points of the time say');
+  assert.deepEqual(line.entries[0].previous,
+    { range: previous, stats: summarize(before), analysis: analyze(before, previous) },
+    'the same figures for the time before');
 });
 
 test('an attribute without data points, or a value that is not a number, has nothing to sum up', async () => {
@@ -361,8 +366,15 @@ test('an attribute without data points, or a value that is not a number, has not
   const temperature = widgets.find(widget => widget.name === 'Soil temperature').entries[0];
   assert.equal(temperature.numeric, true);
   assert.equal(temperature.stats, null);
-  assert.equal(temperature.previous, null);
+  assert.equal(temperature.analysis, null);
+  assert.deepEqual([temperature.previous.stats, temperature.previous.analysis], [null, null]);
   assert.equal(temperature.unit, '\u00b0F', 'the units of the attribute are those that count');
+
+  const template = buildTemplate('text', [{
+    type: 'linechart', name: 'Status', box: [0, 0, 6, 4], config: { attributeRefs: [ref(IDS.drip2, 'status')] },
+  }]);
+  const [status] = (await buildReport({ name: 'Text', template }, contextFor('last7'))).widgets[0].entries;
+  assert.deepEqual([status.numeric, status.stats, status.analysis, status.previous], [false, null, null, null]);
 });
 
 test('a widget with a time window of its own is summed up over that window', async () => {
@@ -430,6 +442,28 @@ test('gauges and images give the current value as the widget shows it', async ()
   assert.equal(image.entries[2].value, undefined, 'an attribute that has no value yet has nothing to show');
 });
 
+test('gauges and images also give the figures of their attributes over the time frame of the report', async () => {
+  const context = contextFor('last30');
+  const { widgets } = await buildReport(REPORT, context);
+  const range = [context.period.start.getTime(), context.period.end.getTime()];
+  const [from, to] = range;
+
+  const [tank] = widgets.find(widget => widget.type === 'gauge').entries;
+  const points = await AssetService.getDatapoints(IDS.drip1, 'tankLevel', { fromTimestamp: from, toTimestamp: to });
+  assert.ok(points.length > 0);
+  assert.deepEqual(tank.range, range, 'the time frame of the report, as a gauge shows the value at this moment');
+  assert.deepEqual(tank.stats, summarize(points));
+  assert.deepEqual(tank.analysis, analyze(points, range));
+  assert.deepEqual(tank.previous.range, previousRange(range));
+  assert.ok(tank.previous.stats);
+
+  const image = widgets.find(widget => widget.type === 'image');
+  assert.deepEqual(image.entries.map(entry => Boolean(entry.stats)), [true, true, false],
+    'the temperature has no data points');
+  assert.equal(widgets.find(widget => widget.type === 'gauge').range, undefined,
+    'a gauge has no time window of its own');
+});
+
 test('a table lists its assets and the attributes it shows', async () => {
   const { widgets } = await buildReport(REPORT, contextFor('last7'));
 
@@ -465,11 +499,15 @@ test('a reference to an asset that the realm does not have is left out', async (
 const PERIOD = resolvePeriod('last7', new Date(NOW));
 const RANGE = [PERIOD.start.getTime(), PERIOD.end.getTime()];
 const asset = (id, name) => ({ id, name });
-const stats = (mean, min = mean - 1, max = mean + 1) =>
-  ({ count: 3, mean, min, minAt: RANGE[0] + HOUR, max, maxAt: RANGE[0] + DAY, latest: mean, latestAt: RANGE[1] });
-const entry = (id, name, label, unit, current, previous) => ({
+const PREVIOUS = previousRange(RANGE);
+/** A week before the time frame, from a whole hour: where the moments of the time before are. */
+const WEEK_BEFORE = [RANGE[0] - 7 * DAY, RANGE[0]];
+const stats = (mean, min = mean - 1, max = mean + 1, [from, to] = RANGE) =>
+  ({ count: 3, mean, min, minAt: from + HOUR, max, maxAt: from + DAY, latest: mean, latestAt: to });
+/** An attribute with the figures of its time frame and of the time before (null: without data points then). */
+const entry = (id, name, label, unit, current, previous, analysis = null) => ({
   asset: asset(id, name), name: label.toLowerCase(), label, unit, numeric: true, range: RANGE,
-  stats: current, previous,
+  stats: current, analysis, previous: { range: PREVIOUS, stats: previous, analysis: null },
 });
 
 // --- instructions and the prompt ---
@@ -485,7 +523,15 @@ test('the AI is asked only when both questions are answered', () => {
   assert.equal(instructionsComplete({ subject: 'It shows the flow.', focus: ' \n' }), false);
   assert.equal(instructionsComplete({ subject: '', focus: 'Drops.' }), false);
   assert.equal(instructionsComplete(newInstructions()), false);
-  assert.deepEqual(QUESTIONS.map(question => question.id), Object.keys(newInstructions()));
+  assert.deepEqual([...QUESTIONS, ...SWITCHES].map(item => item.id), Object.keys(newInstructions()));
+});
+
+test('the switches are on unless they are off, and the answers are kept without the spaces around them', () => {
+  assert.deepEqual(newInstructions(), { subject: '', focus: '', beyondWidgets: true, previousPeriod: true });
+  assert.deepEqual(instructionsOf({ subject: ' Flow ', focus: 7, beyondWidgets: false, previousPeriod: 'no' }),
+    { subject: 'Flow', focus: '', beyondWidgets: false, previousPeriod: true });
+  assert.deepEqual(instructionsOf({ subject: 'Flow', focus: 'Drops', extra: 1 }),
+    { subject: 'Flow', focus: 'Drops', beyondWidgets: true, previousPeriod: true }, 'nothing else is kept');
 });
 
 test('the prompt has the answers of the author between the rules and the figures', async () => {
@@ -560,16 +606,80 @@ test('the figures list the widgets in reading order, each with what it shows', a
   const moment = '\\((Mon|Tue|Wed|Thu|Fri|Sat|Sun) \\d+ (Sept|Oct), \\d\\d:00\\)';
   assert.match(flow[2], new RegExp(`^  - average [\\d.]+ l\\/h, lowest [\\d.]+ l\\/h ${moment}, `
     + `highest [\\d.]+ l\\/h ${moment}, last measurement [\\d.]+ l\\/h \\(Sun 4 Oct, 15:00\\)$`));
-  assert.match(flow[3], /^ {2}- the previous period averaged [\d.]+ l\/h \((0|[+-][\d.]+)%\)$/);
-  assert.match(flow[4], /^ {2}- between two measurements in a row: biggest rise \+[\d.]+ l\/h \(from /);
-  assert.match(flow[5], /^ {2}- trend: (rising|falling|steady); the first half of the time frame averaged /);
-  assert.match(flow[6], /^ {2}- by hour of the day: highest on average \d\d:00–\d\d:00 \([\d.]+ l\/h\), lowest /);
+  assert.match(flow[3], /^ {2}- between two measurements in a row: biggest rise \+[\d.]+ l\/h \(from /);
+  assert.match(flow[4], /^ {2}- trend: (rising|falling|steady); the first half of the time frame averaged /);
+  assert.match(flow[5], /^ {2}- by hour of the day: highest on average \d\d:00–\d\d:00 \([\d.]+ l\/h\), lowest /);
   assert.ok(flow.some(line => /^ {2}- usual range [\d.]+ l\/h to [\d.]+ l\/h; no measurement outside it$/.test(line)));
-  assert.equal(groups[1], '2. Tank level (Gauge)\n- Tank level, Soil drip 1: currently 936 l');
+  // the time before, one level deeper: the same kinds of figures, with the change of the average
+  const before = flow.indexOf('  - previous period, 20 Sept – 27 Sept 2026');
+  assert.ok(before > 5 && before < flow.indexOf('- Flow water, Soil drip 2'), 'after the figures of the time frame');
+  const previousMoment = '\\((Sun|Mon|Tue|Wed|Thu|Fri|Sat) \\d+ Sept, \\d\\d:00\\)';
+  assert.match(flow[before + 1], new RegExp(`^ {4}- average [\\d.]+ l\\/h \\((0|[+-][\\d.]+)%\\), `
+    + `lowest [\\d.]+ l\\/h ${previousMoment}, highest [\\d.]+ l\\/h ${previousMoment}$`));
+  assert.match(flow[before + 2], /^ {4}- between two measurements in a row: /);
+  // a gauge shows the value at this moment; its figures over the time frame come below it
+  const tank = groups[1].split('\n');
+  assert.deepEqual(tank.slice(0, 3), ['2. Tank level (Gauge)', '- Tank level, Soil drip 1', '  - currently 936 l']);
+  assert.match(tank[3],
+    new RegExp(`^ {2}- average [\\d.]+ l, lowest [\\d.]+ l ${moment}, highest [\\d.]+ l ${moment}$`),
+    'without the last measurement, which the current value is');
+  assert.ok(tank.includes('  - previous period, 20 Sept – 27 Sept 2026'));
   assert.equal(groups[5],
     '6. Irrigation (Table)\n- assets Soil drip 1 and Soil drip 2; attributes Flow water and Tank level');
+  const image = groups[6].split('\n');
+  assert.deepEqual(image.filter(line => line.startsWith('- ')), ['- Flow water, Soil drip 1',
+    '- Tank level, Soil drip 1', '- Temperature, Soil sensor: no value yet']);
+  assert.equal(image[2], '  - currently 9.6 l/h');
+});
+
+test('with both switches off, the model is given only what the widgets show', async () => {
+  const report = await buildReport(REPORT, contextFor('last7'));
+  const off = { ...ANSWERS, beyondWidgets: false, previousPeriod: false };
+
+  const sections = sectionsById(report, off);
+
+  const groups = sections.figures.text.split('\n\n');
+  assert.deepEqual(groups[0].split('\n').slice(1).map(line => line.replace(/^( *- [a-z]+ ).*/, '$1')), [
+    '- Flow water, Soil drip 1', '  - average ', '- Flow water, Soil drip 2', '  - average ',
+  ]);
+  assert.equal(groups[1], '2. Tank level (Gauge)\n- Tank level, Soil drip 1: currently 936 l');
   assert.equal(groups[6], '7. Site plan (Image)\n- Flow water, Soil drip 1: currently 9.6 l/h\n'
     + '- Tank level, Soil drip 1: currently 936 l\n- Temperature, Soil sensor: no value yet');
+  for (const word of ['previous period', 'trend', 'between two measurements', 'usual range']) {
+    assert.ok(!sections.figures.text.includes(word), word);
+  }
+  assert.equal(sections.report.text, 'Name: Irrigation report\nTime frame: Last 7 days, 27 Sept – 4 Oct 2026');
+  assert.ok(!sections.rules.text.includes('standard deviations'), 'no rule for figures that are not there');
+  assert.ok(!/previous period/i.test(sections.rules.text + sections.task.text));
+});
+
+test('each switch adds its own figures, and the rules and the task that go with them', async () => {
+  const report = await buildReport(REPORT, contextFor('last7'));
+  const prompt = (beyondWidgets, previousPeriod) => sectionsById(report, { ...ANSWERS, beyondWidgets, previousPeriod });
+
+  const beyond = prompt(true, false);
+  assert.ok(beyond.figures.text.includes('\n  - trend: '));
+  assert.ok(!beyond.figures.text.includes('previous period'));
+  assert.ok(beyond.rules.text.includes('A gauge and an image show only the current value'));
+  assert.ok(beyond.rules.text.includes('The usual range is the average plus or minus 3 standard deviations'));
+  assert.ok(!beyond.rules.text.includes('"previous period"'));
+
+  const previous = prompt(false, true);
+  const flow = previous.figures.text.split('\n\n')[0].split('\n');
+  assert.equal(flow[3], '  - previous period, 20 Sept – 27 Sept 2026');
+  assert.match(flow[4], /^ {4}- average [\d.]+ l\/h \((0|[+-][\d.]+)%\), lowest [^;]+, highest [^;]+$/,
+    'only the average, the lowest and the highest');
+  assert.equal(flow[5], '- Flow water, Soil drip 2');
+  assert.equal(previous.figures.text.split('\n\n')[1], '2. Tank level (Gauge)\n- Tank level, Soil drip 1: '
+    + 'currently 936 l', 'a gauge has figures of the time before only with the figures of its time frame');
+  assert.ok(previous.rules.text.includes('Under "previous period" are the same kinds of figures for the time just '
+    + 'before'));
+  assert.ok(!previous.rules.text.includes('standard deviations'));
+  assert.match(previous.report.text, /\nPrevious period, for comparison: 20 Sept – 27 Sept 2026$/);
+  assert.ok(previous.task.text.includes('Where it stands out, say what changed from the previous period.'));
+
+  assert.deepEqual(sectionsById(report, { subject: 'S', focus: 'F' }), sectionsById(report,
+    { subject: 'S', focus: 'F', beyondWidgets: true, previousPeriod: true }), 'a switch that is not set is on');
 });
 test('a KPI starts with what its card shows, and says what it does not have', async () => {
   const { figures } = sectionsById(await buildReport(REPORT, contextFor('last7')));
@@ -581,7 +691,9 @@ test('a KPI starts with what its card shows, and says what it does not have', as
   const moment = '\\(\\w+ \\d Oct, \\d\\d:00\\)';
   assert.match(kpi[3], new RegExp(`^ {2}- average [\\d.]+, lowest [\\d.]+ ${moment}, highest [\\d.]+ ${moment}$`),
     'without the last measurement, which the current value is');
-  assert.match(kpi[4], /^ {2}- the previous period averaged [\d.]+ \((0|[+-][\d.]+)%\)$/);
+  const before = kpi.indexOf('  - previous period, 2 Oct – 3 Oct 2026');
+  assert.ok(before > 3, 'the day before that of the KPI');
+  assert.match(kpi[before + 1], /^ {4}- average [\d.]+ \((0|[+-][\d.]+)%\), lowest /);
   assert.equal(kpi.some(line => line.includes('by hour of the day')), false,
     'a day of measurements has no hours to compare');
   assert.equal(groups[4], '5. Soil temperature (KPI), 3 Oct – 4 Oct 2026\n'
@@ -589,13 +701,14 @@ test('a KPI starts with what its card shows, and says what it does not have', as
 });
 test('the figures are rounded as the report shows them, with the moment of the lowest and the highest', () => {
   const figuresOf = (...widgets) => sectionsById({ name: 'Load', period: PERIOD, widgets }).figures.text;
-  const load = entry('a', 'Site A', 'Load', 'MW', stats(41.84, 3.126, 1234.56), stats(40));
+  const load = entry('a', 'Site A', 'Load', 'MW', stats(41.84, 3.126, 1234.56), stats(40, 39, 41, WEEK_BEFORE));
 
   assert.equal(figuresOf({ id: 'w1', name: 'Load', type: 'linechart', range: RANGE, entries: [load] }),
     '1. Load (Line Chart)\n- Load, Site A\n'
     + '  - average 41.8 MW, lowest 3.13 MW (Sun 27 Sept, 16:00), highest 1,235 MW (Mon 28 Sept, 15:00), '
     + 'last measurement 41.8 MW (Sun 4 Oct, 15:00)\n'
-    + '  - the previous period averaged 40 MW (+4.6%)');
+    + '  - previous period, 20 Sept – 27 Sept 2026\n'
+    + '    - average 40 MW (+4.6%), lowest 39 MW (Sun 20 Sept, 16:00), highest 41 MW (Mon 21 Sept, 15:00)');
 
   const text = figuresOf(
     { id: 'w1', name: 'Same', type: 'barchart', range: RANGE,
@@ -610,8 +723,7 @@ test('the figures are rounded as the report shows them, with the moment of the l
     { id: 'w6', name: 'Unset', type: 'table', assets: [], attributes: [] },
   );
 
-  assert.ok(text.includes('\n  - the previous period averaged 10 (0%)\n'),
-    'no sign and no minus for a change of nothing');
+  assert.ok(text.includes('\n    - average 10 (0%), lowest '), 'no sign and no minus for a change of nothing');
   assert.match(text, /\n- Load, Site C\n {2}- average 10%, .*\n {2}- no earlier data to compare with\n/);
   assert.ok(text.includes('\n- Alarm, Site D: not a number, so there are no figures\n'));
   assert.ok(text.includes('\n- Load, Site E\n  - currently 5 MW; change from the first to the last measurement: +12%\n'
@@ -637,7 +749,7 @@ test('the figures say what else the data points of an attribute show, each kind 
   const lines = analysis => sectionsById({
     name: 'Load', period: PERIOD, widgets: [{ id: 'w', name: 'Load', type: 'linechart', range: RANGE,
       entries: [{ ...entry('a', 'Site A', 'Load', 'MW', stats(130), stats(120)), analysis }] }],
-  }).figures.text.split('\n').slice(4);
+  }, { ...ANSWERS, previousPeriod: false }).figures.text.split('\n').slice(3);
 
   assert.deepEqual(lines(analysis), [
     '  - between two measurements in a row: biggest rise +80 MW (from Mon 28 Sept, 14:00 to 15:00); '
@@ -668,6 +780,49 @@ test('the figures say what else the data points of an attribute show, each kind 
   ], 'days whose averages round to the same number are no finding');
   assert.deepEqual(lines({ ...analysis, unusual: { ...analysis.unusual, count: 0, time: 0, longest: null } })
     .filter(line => line.includes('usual range')), ['  - usual range 90 MW to 175 MW; no measurement outside it']);
+});
+
+test('the time before has the same kinds of figures as the time frame, one level deeper', () => {
+  const trend = { direction: 'falling', firstHalf: 125, secondHalf: 115 };
+  const quiet = { rise: null, drop: null, trend, byHour: null, byDay: null, unusual: null, gap: null, unchanged: null };
+  const load = entry('a', 'Site A', 'Load', 'MW', stats(130), stats(120, 119, 121, WEEK_BEFORE), quiet);
+  load.previous.analysis = { ...quiet, trend: { ...trend, direction: 'rising', secondHalf: 135 } };
+  const widget = { id: 'w', name: 'Load', type: 'linechart', range: RANGE, entries: [load] };
+  const figuresWith = beyondWidgets => sectionsById({ name: 'Load', period: PERIOD, widgets: [widget] },
+    { ...ANSWERS, beyondWidgets }).figures.text.split('\n').slice(3);
+
+  assert.deepEqual(figuresWith(true), [
+    '  - trend: falling; the first half of the time frame averaged 125 MW, the second half 115 MW',
+    '  - previous period, 20 Sept – 27 Sept 2026',
+    '    - average 120 MW (+8.33%), lowest 119 MW (Sun 20 Sept, 16:00), highest 121 MW (Mon 21 Sept, 15:00)',
+    '    - trend: rising; the first half of the time frame averaged 125 MW, the second half 135 MW',
+  ]);
+  assert.deepEqual(figuresWith(false), [
+    '  - previous period, 20 Sept – 27 Sept 2026',
+    '    - average 120 MW (+8.33%), lowest 119 MW (Sun 20 Sept, 16:00), highest 121 MW (Mon 21 Sept, 15:00)',
+  ]);
+});
+
+test('an attribute without data points now shows the figures of the time before, when it had them', () => {
+  const stopped = entry('a', 'Site A', 'Load', 'MW', null, stats(40, 39, 41, WEEK_BEFORE));
+  const report = {
+    name: 'Load', period: PERIOD, widgets: [
+      { id: 'w1', name: 'Load', type: 'linechart', range: RANGE, entries: [stopped] },
+      { id: 'w2', name: 'Now', type: 'kpi', range: RANGE, entries: [{ ...stopped, value: '5 MW', change: null }] },
+    ],
+  };
+  const figuresWith = previousPeriod => sectionsById(report, { ...ANSWERS, previousPeriod }).figures.text;
+
+  assert.equal(figuresWith(true), '1. Load (Line Chart)\n- Load, Site A\n'
+    + '  - no data points in this time frame\n'
+    + '  - previous period, 20 Sept – 27 Sept 2026\n'
+    + '    - average 40 MW, lowest 39 MW (Sun 20 Sept, 16:00), highest 41 MW (Mon 21 Sept, 15:00)\n\n'
+    + '2. Now (KPI)\n- Load, Site A\n'
+    + '  - currently 5 MW; no data points in this time frame\n'
+    + '  - previous period, 20 Sept – 27 Sept 2026\n'
+    + '    - average 40 MW, lowest 39 MW (Sun 20 Sept, 16:00), highest 41 MW (Mon 21 Sept, 15:00)');
+  assert.equal(figuresWith(false), '1. Load (Line Chart)\n- Load, Site A: no data points in this time frame\n\n'
+    + '2. Now (KPI)\n- Load, Site A: currently 5 MW; no data points in this time frame');
 });
 
 test('the task asks for the four kinds of text, with a description for every widget', async () => {

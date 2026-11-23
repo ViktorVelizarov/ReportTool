@@ -7,6 +7,7 @@ import { h, onChange, replaceChildren } from '../dom.js';
 import '../kit/inputs.js';
 import { exportFileName, pdfRequest } from '../model/exports.js';
 import { plural } from '../model/format.js';
+import { SWITCHES } from '../model/instructions.js';
 import { PERIODS } from '../model/periods.js';
 import { craftPrompt, promptMessages, textOfAnswer } from '../model/prompt.js';
 import { describeSchedule } from '../model/schedule.js';
@@ -31,11 +32,13 @@ const reasonOf = error => error.message.replace(/^The /, 'the ');
 
 /**
  * Writes the prompt to the console of the browser, as it is sent, so that the author can see what the model is given:
- * a collapsed group with the two messages.
+ * a collapsed group with the switches of the instructions and the two messages.
  */
-function logPrompt({ system, user }) {
+function logPrompt({ system, user }, instructions) {
   const { model, host } = AiService.status;
   console.groupCollapsed(`Prompt sent to the AI model ${model} at ${host} (${system.length + user.length} characters)`);
+  console.info(`SWITCHES\n\n${SWITCHES.map(({ id, label }) => `${label}: ${instructions[id] ? 'on' : 'off'}`)
+    .join('\n')}`);
   console.info(`SYSTEM MESSAGE\n\n${system}`);
   console.info(`USER MESSAGE\n\n${user}`);
   console.groupEnd();
@@ -51,7 +54,7 @@ async function generate(store, { instructions, report }) {
   const { run } = store.get().ai;
   try {
     const prompt = promptMessages(craftPrompt(report, instructions));
-    logPrompt(prompt);
+    logPrompt(prompt, store.get().instructions);
     const answer = await AiService.write({ ...prompt, descriptions: report.widgets.length });
     store.update(state => finishGenerating(state, run, textOfAnswer(answer, report)));
   } catch (error) {

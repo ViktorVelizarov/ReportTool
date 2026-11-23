@@ -274,6 +274,11 @@ or-vaadin-confirm-dialog::part(overlay) { min-width: min(36rem, 90vw); }
   background: var(--or-color-base);
 }
 .dialog-card > h4 { margin: 0; }
+/* The library sizes the hint of a switch as its label; in a dialog it is as small as the hint of a field */
+.dialog-card or-vaadin-toggle::part(helper-text) {
+  font-size: var(--lumo-font-size-xs);
+  line-height: var(--lumo-line-height-xs);
+}
 .dialog-error { color: var(--or-color-text-error); }
 /* The button that leaves the dialog is at the left, the one that goes on is at the right */
 .dialog-footer { display: flex; flex: 1; justify-content: space-between; gap: var(--lumo-space-s); }

@@ -1,7 +1,9 @@
 /**
  * The figures behind a report, for the generated text. They come from the same service as the data of the widgets and
- * cover the same time, so the text always agrees with what the widgets show. Pure apart from those calls: the same
- * template and context always give the same figures.
+ * cover the same time, so the text always agrees with what the widgets show. They also have what the widgets do not
+ * show: the figures of every attribute over the time just before, and over the time frame of the report for an
+ * attribute that a gauge or an image shows at this moment. Which of those the AI is given is for the author to choose
+ * (see prompt.js). Pure apart from those calls: the same template and context always give the same figures.
  */
 
 import { configRange } from '../builder/util/widget-time.js';
@@ -37,20 +39,25 @@ async function resolveRefs(refs = []) {
 }
 
 /**
- * An attribute over the time of a widget and the time just before it: { ...attribute, range, stats, previous,
- * analysis }, with what else its data points say over the time of the widget as analysis (see analyze in stats.js).
+ * The figures of an attribute over a time [from, to]: { range, stats, analysis }, with what else its data points say
+ * as analysis (see analyze in stats.js). Both are null without data points.
+ */
+async function figuresOver({ id, name }, range) {
+  const [from, to] = range;
+  const points = await AssetService.getDatapoints(id, name, { fromTimestamp: from, toTimestamp: to });
+  return { range, stats: summarize(points), analysis: analyze(points, range) };
+}
+
+/**
+ * An attribute over a time and over the time just before it, which is as long: { ...attribute, range, stats,
+ * analysis, previous }, with previous the figures of the time before ({ range, stats, analysis }). An attribute that is
+ * not a number has no figures, and no previous.
  */
 async function seriesEntry({ ref, asset, attribute }, range) {
   const described = describeAttribute(asset, attribute);
-  if (!described.numeric) return { ...described, range, stats: null, previous: null, analysis: null };
-  const [[from, to], [previousFrom, previousTo]] = [range, previousRange(range)];
-  const [points, before] = await Promise.all([
-    AssetService.getDatapoints(ref.id, ref.name, { fromTimestamp: from, toTimestamp: to }),
-    AssetService.getDatapoints(ref.id, ref.name, { fromTimestamp: previousFrom, toTimestamp: previousTo }),
-  ]);
-  return {
-    ...described, range, stats: summarize(points), previous: summarize(before), analysis: analyze(points, range),
-  };
+  if (!described.numeric) return { ...described, range, stats: null, analysis: null, previous: null };
+  const [current, previous] = await Promise.all([figuresOver(ref, range), figuresOver(ref, previousRange(range))]);
+  return { ...described, ...current, previous };
 }
 
 /**
@@ -96,9 +103,18 @@ async function listedAssets({ assetType, allOfType, assetIds, attributeNames = [
 }
 
 /**
+ * An attribute of a gauge or an image: the value that the widget shows, and the figures of the attribute over the time
+ * frame of the report and the time before it, which the widget does not show.
+ */
+async function currentEntry(type, item, range, config) {
+  return { ...await seriesEntry(item, range), value: shownValue(type, config, item.attribute) };
+}
+
+/**
  * The figures of a widget: { id, name, type } and, by type, the entries of the attributes it shows over time (barchart,
- * kpi, linechart: with range, stats and previous; kpi also with value and change, as the card shows them), or at this
- * moment (gauge, image: with value, as the widget shows it), or the assets and attribute labels it lists (table).
+ * kpi, linechart: with range, stats, analysis and previous; kpi also with value and change, as the card shows them), or
+ * at this moment (gauge, image: with value, as the widget shows it, and with the figures over the time frame of the
+ * report), or the assets and attribute labels it lists (table).
  */
 async function figuresOf({ id, displayName, widgetTypeId: type, widgetConfig: config }, context) {
   const widget = { id, name: displayName, type };
@@ -114,9 +130,9 @@ async function figuresOf({ id, displayName, widgetTypeId: type, widgetConfig: co
     }
     case 'gauge':
     case 'image': {
-      const entries = (await resolveRefs(config.attributeRefs)).map(({ asset, attribute }) =>
-        ({ ...describeAttribute(asset, attribute), value: shownValue(type, config, attribute) }));
-      return { ...widget, entries };
+      const range = [context.period.start.getTime(), context.period.end.getTime()];
+      const found = await resolveRefs(config.attributeRefs);
+      return { ...widget, entries: await Promise.all(found.map(item => currentEntry(type, item, range, config))) };
     }
     case 'table':
       return { ...widget, ...await listedAssets(config) };

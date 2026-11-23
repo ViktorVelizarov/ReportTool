@@ -1,17 +1,16 @@
 /**
  * The saved reports of the realm of the report, which the report service keeps: the list of them, and the calls to open
  * one, to save a new one, to save an old one again and to remove one. A report is saved with its name, its time frame,
- * its template, the answers to the questions for the AI and its schedule. The time frame is relative (the last 30 days,
+ * its template, the answers and switches for the AI and its schedule. The time frame is relative (the last 30 days,
  * say), not two dates, so a report that is opened later is made for the days before that day.
  */
 
+import { instructionsOf } from '../model/instructions.js';
 import { PERIODS } from '../model/periods.js';
 import { ReportContext } from './report-context.js';
 import { ServiceClient } from './service-client.js';
 
 const realm = () => ({ realm: ReportContext.realm });
-
-const text = value => (typeof value === 'string' ? value : '');
 
 const isObject = value => typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -29,7 +28,7 @@ function savedReport(json) {
     name: json.name,
     periodId: json.periodId,
     template: json.template,
-    instructions: { subject: text(json.instructions?.subject), focus: text(json.instructions?.focus) },
+    instructions: instructionsOf(json.instructions),
     schedule: isObject(json.schedule) ? json.schedule : null,
   };
 }

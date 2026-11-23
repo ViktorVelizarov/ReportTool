@@ -1,13 +1,14 @@
 /**
- * The dialog in which the author instructs the AI before it writes: what the report shows and what to look out for.
- * The answers go into the prompt with the figures of the report, which are read while the author writes. The dialog
- * says which model the prompt is sent to, and where that model is.
+ * The dialog in which the author instructs the AI before it writes: what the report shows and what to look out for,
+ * and with two switches which figures the AI is given besides what the widgets show. The answers and the switches go
+ * into the prompt with the figures of the report, which are read while the author writes. The dialog says which model
+ * the prompt is sent to, and where that model is.
  */
 
 import { AiService } from '../data/ai-service.js';
 import { h } from '../dom.js';
 import '../kit/inputs.js';
-import { instructionsComplete, MAX_LENGTH, QUESTIONS } from '../model/instructions.js';
+import { instructionsComplete, MAX_LENGTH, QUESTIONS, SWITCHES } from '../model/instructions.js';
 import { buildReport } from '../model/report.js';
 import { icon } from './icons.js';
 
@@ -41,6 +42,16 @@ export function openInstructions(store, onGenerate) {
       },
     })));
 
+  // --- The switches, in one card: the toggle of OpenRemote's library, as the schedule has for automatic reports ---
+  const switches = h('section', { class: 'dialog-card' },
+    h('h4', null, 'Figures for the AI'),
+    SWITCHES.map(({ id, label, hint }) => h('or-vaadin-toggle', {
+      label,
+      'helper-text': hint,
+      checked: draft[id],
+      onchange: event => { draft[id] = event.target.checked; },
+    })));
+
   // --- Shown when the figures of the report cannot be read ---
   const failure = h('p', { class: 'dialog-error', role: 'alert', hidden: true },
     'The figures of the report could not be read. Close this window and try again.');
@@ -60,6 +71,7 @@ export function openInstructions(store, onGenerate) {
       h('p', { class: 'dialog-text' }, 'Say what this report shows and what matters in the results. The AI suggests '
         + 'text from that, and you decide what goes into the report.'),
       answers,
+      switches,
       failure,
       h('p', { class: 'dialog-text' },
         replaces && 'Generating again replaces the text on the page, with your edits and approvals. ',

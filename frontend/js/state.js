@@ -9,7 +9,7 @@
 
 import { DashboardService } from './builder/service/dashboard-service.js';
 import { objectsEqual } from './data/util.js';
-import { newInstructions } from './model/instructions.js';
+import { instructionsOf, newInstructions } from './model/instructions.js';
 import { PERIODS } from './model/periods.js';
 
 const UNTITLED = 'Untitled report';
@@ -49,7 +49,7 @@ export function initialState(asOf = Date.now()) {
     name: UNTITLED,
     periodId: PERIODS[0].id,
     template: DashboardService.newTemplate(),
-    instructions: newInstructions(), // the answers to the questions of model/instructions.js, saved with the report
+    instructions: newInstructions(), // the answers and switches of model/instructions.js, saved with the report
     schedule: null, // null | the schedule of model/schedule.js, which is saved with the report
     reportId: undefined, // the id of the saved report that is open; undefined for a report that was never saved
     editMode: true,
@@ -112,11 +112,11 @@ export const setEditMode = (state, editMode) =>
   (editMode === state.editMode ? state : { ...state, editMode, selectedId: editMode ? state.selectedId : undefined });
 
 /**
- * What the author told the AI about the report, kept without the spaces around the answers. It does not change what
- * the report shows, and it stays when the report changes: it is for the author to correct.
+ * What the author told the AI about the report: the answers, kept without the spaces around them, and the switches. It
+ * does not change what the report shows, and it stays when the report changes: it is for the author to correct.
  */
 export function setInstructions(state, instructions) {
-  const next = { subject: instructions.subject.trim(), focus: instructions.focus.trim() };
+  const next = instructionsOf(instructions);
   return objectsEqual(state.instructions, next) ? state : { ...state, instructions: next };
 }
 

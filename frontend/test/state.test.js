@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { newInstructions } from '../js/model/instructions.js';
 import { newSchedule } from '../js/model/schedule.js';
 import {
   addWidget, approveAllBlocks, approveBlock, countApproved, countDrafts, createStore, editBlock, failGenerating,
@@ -65,7 +66,7 @@ test('the studio opens with an empty report that is not saved, and does not know
   assert.equal(state.editMode, true);
   assert.equal(state.selectedId, undefined);
   assert.equal(state.ai, null);
-  assert.deepEqual(state.instructions, { subject: '', focus: '' });
+  assert.deepEqual(state.instructions, { subject: '', focus: '', beyondWidgets: true, previousPeriod: true });
   assert.equal(state.schedule, null);
   assert.equal(state.reportId, undefined);
   assert.equal(state.saved, null);
@@ -194,7 +195,7 @@ test('a report is saved as its setup, under its name without the spaces around i
   assert.deepEqual(Object.keys(report), ['name', 'periodId', 'template', 'instructions', 'schedule']);
   assert.deepEqual([report.name, report.periodId], ['Irrigation', 'last7']);
   assert.deepEqual(report.template, state.template);
-  assert.deepEqual(report.instructions, { subject: '', focus: '' });
+  assert.deepEqual(report.instructions, newInstructions());
   assert.equal(report.schedule, null);
   assert.equal(reportOf(setName(state, ' ')).name, 'Untitled report');
 });
@@ -289,7 +290,10 @@ test('a schedule is saved with the report, opened with it, and gone from a new r
 // --- the instructions for the AI ---
 
 const INSTRUCTIONS = { subject: '  The irrigation of the greenhouse.  ', focus: 'A tank level below 200 l.\n' };
-const ANSWERS = { subject: 'The irrigation of the greenhouse.', focus: 'A tank level below 200 l.' };
+const ANSWERS = {
+  subject: 'The irrigation of the greenhouse.', focus: 'A tank level below 200 l.', beyondWidgets: true,
+  previousPeriod: true,
+};
 
 test('instructions are kept without the spaces around the answers, and the same ones change nothing', () => {
   const state = withText();
@@ -300,6 +304,21 @@ test('instructions are kept without the spaces around the answers, and the same 
   assert.equal(instructed.ai, state.ai, 'the generated text stays');
   assert.equal(setInstructions(instructed, ANSWERS), instructed);
   assert.equal(setInstructions(instructed, INSTRUCTIONS), instructed);
+});
+
+test('the switches for the AI are on unless they are turned off, and turning one off is a change', () => {
+  const instructed = setInstructions(withReport(), INSTRUCTIONS);
+
+  const narrowed = setInstructions(instructed, { ...INSTRUCTIONS, previousPeriod: false });
+
+  assert.notEqual(narrowed, instructed);
+  assert.deepEqual(narrowed.instructions, { ...ANSWERS, previousPeriod: false });
+  assert.deepEqual(setInstructions(narrowed, { ...ANSWERS, beyondWidgets: 0, previousPeriod: false }).instructions,
+    { ...ANSWERS, previousPeriod: false }, 'only false turns a switch off');
+  const saved = afterSave(narrowed);
+  assert.equal(hasUnsavedChanges(saved), false);
+  assert.equal(hasUnsavedChanges(setInstructions(saved, INSTRUCTIONS)), true,
+    'turning a switch on again is a change that is not saved');
 });
 
 test('instructions stay when the report changes, for the author to correct', () => {
@@ -317,13 +336,15 @@ test('instructions are saved with the report, opened with it, and gone from a ne
   assert.deepEqual(report.instructions, ANSWERS);
 
   const empty = newReport(instructed);
-  assert.deepEqual(empty.instructions, { subject: '', focus: '' });
+  assert.deepEqual(empty.instructions, newInstructions());
   const opened = loadReport(empty, report, NOW);
   assert.deepEqual(opened.instructions, ANSWERS);
   assert.notEqual(opened.instructions, report.instructions, 'the state keeps a copy of its own');
 
-  const other = { subject: 'Other.', focus: 'Other too.' };
+  const other = { subject: 'Other.', focus: 'Other too.', beyondWidgets: false, previousPeriod: true };
   assert.deepEqual(reportOf(setInstructions(instructed, other)).instructions, other);
+  assert.deepEqual(loadReport(empty, savedAs(setInstructions(instructed, other)), NOW).instructions, other,
+    'a switch that is off stays off when the report is opened again');
 });
 
 // --- generated text ---

@@ -249,15 +249,21 @@ function serviceGives(json) {
 const SAVED = { id: 'report-1', name: 'Weekly', periodId: 'last7', template: { widgets: [] } };
 
 test('a saved report that lacks answers for the AI or a schedule gets none, as one of another version', async () => {
+  const switchesOn = { beyondWidgets: true, previousPeriod: true };
   serviceGives(SAVED);
   assert.deepEqual(await SavedReports.open('report-1'), {
-    ...SAVED, instructions: { subject: '', focus: '' }, schedule: null,
+    ...SAVED, instructions: { subject: '', focus: '', ...switchesOn }, schedule: null,
   });
 
   serviceGives({ ...SAVED, instructions: { subject: 5, focus: 'Low tanks' }, schedule: ['daily'] });
   const opened = await SavedReports.open('report-1');
-  assert.deepEqual(opened.instructions, { subject: '', focus: 'Low tanks' });
+  assert.deepEqual(opened.instructions, { subject: '', focus: 'Low tanks', ...switchesOn },
+    'a report saved before there were switches has them on');
   assert.equal(opened.schedule, null);
+
+  serviceGives({ ...SAVED, instructions: { subject: 'Flow', focus: 'Drops', beyondWidgets: false } });
+  assert.deepEqual((await SavedReports.open('report-1')).instructions,
+    { subject: 'Flow', focus: 'Drops', beyondWidgets: false, previousPeriod: true });
 
   const schedule = newSchedule();
   serviceGives({ ...SAVED, instructions: null, schedule });
