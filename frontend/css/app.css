@@ -229,6 +229,10 @@ vaadin-notification-card:is([theme~='success'], [theme~='error']) .toast or-vaad
   --vaadin-button-tertiary-text-color: currentColor;
 }
 
+/* The plain (info) message has the Body Text of the design system (Colors). Its container is a popover, which the
+   browser draws in black, and the theme only gives the success and error messages a colour of their own */
+vaadin-notification-card:not([theme~='success'], [theme~='error']) { color: var(--or-color-text-body); }
+
 /* What lies behind a dialog is dimmed with Contrast 20%, a grey of the design system (Colors), as strong as the bluish
    shade of Vaadin's theme that it replaces */
 or-vaadin-dialog::part(backdrop),
