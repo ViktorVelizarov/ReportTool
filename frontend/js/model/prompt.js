@@ -10,7 +10,7 @@
 
 import { WIDGET_SPECS } from '../builder/service/widget-specs.js';
 import {
-  formatDateTime, formatDay, formatDuration, formatNumber, formatRange, formatTime, formatValue, listNames,
+  formatDateTime, formatDay, formatDuration, formatNumber, formatRange, formatTime, formatValue, listNames, plural,
 } from './format.js';
 import { instructionsOf } from './instructions.js';
 import { previousRange } from './periods.js';
@@ -31,9 +31,10 @@ const MARKERS = {
 const BEYOND_WIDGETS_RULE = '- An attribute also has figures that its widget does not show. A gauge and an image '
   + 'show only the current value; the figures under it are of the time frame of the report. What the figures of an '
   + 'attribute mean: a rise or a drop is the change between two measurements in a row. The trend compares the average '
-  + 'of the first half of the time frame with that of the second half. "By hour of the day" and "by whole day" give '
-  + 'the hour and the day with the highest and the lowest average. A kind of figure that an attribute does not have '
-  + 'was not found, or there were too few measurements for it.';
+  + 'of the first half of the time frame with that of the second half. "Days that stand out" are whole days whose '
+  + 'average lies far below or above that of a normal day, the range in which the middle half of the whole days lie; '
+  + 'a day with fewer measurements than usual says so. A kind of figure that an attribute does not have was not '
+  + 'found, or there were too few measurements for it.';
 
 /** The rule for the figures of the time before, when the model is given them (previousPeriod). */
 const PREVIOUS_PERIOD_RULE = '- Under "previous period" are the same kinds of figures for the time just before, which '
@@ -119,8 +120,6 @@ function fromTo(from, to) {
 /** A difference with its sign: "+80 kW", "-90 kW". */
 const difference = (value, unit) => `${value > 0 ? '+' : ''}${formatValue(value, unit)}`;
 
-const hourOfDay = hour => `${String(hour).padStart(2, '0')}:00–${String((hour + 1) % 24).padStart(2, '0')}:00`;
-
 /** The biggest rise and drop between two measurements in a row, or nothing when the value never changed. */
 function stepsLine({ rise, drop }, unit) {
   const steps = [
@@ -135,15 +134,25 @@ function trendLine(trend, unit) {
     + `${formatValue(trend.firstHalf, unit)}, the second half ${formatValue(trend.secondHalf, unit)}`;
 }
 
+/** A day that stands out: its date and average, and its number of measurements when it has few. */
+function dayText({ key, mean, count, few }, unit, usualCount) {
+  const note = few
+    ? `, only ${plural(count, 'measurement')} against about ${Math.round(usualCount)} on a normal day` : '';
+  return `${formatDay(new Date(key))} (${formatValue(mean, unit)}${note})`;
+}
+
 /**
- * The highest and the lowest average of the groups, each with its name; nothing when they are the same as the report
- * rounds them, as there is then nothing to tell between them.
+ * The whole days that stand out (see daysThatStandOut in stats.js), those below a normal day first, the furthest out
+ * first and after three only counted, with the range of a normal day; nothing when no day stands out.
  */
-function extremesLine(title, extremes, nameOf, unit) {
-  if (!extremes) return null;
-  const [highest, lowest] = [formatValue(extremes.highest.mean, unit), formatValue(extremes.lowest.mean, unit)];
-  return highest === lowest ? null : `${title}: highest on average ${nameOf(extremes.highest.key)} (${highest}), `
-    + `lowest ${nameOf(extremes.lowest.key)} (${lowest})`;
+function daysLine(days, unit) {
+  if (!days) return null;
+  const { normal, below, above, usualCount } = days;
+  const side = (name, list) => list.length > 0
+    && `${name} ${listNames(list.map(day => dayText(day, unit, usualCount)))}`;
+  const [low, high] = [formatValue(normal.low, unit), formatValue(normal.high, unit)];
+  return `days that stand out: ${[side('below normal', below), side('above normal', above)].filter(Boolean)
+    .join('; ')}; a normal day averages ${low === high ? low : `${low} to ${high}`}`;
 }
 
 function gapLine(gap) {
@@ -172,8 +181,7 @@ function analysisLines(analysis, unit) {
   return [
     stepsLine(analysis, unit),
     trendLine(analysis.trend, unit),
-    extremesLine('by hour of the day', analysis.byHour, hourOfDay, unit),
-    extremesLine('by whole day', analysis.byDay, start => formatDay(new Date(start)), unit),
+    daysLine(analysis.days, unit),
     gapLine(analysis.gap),
     unchangedLine(analysis.unchanged, unit),
   ].filter(Boolean);

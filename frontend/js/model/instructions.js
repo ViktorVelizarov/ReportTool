@@ -31,8 +31,8 @@ export const SWITCHES = [
   {
     id: 'beyondWidgets',
     label: 'Add insights beyond the widgets',
-    hint: 'Rises and drops, the trend, the highest and lowest hours and days, gaps and unchanged values of each '
-      + 'attribute, also of the attributes that gauges and images show.',
+    hint: 'Rises and drops, the trend, days that stand out, gaps and unchanged values of each attribute, also of the '
+      + 'attributes that gauges and images show.',
   },
   {
     id: 'previousPeriod',

@@ -1,7 +1,5 @@
 /** Figures computed from data points: [{ x: timestamp, y: value }], oldest first. */
 
-import { DAY } from './time.js';
-
 export function summarize(points) {
   if (!points.length) return null;
   let min = points[0];
@@ -50,8 +48,26 @@ const GAP_FACTOR = 3;
 /** The fewest measurements in a row with the same value that count as a value that did not change. */
 const MIN_UNCHANGED = 6;
 
-/** The fewest measurements in an hour of the day or in a day that an average of it is taken from. */
-const MIN_IN_GROUP = 2;
+/** The fewest measurements in a day that an average of it is taken from. */
+const MIN_IN_DAY = 2;
+
+/** The fewest whole days that are compared with each other to find the days that stand out. */
+const MIN_DAYS = 4;
+
+/**
+ * How far outside a normal day (the range in which the middle half of the days lie) the average of a day must lie to
+ * stand out, in widths of that range: 3 is what Tukey called "far out".
+ */
+const STAND_OUT_WIDTHS = 3;
+
+/**
+ * The least that the average of a day must differ from the middle day to stand out, in standard deviations of all
+ * measurements, so that a small difference does not count when the other days are all much the same.
+ */
+const STAND_OUT_DEVIATIONS = 0.25;
+
+/** A day has few measurements when it has less than this share of the usual number of measurements in a day. */
+const FEW_MEASUREMENTS = 0.75;
 
 /** The halves of a time frame differ when their averages are this many standard deviations apart, or more. */
 const TREND_DEVIATIONS = 0.5;
@@ -62,11 +78,17 @@ function standardDeviation(values, mean) {
   return Math.sqrt(average(values.map(value => (value - mean) ** 2)));
 }
 
-function median(values) {
-  const sorted = values.toSorted((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+/**
+ * The value at the share (0 to 1) of values sorted from low to high, between the two values it falls between: 0.5
+ * gives the median, 0.25 and 0.75 the first and the third quartile.
+ */
+function quantile(sorted, share) {
+  const position = (sorted.length - 1) * share;
+  const below = Math.floor(position);
+  return sorted[below] + (sorted[Math.ceil(position)] - sorted[below]) * (position - below);
 }
+
+const median = values => quantile(values.toSorted((a, b) => a - b), 0.5);
 
 /** The usual time between two measurements in a row: the median. Null with fewer than two measurements. */
 function usualPause(points) {
@@ -117,27 +139,6 @@ function groupBy(points, keyOf) {
   return groups;
 }
 
-/**
- * The groups with the highest and the lowest average: { highest: { key, mean }, lowest }. A group of one measurement
- * has no average to speak of and is left out. Null when fewer than two groups are left.
- */
-function extremesOf(groups) {
-  const means = [...groups].filter(([, values]) => values.length >= MIN_IN_GROUP)
-    .map(([key, values]) => ({ key, mean: average(values) }));
-  if (means.length < 2) return null;
-  const byMean = means.toSorted((a, b) => a.mean - b.mean || a.key - b.key);
-  return { highest: byMean.at(-1), lowest: byMean[0] };
-}
-
-/**
- * The hours of the day (0 to 23, in the time zone of the browser) with the highest and the lowest average. Only when
- * the measurements span two days or more, so that each hour can come more than once.
- */
-function byHourOfDay(points) {
-  if (points.at(-1).x - points[0].x < 2 * DAY) return null;
-  return extremesOf(groupBy(points, at => new Date(at).getHours()));
-}
-
 const startOfDay = at => {
   const date = new Date(at);
   return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
@@ -149,15 +150,36 @@ const startOfNextDay = start => {
 };
 
 /**
- * The whole days (the start of the day, in the time zone of the browser) with the highest and the lowest average. A
- * day that the time frame covers only in part is left out: its average would be that of some hours only.
+ * The whole days whose average stands out from that of a normal day: { normal: { low, high }, below, above,
+ * usualCount }, or null when no day stands out or there are fewer than MIN_DAYS whole days to compare. A day is keyed
+ * by its start, in the time zone of the browser; a day that the time frame covers only in part is left out, as its
+ * average would be that of some hours only, and so is a day with fewer than MIN_IN_DAY measurements. A normal day is
+ * the range in which the middle half of the days' averages lie, from the first to the third quartile. A day stands out
+ * when its average lies more than STAND_OUT_WIDTHS times the width of that range below or above it, and differs from
+ * the median day by more than STAND_OUT_DEVIATIONS standard deviations of all measurements. Because the range comes
+ * from the middle days, a few days far out do not hide each other. below and above list those days, the furthest out
+ * first, as { key, mean, count, few }: few when the day has fewer than FEW_MEASUREMENTS of the usual number of
+ * measurements in a day (usualCount, the median), as a day with a time without measurements has.
  */
-function byWholeDay(points, [from, to]) {
+function daysThatStandOut(points, [from, to], deviation) {
   const whole = points.filter(point => {
     const start = startOfDay(point.x);
     return start >= from && startOfNextDay(start) - 1 <= to;
   });
-  return whole.length ? extremesOf(groupBy(whole, startOfDay)) : null;
+  const days = [...groupBy(whole, startOfDay)].filter(([, values]) => values.length >= MIN_IN_DAY)
+    .map(([key, values]) => ({ key, mean: average(values), count: values.length }));
+  if (days.length < MIN_DAYS) return null;
+  const means = days.map(day => day.mean).toSorted((a, b) => a - b);
+  const [low, middle, high] = [0.25, 0.5, 0.75].map(share => quantile(means, share));
+  const reach = STAND_OUT_WIDTHS * (high - low);
+  const usualCount = median(days.map(day => day.count));
+  const outside = isOutside => days
+    .filter(day => isOutside(day.mean) && Math.abs(day.mean - middle) > STAND_OUT_DEVIATIONS * deviation)
+    .toSorted((a, b) => Math.abs(b.mean - middle) - Math.abs(a.mean - middle))
+    .map(day => ({ ...day, few: day.count < FEW_MEASUREMENTS * usualCount }));
+  const below = outside(mean => mean < low - reach);
+  const above = outside(mean => mean > high + reach);
+  return below.length || above.length ? { normal: { low, high }, below, above, usualCount } : null;
 }
 
 /**
@@ -192,10 +214,10 @@ function longestUnchanged(points) {
 
 /**
  * What else the data points of a time frame [from, to] say, for the prompt of the AI: the biggest rise and drop between
- * two measurements in a row (rise, drop), the trend from the first half of the time frame to the second, the hours of
- * the day and the whole days with the highest and the lowest average (byHour, byDay), the longest time without
- * measurements (gap) and the longest stretch with the same value (unchanged). Each is null when there is too little
- * data for it, or nothing to say. Null without data points.
+ * two measurements in a row (rise, drop), the trend from the first half of the time frame to the second, the whole days
+ * that stand out from a normal day (days), the longest time without measurements (gap) and the longest stretch with the
+ * same value (unchanged). Each is null when there is too little data for it, or nothing to say. Null without data
+ * points.
  */
 export function analyze(points, range) {
   if (!points.length) return null;
@@ -206,8 +228,7 @@ export function analyze(points, range) {
   return {
     ...biggestSteps(points, pause),
     trend: trendOf(points, range, deviation),
-    byHour: byHourOfDay(points),
-    byDay: byWholeDay(points, range),
+    days: daysThatStandOut(points, range, deviation),
     gap: longestGap(points, range, pause),
     unchanged: longestUnchanged(points),
   };
