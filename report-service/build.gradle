@@ -45,6 +45,16 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
+// Installs the Chromium that Playwright makes the PDFs with, into Playwright's folder for browsers. Run it once on a
+// machine that makes PDFs; a Docker image runs Playwright's CLI with `install --with-deps --no-shell chromium` instead.
+tasks.register('installBrowser', JavaExec) {
+    description = 'Installs the Chromium that the PDF export uses'
+    group = 'application'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.microsoft.playwright.CLI'
+    args = ['install', '--no-shell', 'chromium']
+}
+
 application {
     mainClass = 'com.example.reportservice.ReportService'
 }
