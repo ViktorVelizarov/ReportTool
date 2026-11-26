@@ -16,7 +16,7 @@ import { addWidget, jsonCopy, removeWidget, selectWidget, setTemplate, updateWid
  */
 export function mountBuilder({ store, preview, sidebar, toolsFor, onSave }) {
   let shownId; // the widget that the sidebar shows the settings of
-  let shownPeriodId;
+  let shownTimeFrame; // the time frame and the moment that the widgets were told about
 
   // The settings change the widget they are given, so they get a copy; the change comes back as an event.
   function showSelection(widget) {
@@ -26,16 +26,18 @@ export function mountBuilder({ store, preview, sidebar, toolsFor, onSave }) {
   }
 
   function render(state) {
-    // The widgets read the time frame of the report when they fetch their data
-    const periodChanged = state.periodId !== shownPeriodId;
-    if (periodChanged) {
-      shownPeriodId = state.periodId;
+    // The widgets read the time frame of the report when they fetch their data. A report that is opened later has the
+    // same time frame, but the days it covers are other ones.
+    const timeFrame = `${state.periodId}|${state.asOf}`;
+    const timeFrameChanged = timeFrame !== shownTimeFrame;
+    if (timeFrameChanged) {
+      shownTimeFrame = timeFrame;
       ReportContext.asOf = state.asOf;
       ReportContext.period = resolvePeriod(state.periodId, new Date(state.asOf));
     }
     preview.editMode = state.editMode;
     preview.template = state.template; // the preview ignores a template that is the same as the one it has
-    if (periodChanged) preview.refreshWidgets(true);
+    if (timeFrameChanged) preview.refreshWidgets(true);
     if (!objectsEqual(sidebar.template, state.template)) sidebar.template = jsonCopy(state.template);
     sidebar.hidden = !state.editMode;
     const selected = state.template.widgets.find(widget => widget.id === state.selectedId);

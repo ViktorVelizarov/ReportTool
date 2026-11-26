@@ -3,21 +3,22 @@
 import { downloadsOf } from '../builder/service/widget-specs.js';
 import { ReportContext } from '../data/report-context.js';
 import { h, onChange, replaceChildren } from '../dom.js';
+import '../kit/inputs.js';
 import { generateText } from '../model/ai.js';
 import { exportFileName, pdfRequest } from '../model/exports.js';
 import { plural } from '../model/format.js';
 import { PERIODS } from '../model/periods.js';
 import { describeSchedule } from '../model/schedule.js';
 import {
-  approveAllBlocks, countApproved, countDrafts, finishGenerating, loadReport, newReport, removeAllBlocks, saveReport,
-  setEditMode, setInstructions, setName, setPeriod, startGenerating,
+  approveAllBlocks, countApproved, countDrafts, finishGenerating, removeAllBlocks, setEditMode, setInstructions,
+  setName, setPeriod, startGenerating,
 } from '../state.js';
 import { ask } from './dialog.js';
 import { downloadPdf, mockExport } from './export.js';
 import { icon } from './icons.js';
 import { openInstructions } from './instructions.js';
-import { menuButton } from './menu.js';
 import { previewWidth } from './paper.js';
+import { chooseSavedReport, deleteCurrent, saveCurrent, savedReportItems } from './saved-reports.js';
 import { openSchedule } from './schedule.js';
 import { showToast } from './toast.js';
 
@@ -25,33 +26,6 @@ import { showToast } from './toast.js';
 const WRITING_MS = 1400;
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-/** The menu of the saved reports: a new report, and the saved ones, with a tick at the one that is open. */
-function savedItems(store) {
-  const state = store.get();
-  return [
-    { label: 'New report', onSelect: () => store.update(newReport) },
-    ...(state.saved.length > 0 ? [{ separator: true }] : []),
-    ...state.saved.map(report => ({
-      label: report.name,
-      checked: report.name === state.name.trim(),
-      onSelect: () => {
-        store.update(current => loadReport(current, report.id));
-        showToast(`Opened “${report.name}”`);
-      },
-    })),
-  ];
-}
-
-/** Saves the report under its name, which replaces a saved report with the same name. */
-export function saveCurrent(store) {
-  if (!store.get().template.widgets.length) return;
-  const before = store.get().saved.length;
-  store.update(saveReport);
-  const state = store.get();
-  const name = state.name.trim() || 'Untitled report';
-  showToast(`${state.saved.length > before ? 'Saved' : 'Updated'} “${name}”`, { tone: 'success' });
-}
 
 /** Has the text written for the figures of the report, after the author instructed the AI; the author reviews it. */
 async function generate(store, { instructions, report }) {
@@ -70,7 +44,8 @@ async function generate(store, { instructions, report }) {
 /** Whether the service is making a PDF, which the page asks for one at a time. */
 let makingPdf = false;
 
-async function exportPdf(store) {
+/** Exports the report as a PDF; changed() is called when the service starts and when it stops making it. */
+async function exportPdf(store, changed) {
   const drafts = countDrafts(store.get().ai);
   if (drafts > 0) {
     const choice = await ask({
@@ -85,6 +60,7 @@ async function exportPdf(store) {
   }
   const state = store.get();
   makingPdf = true;
+  changed();
   try {
     await downloadPdf(exportFileName(state.name, state.asOf, 'pdf'),
       pdfRequest(state, ReportContext.realm, previewWidth()),
@@ -92,6 +68,7 @@ async function exportPdf(store) {
       + `${plural(countApproved(state.ai), 'approved text block')}`);
   } finally {
     makingPdf = false;
+    changed();
   }
 }
 
@@ -103,97 +80,150 @@ function exportFiles(store, kind) {
     ` with ${plural(count, kind === 'png' ? 'image' : 'table')}`);
 }
 
-/** The menu of the export; an item that cannot be used says in its label what it needs. */
-function exportItems(store) {
+/** The list of the export; an item that cannot be used says in its text what it needs. */
+function exportItems(store, changed) {
   const { widgets } = store.get().template;
   const kinds = new Set(widgets.flatMap(widget => downloadsOf(widget.widgetTypeId)));
   const empty = widgets.length === 0;
   return [
     {
-      label: empty ? 'PDF report (add a widget first)' : makingPdf ? 'PDF report (being made…)' : 'PDF report',
+      text: empty ? 'PDF report (add a widget first)' : makingPdf ? 'PDF report (being made…)' : 'PDF report',
       disabled: empty || makingPdf,
-      onSelect: () => exportPdf(store),
+      onSelect: () => exportPdf(store, changed),
     },
     {
-      label: kinds.has('csv') ? 'CSV data' : 'CSV data (needs a table widget)',
+      text: kinds.has('csv') ? 'CSV data' : 'CSV data (needs a table widget)',
       disabled: !kinds.has('csv'),
       onSelect: () => exportFiles(store, 'csv'),
     },
     {
-      label: kinds.has('png') ? 'PNG images' : 'PNG images (needs a line chart, bar chart or gauge)',
+      text: kinds.has('png') ? 'PNG images' : 'PNG images (needs a line chart, bar chart or gauge)',
       disabled: !kinds.has('png'),
       onSelect: () => exportFiles(store, 'png'),
     },
   ];
 }
 
-export function mountToolbar(root, store) {
-  const name = h('input', {
-    type: 'text',
-    class: 'name-input',
+/**
+ * A button that opens a list, as the menu bar of OpenRemote's library does. The item that is chosen runs its onSelect.
+ */
+function libraryMenu(title) {
+  const bar = h('or-vaadin-menu-bar', { theme: 'dropdown-indicators', title });
+  bar.addEventListener('item-selected', event => event.detail.value.onSelect?.());
+  return { bar, show: (text, items) => { bar.items = [{ text, children: items }]; } };
+}
+
+/**
+ * A button of OpenRemote's library, with the explanation as the title of a span around it: a disabled button does not
+ * react to the pointer, so it cannot show a title itself.
+ */
+function libraryButton(props) {
+  const button = h('or-vaadin-button', props);
+  return { button, tip: h('span', { class: 'tip' }, button) };
+}
+
+/** moment() gives the moment that a saved report is made for when it is opened. */
+export function mountToolbar(root, store, moment) {
+  // The field of OpenRemote's library, as the name of an asset is edited in the manager: the label above a filled field
+  const name = h('or-vaadin-text-field', {
+    class: 'name-field',
+    label: 'Report name',
     maxlength: 80,
-    placeholder: 'Report name',
-    'aria-label': 'Report name',
     oninput: event => store.update(state => setName(state, event.target.value)),
   });
-  const modes = [[true, 'Edit', 'pencil'], [false, 'Preview', 'eye-outline']].map(([editMode, label, iconName]) =>
-    h('button', {
-      type: 'button',
-      class: 'segment',
-      'aria-pressed': 'false',
-      onclick: () => store.update(state => setEditMode(state, editMode)),
-    }, icon(iconName, 16), label));
-  const period = h('select', {
-    class: 'select period-select',
-    'aria-label': 'Time frame',
+  // One button for the other mode, as the manager's asset header has one for modify and view
+  const modeButton = h('or-vaadin-button', {
+    onclick: () => store.update(state => setEditMode(state, !state.editMode)),
+  });
+  const periodSelect = h('or-vaadin-select', {
+    class: 'toolbar-select',
+    label: 'Time frame',
     title: 'Time frame of the report',
     onchange: event => store.update(state => setPeriod(state, event.target.value)),
-  }, PERIODS.map(item => h('option', { value: item.id }, item.label)));
-  const saveButton = h('button', { type: 'button', class: 'btn', onclick: () => saveCurrent(store) },
-    icon('content-save-outline'), 'Save');
-  const scheduleButton = h('button', { type: 'button', class: 'btn', onclick: () => openSchedule(store) });
-  const generateButton = h('button', {
-    type: 'button',
-    class: 'btn primary',
+  });
+  periodSelect.items = PERIODS.map(period => ({ label: period.label, value: period.id }));
+  const savedSelect = h('or-vaadin-select', {
+    class: 'toolbar-select',
+    label: 'Saved reports',
+    placeholder: 'View list',
+  });
+  // Save and Delete are only an icon, as the manager's own buttons for saving and deleting are, so that the bar fits in
+  // one row: what they do is their label for a screen reader, and their title
+  const { button: saveButton, tip: saveTip } = libraryButton({
+    theme: 'icon',
+    'aria-label': 'Save',
+    onclick: () => saveCurrent(store),
+  });
+  saveButton.append(icon('content-save-outline'));
+  const { button: deleteButton, tip: deleteTip } = libraryButton({
+    theme: 'error icon',
+    'aria-label': 'Delete',
+    onclick: () => deleteCurrent(store),
+  });
+  deleteButton.append(icon('delete'));
+  const { button: scheduleButton, tip: scheduleTip } = libraryButton({ onclick: () => openSchedule(store) });
+  const { button: generateButton, tip: generateTip } = libraryButton({
+    theme: 'primary',
     onclick: () => openInstructions(store, input => generate(store, input)),
   });
+  const exportMenu = libraryMenu('Download the report');
   replaceChildren(root,
     name,
-    h('div', { class: 'toolbar-actions' },
-      h('div', { class: 'segmented', role: 'group', 'aria-label': 'Mode' }, modes),
-      period,
-      menuButton({ label: 'Saved reports', iconName: 'folder-outline', items: () => savedItems(store) }),
-      saveButton,
-      scheduleButton,
-      h('div', { class: 'toolbar-group' },
-        h('span', { class: 'divider', 'aria-hidden': 'true' }),
-        generateButton,
-        menuButton({ label: 'Export', iconName: 'download', items: () => exportItems(store) }))));
+    h('div', { class: 'toolbar-view' }, modeButton, periodSelect, savedSelect),
+    h('div', { class: 'toolbar-actions' }, saveTip, deleteTip, scheduleTip, generateTip, exportMenu.bar));
+
+  // The select of the saved reports shows the saved report that is open; what is chosen is done, and then it shows
+  // again what is open, also when nothing could be done
+  const showSaved = state => {
+    savedSelect.items = savedReportItems(state.saved);
+    savedSelect.value = state.reportId ?? '';
+  };
+  savedSelect.addEventListener('change', async () => {
+    await chooseSavedReport(store, savedSelect.value, moment);
+    showSaved(store.get());
+  });
+
+  // The lists are made again only when what they show changes, not at every letter typed in the name
+  const savedKey = state => `${state.saved?.map(report => `${report.id}:${report.name}`)}#${state.reportId}`;
+  const drawSaved = onChange(savedKey, showSaved);
+  const exportKey = state => state.template.widgets.map(widget => widget.widgetTypeId).join();
+  const showExport = () => exportMenu.show('Export', exportItems(store, showExport));
+  const drawExport = onChange(exportKey, showExport);
 
   const scheduleOf = state => (state.schedule?.enabled ? describeSchedule(state.schedule) : '');
-  const buttonsKey = state => `${state.ai?.status}|${state.template.widgets.length === 0}|${scheduleOf(state)}`;
+  const buttonsKey = state =>
+    `${state.ai?.status}|${state.template.widgets.length === 0}|${scheduleOf(state)}|${Boolean(state.reportId)}`;
   const drawButtons = onChange(buttonsKey, state => {
     const status = state.ai?.status;
     const empty = state.template.widgets.length === 0;
     const scheduled = scheduleOf(state);
     saveButton.disabled = empty;
+    saveTip.title = empty ? 'Add at least one widget first' : 'Save the report (Ctrl+S)';
+    deleteButton.disabled = !state.reportId;
+    deleteTip.title = state.reportId ? 'Delete this saved report' : 'Only a saved report can be deleted';
     scheduleButton.disabled = empty;
-    scheduleButton.title = empty ? 'Add at least one widget first' : scheduled || 'Send this report automatically';
-    scheduleButton.classList.toggle('scheduled', Boolean(scheduled));
-    replaceChildren(scheduleButton, icon('calendar-clock'), scheduled ? 'Scheduled' : 'Schedule');
+    scheduleButton.setAttribute('theme', scheduled ? 'success' : '');
+    scheduleTip.title = empty ? 'Add at least one widget first' : scheduled || 'Send this report automatically';
+    replaceChildren(scheduleButton, icon('calendar-clock', 18, 'prefix'), scheduled ? 'Scheduled' : 'Schedule');
     generateButton.disabled = empty || status === 'loading';
-    generateButton.title = empty
+    generateTip.title = empty
       ? 'Add at least one widget first'
       : 'Tell the AI what this report shows and what to look out for';
     generateButton.classList.toggle('busy', status === 'loading');
-    replaceChildren(generateButton, icon('creation'),
+    replaceChildren(generateButton, icon('creation', 18, 'prefix'),
       status === 'loading' ? 'Writing text…' : status === 'ready' ? 'Regenerate text' : 'Generate text');
+  });
+  const drawMode = onChange(state => state.editMode, ({ editMode }) => {
+    modeButton.setAttribute('theme', editMode ? 'primary contrast' : 'primary');
+    replaceChildren(modeButton, icon(editMode ? 'eye-outline' : 'pencil', 18, 'prefix'), editMode ? 'Preview' : 'Edit');
   });
 
   function render(state) {
     if (name.value !== state.name) name.value = state.name;
-    period.value = state.periodId;
-    modes.forEach((button, index) => button.setAttribute('aria-pressed', String(state.editMode === (index === 0))));
+    if (periodSelect.value !== state.periodId) periodSelect.value = state.periodId;
+    drawSaved(state);
+    drawExport(state);
+    drawMode(state);
     drawButtons(state);
   }
 

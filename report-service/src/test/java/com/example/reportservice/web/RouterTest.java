@@ -35,6 +35,9 @@ class RouterTest {
                 "n", request.nonNegativeIntQuery("n")));
         router.get("/choice", request -> Map.of("value", request.query("value", LOWERCASE, "value", "home")));
         router.post("/submit", request -> Map.of("name", request.jsonBody().path("name").asText()));
+        router.put("/rename/{id}", request -> Map.of(
+                "id", request.path("id"), "name", request.jsonBody().path("name").asText()));
+        router.delete("/remove/{id}", request -> new NoContent());
         router.post("/file", request -> new Binary("application/pdf", new byte[] {'%', 'P', 'D', 'F'}));
         router.get("/fail/api", request -> { throw new ApiException(418, "teapot"); });
         router.get("/fail/io", request -> { throw new IOException("connection refused"); });
@@ -119,6 +122,32 @@ class RouterTest {
 
         assertEquals(200, response.statusCode());
         assertEquals("wheel", json(response).get("name").asText());
+    }
+
+    @Test
+    void readsThePathAndTheJsonBodyOfAPut() throws Exception {
+        HttpResponse<String> response = server.put("/rename/abc", "{\"name\":\"wheel\"}");
+
+        assertEquals(200, response.statusCode());
+        assertEquals("abc", json(response).get("id").asText());
+        assertEquals("wheel", json(response).get("name").asText());
+
+        HttpResponse<String> get = server.get("/rename/abc");
+        assertEquals(405, get.statusCode());
+        assertEquals("PUT", get.headers().firstValue("Allow").orElse(null));
+    }
+
+    @Test
+    void answersNoContentWithoutABodyAndWithoutAContentType() throws Exception {
+        HttpResponse<String> response = server.send("DELETE", "/remove/abc");
+
+        assertEquals(204, response.statusCode());
+        assertEquals("", response.body());
+        assertTrue(response.headers().firstValue("Content-Type").isEmpty());
+
+        HttpResponse<String> get = server.get("/remove/abc");
+        assertEquals(405, get.statusCode());
+        assertEquals("DELETE", get.headers().firstValue("Allow").orElse(null));
     }
 
     @Test

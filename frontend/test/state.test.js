@@ -4,8 +4,9 @@ import { test } from 'node:test';
 import { newSchedule } from '../js/model/schedule.js';
 import {
   addWidget, approveAllBlocks, approveBlock, countApproved, countDrafts, createStore, editBlock, finishGenerating,
-  initialState, jsonCopy, loadReport, newReport, removeAllBlocks, removeBlock, removeWidget, saveReport, selectWidget,
-  setEditMode, setInstructions, setName, setPeriod, setSchedule, setTemplate, startGenerating, updateWidget,
+  hasUnsavedChanges, initialState, jsonCopy, loadReport, newReport, removeAllBlocks, removeBlock, removeWidget,
+  reportOf, reportSaved, selectWidget, setEditMode, setInstructions, setName, setPeriod, setSavedReports, setSchedule,
+  setTemplate, startGenerating, updateWidget,
 } from '../js/state.js';
 import { REPORT } from './helpers/report.js';
 
@@ -23,6 +24,9 @@ const withReport = () =>
 
 /** The state with the test report open and generated text that is ready. */
 const withText = () => finishGenerating(startGenerating(withReport()), TEXT);
+
+/** The state after the page saved its report as the saved report with the id. */
+const afterSave = (state, id = 'report-1') => reportSaved(state, id, reportOf(state));
 
 /** The template of the state with one widget changed. */
 function changeWidget(state, id, change) {
@@ -43,7 +47,7 @@ test('the store tells its listeners about a new state, and only then', () => {
   assert.equal(store.get().value, 2);
 });
 
-test('the studio opens with an empty report, in edit mode, with no saved reports', () => {
+test('the studio opens with an empty report that is not saved, and does not know the saved reports yet', () => {
   const state = initialState(NOW);
 
   assert.equal(state.name, 'Untitled report');
@@ -55,7 +59,8 @@ test('the studio opens with an empty report, in edit mode, with no saved reports
   assert.equal(state.ai, null);
   assert.deepEqual(state.instructions, { subject: '', focus: '' });
   assert.equal(state.schedule, null);
-  assert.deepEqual(state.saved, []);
+  assert.equal(state.reportId, undefined);
+  assert.equal(state.saved, null);
   assert.equal(state.asOf, NOW);
   assert.notEqual(initialState(NOW).template.id, state.template.id, 'every report has a template of its own');
 });
@@ -156,63 +161,87 @@ test('the name changes, and the preview has no selected widget', () => {
   assert.equal(setEditMode(preview, false), preview);
 });
 
-test('a new report is empty and keeps the time frame', () => {
-  const state = newReport(setEditMode(setPeriod(withText(), 'last30'), false));
+test('a new report is empty, is not a saved report and keeps the time frame', () => {
+  const state = newReport(setEditMode(setPeriod(afterSave(withText()), 'last30'), false));
 
   assert.equal(state.name, 'Untitled report');
   assert.deepEqual(state.template.widgets, []);
   assert.equal(state.template.columns, 12);
   assert.equal(state.periodId, 'last30');
+  assert.equal(state.reportId, undefined);
   assert.equal(state.editMode, true);
   assert.equal(state.ai, null);
 });
 
 // --- saved reports ---
 
-test('saving adds a report, or replaces the one with the same name', () => {
+/** A saved report as the page gets it from the service (see data/saved-reports.js). */
+const savedAs = (state, id = 'report-1') => ({ id, ...jsonCopy(reportOf(state)) });
+
+test('a report is saved as its setup, under its name without the spaces around it', () => {
   const state = setName(withReport(), '  Irrigation  ');
 
-  const saved = saveReport(state);
-  assert.equal(saved.saved.length, 1);
-  const report = saved.saved.at(-1);
-  assert.deepEqual([report.id, report.name, report.periodId], ['saved-1', 'Irrigation', 'last7']);
+  const report = reportOf(state);
 
-  const again = saveReport(setPeriod(saved, 'last30'));
-  assert.equal(again.saved.length, 1);
-  assert.equal(again.saved.at(-1).periodId, 'last30');
-  assert.equal(again.saved.at(-1).id, 'saved-1');
-
-  const other = saveReport(setName(again, 'Other'));
-  assert.deepEqual(other.saved.map(item => item.id), ['saved-1', 'saved-2']);
-
-  assert.equal(saveReport(setName(state, ' ')).saved.at(-1).name, 'Untitled report');
+  assert.deepEqual(Object.keys(report), ['name', 'periodId', 'template', 'instructions', 'schedule']);
+  assert.deepEqual([report.name, report.periodId], ['Irrigation', 'last7']);
+  assert.deepEqual(report.template, state.template);
+  assert.deepEqual(report.instructions, { subject: '', focus: '' });
+  assert.equal(report.schedule, null);
+  assert.equal(reportOf(setName(state, ' ')).name, 'Untitled report');
 });
 
-test('a saved report keeps its own copy of the template', () => {
-  const state = saveReport(withReport());
-  const saved = state.saved.at(-1);
+test('what is only on the page is not saved: the selection, the mode and the generated text', () => {
+  const state = setEditMode(selectWidget(withText(), 'irrigation-1'), false);
 
-  const changed = removeWidget(state, 'irrigation-1');
+  assert.deepEqual(reportOf(state), reportOf(withReport()));
+});
 
-  assert.equal(changed.saved.at(-1).template.widgets.length, 8);
-  assert.notEqual(saved.template, state.template);
+test('the saved reports of the realm are kept, and none is kept when they could not be read', () => {
+  const saved = [{ id: 'report-1', name: 'Weekly', updatedAt: NOW }];
+
+  const known = setSavedReports(initialState(NOW), saved);
+
+  assert.equal(known.saved, saved);
+  assert.equal(setSavedReports(known, null).saved, null);
+});
+
+test('a report that is saved is the report that is open from then on, and saving it again changes nothing', () => {
+  const state = withReport();
+
+  const saved = afterSave(state);
+
+  assert.equal(saved.reportId, 'report-1');
+  assert.equal(saved.template, state.template, 'saving does not change what the report shows');
+  assert.equal(afterSave(saved), saved);
+  assert.equal(afterSave(saved, 'report-2').reportId, 'report-2');
 });
 
 test('opening a saved report shows its widgets and time frame, with no text and nothing selected', () => {
-  const saved = saveReport(setPeriod(setName(withReport(), 'Quarterly irrigation'), 'lastQuarter'));
-  const state = selectWidget(finishGenerating(startGenerating(removeWidget(saved, 'irrigation-8')), TEXT),
+  const report = savedAs(setPeriod(setName(withReport(), 'Quarterly irrigation'), 'lastQuarter'));
+  const state = selectWidget(finishGenerating(startGenerating(removeWidget(withReport(), 'irrigation-8')), TEXT),
     'irrigation-1');
 
-  const opened = loadReport(state, 'saved-1');
+  const opened = loadReport(state, report, NOW + 1);
 
+  assert.equal(opened.reportId, 'report-1');
   assert.equal(opened.name, 'Quarterly irrigation');
   assert.equal(opened.periodId, 'lastQuarter');
   assert.equal(opened.template.widgets.length, 8);
-  assert.deepEqual(opened.template, jsonCopy(saved.saved[0].template));
-  assert.notEqual(opened.template, saved.saved[0].template);
+  assert.deepEqual(opened.template, report.template);
+  assert.notEqual(opened.template, report.template, 'the report keeps a copy of its own');
   assert.equal(opened.selectedId, undefined);
   assert.equal(opened.ai, null);
-  assert.equal(loadReport(state, 'no-such-report'), state);
+});
+
+test('a saved report is made for the moment it is opened at, not for the one it was saved at', () => {
+  const report = savedAs(setPeriod(withReport(), 'last30'));
+  const aMonthLater = NOW + 31 * 24 * 3_600_000;
+
+  const opened = loadReport(initialState(NOW), report, aMonthLater);
+
+  assert.equal(opened.asOf, aMonthLater);
+  assert.equal(opened.periodId, 'last30', 'the time frame is relative, so it is still the last 30 days');
 });
 
 // --- the schedule ---
@@ -234,17 +263,19 @@ test('a schedule is set and removed without touching what the report shows', () 
 });
 
 test('a schedule is saved with the report, opened with it, and gone from a new report', () => {
-  const saved = saveReport(setSchedule(setName(withReport(), 'Weekly'), SCHEDULE));
-  assert.deepEqual(saved.saved[0].schedule, SCHEDULE);
-  assert.notEqual(saved.saved[0].schedule, saved.schedule, 'a saved report keeps a copy of its own');
+  const scheduled = setSchedule(setName(withReport(), 'Weekly'), SCHEDULE);
+  const report = savedAs(scheduled);
+  assert.deepEqual(report.schedule, SCHEDULE);
 
-  const empty = newReport(saved);
+  const empty = newReport(scheduled);
   assert.equal(empty.schedule, null);
-  assert.deepEqual(loadReport(empty, 'saved-1').schedule, SCHEDULE);
+  const opened = loadReport(empty, report, NOW);
+  assert.deepEqual(opened.schedule, SCHEDULE);
+  assert.notEqual(opened.schedule, report.schedule, 'the state keeps a copy of its own');
 
-  const removed = saveReport(setSchedule(saved, null));
-  assert.equal(removed.saved[0].schedule, null);
-  assert.equal(loadReport(newReport(removed), 'saved-1').schedule, null);
+  const removed = setSchedule(scheduled, null);
+  assert.equal(reportOf(removed).schedule, null);
+  assert.equal(loadReport(scheduled, savedAs(removed), NOW).schedule, null);
 });
 
 // --- the instructions for the AI ---
@@ -273,18 +304,18 @@ test('instructions stay when the report changes, for the author to correct', () 
 });
 
 test('instructions are saved with the report, opened with it, and gone from a new report', () => {
-  const saved = saveReport(setInstructions(setName(withReport(), 'Weekly'), INSTRUCTIONS));
-  assert.deepEqual(saved.saved[0].instructions, ANSWERS);
-  assert.notEqual(saved.saved[0].instructions, saved.instructions, 'a saved report keeps a copy of its own');
+  const instructed = setInstructions(setName(withReport(), 'Weekly'), INSTRUCTIONS);
+  const report = savedAs(instructed);
+  assert.deepEqual(report.instructions, ANSWERS);
 
-  const empty = newReport(saved);
+  const empty = newReport(instructed);
   assert.deepEqual(empty.instructions, { subject: '', focus: '' });
-  const opened = loadReport(empty, 'saved-1');
+  const opened = loadReport(empty, report, NOW);
   assert.deepEqual(opened.instructions, ANSWERS);
-  assert.notEqual(opened.instructions, saved.saved[0].instructions);
+  assert.notEqual(opened.instructions, report.instructions, 'the state keeps a copy of its own');
 
   const other = { subject: 'Other.', focus: 'Other too.' };
-  assert.deepEqual(saveReport(setInstructions(saved, other)).saved[0].instructions, other);
+  assert.deepEqual(reportOf(setInstructions(instructed, other)).instructions, other);
 });
 
 // --- generated text ---
@@ -325,4 +356,90 @@ test('blocks are approved, edited and removed; without blocks there is no text',
   assert.equal(state.ai, null);
   assert.equal(removeAllBlocks(state), state);
   assert.equal(removeAllBlocks(withText()).ai, null);
+});
+
+// --- changes that are not saved ---
+
+/** A saved report that is open and was not changed since. */
+const opened = () => loadReport(initialState(NOW), savedAs(withReport()), NOW);
+
+test('a report has no unsaved changes while it is as it was opened or started: empty, new or opened', () => {
+  assert.equal(hasUnsavedChanges(initialState(NOW)), false);
+  assert.equal(hasUnsavedChanges(newReport(withReport())), false);
+  assert.equal(hasUnsavedChanges(opened()), false);
+});
+
+test('a report that was built and never saved has unsaved changes', () => {
+  assert.equal(hasUnsavedChanges(withReport()), true);
+});
+
+test('a change to what Save keeps is an unsaved change: name, time frame, widgets, answers and schedule', () => {
+  const state = opened();
+  const changes = {
+    'the name': setName(state, 'Quarterly irrigation'),
+    'the time frame': setPeriod(state, 'last30'),
+    'where a widget is': setTemplate(state, changeWidget(state, 'irrigation-1', widget => { widget.gridItem.y = 20; })),
+    'the settings of a widget': setTemplate(state,
+      changeWidget(state, 'irrigation-2', widget => { widget.widgetConfig.max = 2000; })),
+    'a removed widget': removeWidget(state, 'irrigation-8'),
+    'the answers for the AI': setInstructions(state, INSTRUCTIONS),
+    'the schedule': setSchedule(state, SCHEDULE),
+  };
+
+  for (const [what, changed] of Object.entries(changes)) {
+    assert.equal(hasUnsavedChanges(changed), true, what);
+  }
+});
+
+test('what Save does not keep is no unsaved change: the generated text, the selection and the mode', () => {
+  const state = opened();
+
+  const changed = setEditMode(selectWidget(finishGenerating(startGenerating(state), TEXT), 'irrigation-1'), false);
+
+  assert.equal(hasUnsavedChanges(changed), false);
+  assert.equal(hasUnsavedChanges(setSavedReports(state, [])), false);
+});
+
+test('a change that is undone is no change, and the spaces around the name are not one', () => {
+  const state = opened();
+  const moved = setTemplate(state, changeWidget(state, 'irrigation-1', widget => { widget.gridItem.y = 20; }));
+
+  assert.equal(hasUnsavedChanges(setName(setName(state, 'Other'), state.name)), false);
+  assert.equal(hasUnsavedChanges(setTemplate(moved, state.template)), false);
+  assert.equal(hasUnsavedChanges(setName(state, `  ${state.name}  `)), false, 'Save keeps the name without them');
+});
+
+test('a report that is saved has no unsaved changes, until it is changed again', () => {
+  const saved = afterSave(withReport());
+
+  assert.equal(hasUnsavedChanges(saved), false);
+  assert.equal(hasUnsavedChanges(setPeriod(saved, 'last30')), true);
+});
+
+test('a change that is made while the report is being saved is not saved by it', () => {
+  const state = withReport();
+  const sent = reportOf(state);
+  const changedMeanwhile = setName(state, 'Renamed while saving');
+
+  const saved = reportSaved(changedMeanwhile, 'report-1', sent);
+
+  assert.equal(saved.name, 'Renamed while saving');
+  assert.equal(hasUnsavedChanges(saved), true);
+  assert.equal(hasUnsavedChanges(setName(saved, state.name)), false, 'it is what was saved again');
+});
+
+test('a report without a widget has nothing that Save could keep, so it has no unsaved changes', () => {
+  let emptied = opened();
+  for (const { id } of emptied.template.widgets) emptied = removeWidget(emptied, id);
+
+  assert.equal(hasUnsavedChanges(emptied), false);
+  assert.equal(hasUnsavedChanges(setName(setPeriod(initialState(NOW), 'last30'), 'Draft')), false);
+});
+
+test('the report that was saved is a copy of its own: a template that is changed in place is changed', () => {
+  const state = opened();
+
+  state.template.widgets[0].displayName = 'Changed in place';
+
+  assert.equal(hasUnsavedChanges(state), true);
 });

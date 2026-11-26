@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
  * @param realm         the realm of the service user, which is also the realm that is read when a request names none
  * @param globalService whether the service registers as a global service, which the manager shows in every realm
  * @param chromePath    the Chrome, Chromium or Edge that makes the PDFs, or null to look for one
+ * @param reportsDir    the folder in which the saved reports are kept
  */
 public record Config(
         String managerUrl,
@@ -26,7 +27,8 @@ public record Config(
         int port,
         boolean insecureTls,
         boolean globalService,
-        String chromePath) {
+        String chromePath,
+        Path reportsDir) {
 
     private static final Logger LOG = LoggerFactory.getLogger(Config.class);
     private static final Path ENV_FILE = Path.of(".env");
@@ -67,7 +69,8 @@ public record Config(
                 Integer.parseInt(optional(env, "PORT", "5000")),
                 Boolean.parseBoolean(optional(env, "OR_INSECURE_TLS", "false")),
                 globalService,
-                chromePath.isEmpty() ? null : chromePath);
+                chromePath.isEmpty() ? null : chromePath,
+                Path.of(optional(env, "REPORTS_DIR", "data/reports")));
     }
 
     /**
@@ -111,6 +114,7 @@ public record Config(
     public String toString() {
         return "Config[managerUrl=" + managerUrl + ", keycloakUrl=" + keycloakUrl + ", realm=" + realm
                 + ", clientId=" + clientId + ", port=" + port + ", insecureTls=" + insecureTls
-                + ", globalService=" + globalService + ", chromePath=" + chromePath + "]";
+                + ", globalService=" + globalService + ", chromePath=" + chromePath
+                + ", reportsDir=" + reportsDir + "]";
     }
 }
