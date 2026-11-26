@@ -1,8 +1,8 @@
 # Report Studio web interface
 
 The interface of the report service. An author builds a report the way a dashboard is built in OpenRemote's Insights:
-drag widgets onto the page and set them up in the sidebar, choose the time frame of the report, let the text be
-written, review it, and export.
+drag widgets onto the page and set them up in the sidebar, choose the time frame of the report, tell the AI what the
+report shows and what to look out for, review the text it suggests, and export.
 
 **This is a prototype.** The assets, attributes and data points in it are the live data of a realm of OpenRemote, which
 the page reads through the [report service](../report-service). The generated text, the exports, the schedules and the
@@ -77,11 +77,12 @@ a builder of our own that is written without OpenRemote's code.
 | Data points | The stored history of an attribute, from the service. The service gives every point of a range, so the downsampling of a line chart and the average, minimum or maximum per interval are done in the browser |
 | Widgets | OpenRemote's, see above, with that data |
 | Time frames | Presets only: last 7, 30 and 90 days, last calendar month and last calendar quarter |
-| Generated text | Written from templates with the figures of the widgets (`js/model/ai.js`); there is no AI |
-| Review | Generated text starts as a draft. Approve, edit or remove each block; a PDF only includes approved text |
+| Instructions for the AI | "Generate text" first opens a dialog with two questions, which have to be answered: what the report shows, and what the AI should look out for. The answers are kept with the saved report, but nothing uses them yet. `js/model/prompt.js` can make the prompt from them (the answers, the figures of every widget and a few fixed rules), but the page neither shows nor sends it |
+| Generated text | Written from templates with the figures of the widgets (`js/model/ai.js`); there is no AI, so the text does not follow the answers |
+| Review | Generated text starts as a draft. Approve, edit or remove each block; a PDF only includes approved text. The "AI" tag marks drafts only: an approved block, the preview and the printed report do not show it |
 | Export | The PDF, CSV and PNG buttons show progress and the name of the file, but create nothing |
-| Saved reports | Kept in memory only, and a reload forgets them. The studio opens with an empty report |
-| Schedule | A dialog sets when the report is made by itself (daily, weekly or monthly), who gets it and as which files, and shows the next reports. It is kept with the saved report, in memory; nothing is made or sent |
+| Saved reports | Kept in memory only, and a reload forgets them. The studio opens with an empty report. A saved report keeps its answers to the two questions |
+| Schedule | A dialog sets when the report is made by itself (daily, weekly or monthly), the report admin, whose email address is required and who gets a reminder on every day the report is made, to check it first, who gets the report by email, with which subject and message (with the placeholders `{report}`, `{period}` and `{date}`, filled in for every report) and as which files, and shows the next reports with the subject of the next email. It is kept with the saved report, in memory; nothing is made or sent |
 
 What the live data looks like on the page:
 
@@ -109,10 +110,12 @@ widget; a clean document is a job for the PDF export.
   model (`asset-model.js`), the unit symbols, the time windows, and the context of the report (its realm, moment and
   time frame) that the widgets read when they fetch data.
 - `js/model/` - the report apart from the page: time frames, statistics, the figures of the widgets for the text
-  (`report.js`), the text templates, the schedule (`schedule.js`), formatting and file names.
+  (`report.js`), the questions for the AI (`instructions.js`), the prompt they make (`prompt.js`), the text templates,
+  the schedule (`schedule.js`), formatting and file names.
 - `js/ui/` - the page around the builder: the toolbar, the paper (cover, text blocks, widget descriptions), the review
-  blocks, menus, dialogs (a question, and the schedule), messages and icons, and the message for a page that cannot
-  start. `js/dom.js` has the helpers they build the page with; nothing is built with `innerHTML`.
+  blocks, menus, dialogs (a question, the schedule, and the instructions for the AI), messages and icons, and the
+  message for a page that cannot start. `js/dom.js` has the helpers they build the page with; nothing is built with
+  `innerHTML`.
 - `js/kit/` - the stand-ins for OpenRemote's components, see above, and the texts (`texts.js`) and icons
   (`mdi-icons.js`) of the page. An icon that the page does not have shows as the icon of an unknown type.
 - `vendor/` - third-party libraries. `test/` - the tests.
@@ -124,21 +127,23 @@ npm test
 ```
 
 Uses the built-in test runner of Node.js (developed with Node 24); there is nothing to install. The tests cover the
-state, the report model and the text, the schedule, the data layer, and the parts of the builder that need no browser:
-time windows, bar chart intervals and methods, the map, and the widget types with their default configs. The data layer
-is tested against a fake of the service (`test/helpers/service.js`) that has the asset model and a few assets in the
-JSON that the service gives, with generated data points, and records every call; `test/helpers/` also has the report
-that the tests of the report and the state use. The modules that need a browser are checked for valid syntax.
+state, the report model, the prompt and the text, the schedule, the data layer, and the parts of the builder that need
+no browser: time windows, bar chart intervals and methods, the map, and the widget types with their default configs.
+The data layer is tested against a fake of the service (`test/helpers/service.js`) that has the asset model and a few
+assets in the JSON that the service gives, with generated data points, and records every call; `test/helpers/` also
+has the report that the tests of the report and the state use. The modules that need a browser are checked for valid
+syntax.
 
 ## Towards the real thing
 
-- `js/model/ai.js` becomes a call to a language model with the figures from `js/model/report.js`; the review stays as
-  it is.
+- `js/model/ai.js` becomes a call to a language model with the prompt of `js/model/prompt.js`, which is made already;
+  the review stays as it is.
 - `js/ui/export.js` becomes the real PDF, CSV and PNG export; ECharts can give a chart as an image
   (`getDataURL`).
 - Saved reports are stored by the service. A template is the same JSON as an Insights dashboard.
 - A schedule is stored by the service with its report. A job in the service makes the report when it is due and mails
-  it, which needs a mail server and a time zone for the schedule (the dialog uses the one of the browser). Generated
+  it and the reminder to the report admin, which needs a mail server and a time zone for the schedule (the dialog uses
+  the one of the browser). Whether the report waits for the admin before it goes out is still to be decided. Generated
   text has nobody to approve it when nobody is there, so it has to stay out of a scheduled report or go out marked as
   a draft; that is still to be decided.
 - The service gives every point of a range, at most 100,000. An endpoint that averages per interval would send far less

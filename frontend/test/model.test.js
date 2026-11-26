@@ -8,8 +8,10 @@ import { ReportContext } from '../js/data/report-context.js';
 import { getTimeSelectionDates } from '../js/data/time-window.js';
 import { generateText } from '../js/model/ai.js';
 import { exportFileName } from '../js/model/exports.js';
-import { formatNumber, formatRange, formatValue } from '../js/model/format.js';
+import { formatNumber, formatRange, formatValue, listNames } from '../js/model/format.js';
+import { instructionsComplete, newInstructions, QUESTIONS } from '../js/model/instructions.js';
 import { PERIODS, previousRange, resolvePeriod } from '../js/model/periods.js';
+import { craftPrompt, SOURCES } from '../js/model/prompt.js';
 import { buildReport, readingOrder } from '../js/model/report.js';
 import { percentChange, summarize } from '../js/model/stats.js';
 import { DAY, HOUR } from '../js/model/time.js';
@@ -108,6 +110,13 @@ test('values are shown with their unit', () => {
   assert.equal(formatValue(41.84, 'MW'), '41.8 MW');
   assert.equal(formatValue(94, '%'), '94%');
   assert.equal(formatValue(72, ''), '72');
+});
+
+test('names are listed in full up to three, and then counted', () => {
+  assert.equal(listNames(['A']), 'A');
+  assert.equal(listNames(['A', 'B']), 'A and B');
+  assert.equal(listNames(['A', 'B', 'C']), 'A, B and C');
+  assert.equal(listNames(['A', 'B', 'C', 'D', 'E']), 'A, B, C and 2 more');
 });
 
 test('a range shows the year once, or twice when it spans two years', () => {
@@ -366,4 +375,151 @@ test('every widget gets a description, also when nothing is connected to it', ()
     empty: 'No data is connected to this widget yet.',
     unset: 'No data is connected to this widget yet.',
   });
+});
+
+// --- instructions and the prompt ---
+
+const ANSWERS = { subject: '  The irrigation of the greenhouse.  ', focus: 'A tank level below 200 l.' };
+
+/** The sections of the prompt for a report, by id. */
+const sectionsById = (report, instructions = ANSWERS) =>
+  Object.fromEntries(craftPrompt(report, instructions).map(section => [section.id, section]));
+
+test('the AI is asked only when both questions are answered', () => {
+  assert.equal(instructionsComplete({ subject: 'It shows the flow.', focus: 'Drops.' }), true);
+  assert.equal(instructionsComplete({ subject: 'It shows the flow.', focus: ' \n' }), false);
+  assert.equal(instructionsComplete({ subject: '', focus: 'Drops.' }), false);
+  assert.equal(instructionsComplete(newInstructions()), false);
+  assert.deepEqual(QUESTIONS.map(question => question.id), Object.keys(newInstructions()));
+});
+
+test('the prompt has the answers of the author between the rules and the figures', async () => {
+  const report = await buildReport(REPORT, contextFor('last7'));
+
+  const sections = craftPrompt(report, ANSWERS);
+
+  assert.deepEqual(sections.map(({ id, source }) => [id, source]), [
+    ['rules', 'studio'], ['subject', 'author'], ['focus', 'author'], ['report', 'report'], ['figures', 'report'],
+    ['task', 'studio'],
+  ]);
+  assert.ok(sections.every(({ source, title, text }) => source in SOURCES && title && text !== undefined));
+  assert.equal(sections[1].text, 'The irrigation of the greenhouse.');
+  assert.equal(sections[2].text, 'A tank level below 200 l.');
+  assert.deepEqual(craftPrompt(report, newInstructions()).slice(1, 3).map(section => section.text), ['', '']);
+});
+
+test('only the answers of the author change when the instructions do', async () => {
+  const report = await buildReport(REPORT, contextFor('last7'));
+
+  const before = craftPrompt(report, newInstructions());
+  const after = craftPrompt(report, ANSWERS);
+
+  assert.deepEqual(after.filter(section => section.source !== 'author'), before.filter(section =>
+    section.source !== 'author'));
+  assert.notDeepEqual(after, before);
+});
+
+test('the prompt names the report, its time frame and the time before it', async () => {
+  const { report } = sectionsById(await buildReport(REPORT, contextFor('last7')));
+
+  assert.equal(report.text, 'Name: Irrigation report\n'
+    + 'Time frame: Last 7 days, 27 Sept – 4 Oct 2026\n'
+    + 'Previous period, for comparison: 20 Sept – 27 Sept 2026');
+  assert.match(sectionsById({ name: '  ', period: PERIOD, widgets: [] }).report.text, /^Name: Untitled report\n/);
+});
+
+test('the figures list the widgets in reading order, each with what it shows', async () => {
+  const { figures } = sectionsById(await buildReport(REPORT, contextFor('last7')));
+
+  const groups = figures.text.split('\n\n');
+  assert.deepEqual(groups.map(group => group.split('\n')[0]), [
+    '1. Water flow (Line Chart)', '2. Tank level (Gauge)', '3. Nutrients (Bar Chart)', '4. Salinity (KPI)',
+    '5. Soil temperature (KPI)', '6. Irrigation (Table)', '7. Irrigation map (Map)', '8. Site plan (Image)',
+  ]);
+  const flow = 'Flow water, Soil drip \\d: average [\\d.]+ l\\/h, lowest [\\d.]+ l\\/h, highest [\\d.]+ l\\/h; '
+    + 'the previous period averaged [\\d.]+ l\\/h \\([+-]?[\\d.]+%\\)';
+  assert.match(groups[0], new RegExp(`^1\\. Water flow \\(Line Chart\\)\\n- ${flow}\\n- ${flow}$`));
+  assert.equal(groups[1], '2. Tank level (Gauge)\n- Tank level, Soil drip 1: currently 936 l');
+  assert.match(groups[3],
+    /^4\. Salinity \(KPI\)\n- Salinity, Soil sensor: average [\d.]+, lowest [\d.]+, highest [\d.]+; /);
+  assert.equal(groups[4], '5. Soil temperature (KPI)\n- Temperature, Soil sensor: no data points in this time frame');
+  assert.equal(groups[5],
+    '6. Irrigation (Table)\n- assets Soil drip 1 and Soil drip 2; attributes Flow water and Tank level');
+  assert.equal(groups[6], '7. Irrigation map (Map)\n- assets Soil drip 1 and Soil drip 2; coloured by Tank level');
+  assert.equal(groups[7], '8. Site plan (Image)\n- Flow water, Soil drip 1: currently 9.6 l/h\n'
+    + '- Tank level, Soil drip 1: currently 936 l\n- Temperature, Soil sensor: no value yet');
+});
+
+test('the figures say what is missing: a number, data points, earlier data, a value, a connection', () => {
+  const report = {
+    name: 'Missing',
+    period: PERIOD,
+    widgets: [
+      {
+        id: 'line',
+        name: 'Load',
+        type: 'linechart',
+        entries: [
+          entry('a', 'Site A', 'Load', 'MW', stats(110), stats(100)),
+          entry('b', 'Site B', 'Load', 'MW', stats(90), stats(100)),
+          entry('c', 'Site C', 'Load', 'MW', stats(10), null),
+          entry('d', 'Site D', 'Load', 'MW', null, null),
+          { ...entry('e', 'Site E', 'Alarm', '', null, null), numeric: false },
+        ],
+      },
+      {
+        id: 'gauge',
+        name: 'Oil',
+        type: 'gauge',
+        entries: [
+          { asset: asset('f', 'Site F'), label: 'Oil temp', value: '61 °C' },
+          { asset: asset('g', 'Site G'), label: 'Oil temp', value: undefined },
+        ],
+      },
+      { id: 'table', name: 'Sites', type: 'table', assets: ['A', 'B', 'C', 'D'], attributes: ['Load'] },
+      { id: 'map', name: 'Nothing', type: 'map', assets: [], attributes: [] },
+      { id: 'image', type: 'image', entries: [] },
+      { id: 'same', name: 'Gauge', type: 'gauge', entries: [] },
+    ],
+  };
+
+  assert.equal(sectionsById(report).figures.text, [
+    '1. Load (Line Chart)',
+    '- Load, Site A: average 110 MW, lowest 109 MW, highest 111 MW; the previous period averaged 100 MW (+10%)',
+    '- Load, Site B: average 90 MW, lowest 89 MW, highest 91 MW; the previous period averaged 100 MW (-10%)',
+    '- Load, Site C: average 10 MW, lowest 9 MW, highest 11 MW; no earlier data to compare with',
+    '- Load, Site D: no data points in this time frame',
+    '- Alarm, Site E: not a number, so there are no figures',
+    '',
+    '2. Oil (Gauge)',
+    '- Oil temp, Site F: currently 61 °C',
+    '- Oil temp, Site G: no value yet',
+    '',
+    '3. Sites (Table)',
+    '- assets A, B, C and 1 more; attributes Load',
+    '',
+    '4. Nothing (Map)',
+    '- nothing is connected yet',
+    '',
+    '5. Image',
+    '- nothing is connected yet',
+    '',
+    '6. Gauge',
+    '- nothing is connected yet',
+  ].join('\n'));
+});
+
+test('a widget with a time window of its own names it, one that follows the report does not', () => {
+  const report = {
+    name: 'Windows',
+    period: PERIOD,
+    widgets: [
+      { id: 'week', name: 'Week', type: 'kpi', range: RANGE, entries: [] },
+      { id: 'day', name: 'Day', type: 'kpi', range: [RANGE[1] - DAY, RANGE[1]], entries: [] },
+    ],
+  };
+
+  const headings = sectionsById(report).figures.text.split('\n\n').map(group => group.split('\n')[0]);
+
+  assert.deepEqual(headings, ['1. Week (KPI)', '2. Day (KPI), 3 Oct – 4 Oct 2026']);
 });

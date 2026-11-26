@@ -1,4 +1,4 @@
-/** Number and date formatting of the page and the generated text. */
+/** Number, date and name formatting of the page, the generated text and the prompt. */
 
 const LOCALE = 'en-GB';
 
@@ -17,6 +17,12 @@ export function formatValue(value, unit) {
 
 /** "1 widget", "2 widgets". */
 export const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
+
+/** "A", "A, B and C", or the first three and the number of the others: "A, B, C and 2 more". */
+export function listNames(names) {
+  if (names.length <= 3) return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0];
+  return `${names.slice(0, 3).join(', ')} and ${names.length - 3} more`;
+}
 
 export function formatDate(date) {
   return date.toLocaleDateString(LOCALE, { day: 'numeric', month: 'short', year: 'numeric' });

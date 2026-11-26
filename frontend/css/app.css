@@ -334,6 +334,8 @@ or-dashboard-preview { display: block; margin: 0 -5px; }
   font-weight: 700;
   letter-spacing: 0.06em;
 }
+/* The tag marks text that the author still has to approve; the finished report, and its preview, does not have it */
+.ai-block[data-state="approved"] .ai-tag, .paper[data-mode="preview"] .ai-tag { display: none; }
 .ai-title {
   color: var(--muted);
   font-size: 12px;
@@ -440,9 +442,12 @@ or-dashboard-preview { display: block; margin: 0 -5px; }
 
 /* The schedule of a report */
 .schedule-dialog { width: min(600px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
-.schedule-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
-.schedule-head > .icon { margin-top: 2px; color: var(--green-strong); }
-.schedule-head h2 { margin-bottom: 2px; }
+/* A tall form scrolls on its own, so that the buttons below it stay in view */
+.schedule-dialog[open] { display: flex; flex-direction: column; }
+.schedule-form { flex: 1 1 auto; min-height: 0; margin: 0 -24px; padding: 0 24px 2px; overflow-y: auto; }
+.schedule-head, .instruct-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+.schedule-head > .icon, .instruct-head > .icon { margin-top: 2px; color: var(--green-strong); }
+.schedule-head h2, .instruct-head h2 { margin-bottom: 2px; }
 
 .switch-row {
   display: flex;
@@ -510,7 +515,28 @@ or-dashboard-preview { display: block; margin: 0 -5px; }
   font-weight: 600;
 }
 
-.input:focus-visible { border-color: var(--green); outline: none; box-shadow: 0 0 0 3px rgba(77, 157, 42, 0.18); }
+.input.wide { flex: 1 1 100%; font-weight: 400; }
+.input[aria-invalid="true"] { border-color: var(--amber-line); }
+.hint.wide { flex: 1 1 100%; }
+
+.textarea {
+  flex: 1 1 100%;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.input:focus-visible, .textarea:focus-visible {
+  border-color: var(--green);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(77, 157, 42, 0.18);
+}
+
+.insert-row { display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: center; gap: 6px; }
 
 .day-toggles { display: flex; flex-wrap: wrap; gap: 6px; }
 
@@ -633,6 +659,14 @@ or-dashboard-preview { display: block; margin: 0 -5px; }
 .dialog-note { margin-top: 12px; font-size: 12.5px; }
 .dialog-actions .remove { margin-right: auto; }
 
+/* The instructions for the AI */
+.instruct-dialog { width: min(600px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
+.instruct-form { display: grid; gap: 18px; }
+.question { display: grid; gap: 2px; }
+.question-label { font-weight: 650; }
+.question-hint { margin-bottom: 4px; font-size: 12.5px; }
+.instruct-dialog .field-error { margin-top: 12px; color: var(--amber-ink); }
+
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
 @keyframes fill { to { width: 100%; } }
@@ -661,13 +695,20 @@ or-dashboard-preview { display: block; margin: 0 -5px; }
   }
 }
 
-/* Printing gives a clean page; text that is not approved stays out of it. */
+/*
+ * The exported report has no review controls, and text that is not approved stays out of it. The preview shows the
+ * same, so the two rules below are the same as the ones for printing.
+ */
+
+.paper[data-mode="preview"] :is(.ai-banner, .ai-block-actions, .status-tag),
+.paper[data-mode="preview"] .ai-block:is([data-state="draft"], [data-state="loading"]),
+.paper[data-mode="preview"] .descriptions:not(:has(.ai-block[data-state="approved"])) { display: none !important; }
 
 @page { size: A4 landscape; margin: 10mm; }
 
 @media print {
   body { background: #fff; }
-  .topbar, .toolbar, or-dashboard-sidebar, #toasts, .ai-block-actions, .ai-banner { display: none !important; }
+  .topbar, .toolbar, or-dashboard-sidebar, #toasts, .ai-block-actions, .ai-banner, .status-tag { display: none !important; }
   .ai-block[data-state="draft"], .ai-block[data-state="loading"] { display: none !important; }
   .descriptions:not(:has(.ai-block[data-state="approved"])) { display: none !important; }
   .layout { display: block; max-width: none; padding: 0; }

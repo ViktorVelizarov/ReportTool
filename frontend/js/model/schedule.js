@@ -1,10 +1,11 @@
 /**
- * The schedule of a report: when the studio makes the report by itself, and who gets it. The times are those of the
- * browser's time zone. Nothing runs yet; this is what the dialog shows and what the service will need to know.
+ * The schedule of a report: when the studio makes the report by itself, who is reminded to check it (the report admin),
+ * and who gets it, with what subject and message. The times are those of the browser's time zone. Nothing runs yet; this is what the dialog shows and what the service
+ * will need to know.
  */
 
 import { downloadsOf } from '../builder/service/widget-specs.js';
-import { plural } from './format.js';
+import { formatDate, formatRange, plural } from './format.js';
 
 export const FREQUENCIES = [
   { id: 'daily', label: 'Daily' },
@@ -33,6 +34,16 @@ export const FORMATS = [
 /** The days of a month that can be chosen: not the 29th to the 31st, which not every month has, but 'last'. */
 export const MONTH_DAYS = [...Array.from({ length: 28 }, (_, index) => index + 1), 'last'];
 
+/** What can be put into the subject and the message of the email; each is filled in for the report that is made. */
+export const PLACEHOLDERS = [
+  { id: 'report', label: 'Report name' },
+  { id: 'period', label: 'Period' },
+  { id: 'date', label: 'Date' },
+];
+
+export const SUBJECT_MAX_LENGTH = 150;
+export const MESSAGE_MAX_LENGTH = 1000;
+
 /** The longest a search for the next run goes on; a schedule that never runs, such as no weekday, finds nothing. */
 const SEARCH_DAYS = 400;
 
@@ -44,9 +55,21 @@ export const newSchedule = () => ({
   weekdays: [1],
   dayOfMonth: 1,
   time: '08:00',
+  admin: '',
   recipients: [],
+  subject: '{report}: {period}',
+  message: 'Hello,\n\nattached is the {report} for {period}.\n\nThis email was sent automatically by Report Studio.',
   formats: ['pdf'],
 });
+
+/**
+ * The text of the email with {report}, {period} and {date} filled in for the report that is made at run: the name of
+ * the report, the period it covers ({ start, end }) and the date it is made. Other braces stay as they are.
+ */
+export function fillPlaceholders(text, { name, period, run }) {
+  const values = { report: name, period: formatRange(period.start, period.end), date: formatDate(run) };
+  return text.replace(/\{(\w+)\}/g, (match, id) => (Object.hasOwn(values, id) ? values[id] : match));
+}
 
 /** The ids of the formats that a report with these widgets can be sent as. */
 export function availableFormats(widgets) {
@@ -54,7 +77,7 @@ export function availableFormats(widgets) {
   return FORMATS.filter(format => !format.needs || downloads.has(format.id)).map(format => format.id);
 }
 
-const isEmail = text => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text);
+export const isEmail = text => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text);
 
 /**
  * Adds the addresses in the text, which are separated by spaces, commas or semicolons, to the recipients. Returns the
@@ -73,7 +96,10 @@ export function addRecipients(recipients, text) {
 export function scheduleProblem(schedule) {
   if (!/^\d{2}:\d{2}$/.test(schedule.time)) return 'Set the time of day.';
   if (schedule.frequency === 'weekly' && schedule.weekdays.length === 0) return 'Choose at least one day of the week.';
+  if (!schedule.admin) return 'Enter the email address of the report admin.';
+  if (!isEmail(schedule.admin)) return `${schedule.admin} is not a valid email address for the report admin.`;
   if (schedule.recipients.length === 0) return 'Add at least one recipient.';
+  if (!schedule.subject.trim()) return 'Write a subject for the email.';
   if (schedule.formats.length === 0) return 'Choose at least one file to send.';
   return null;
 }
