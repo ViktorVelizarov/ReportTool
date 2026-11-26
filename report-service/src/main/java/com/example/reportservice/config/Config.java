@@ -15,7 +15,6 @@ import org.slf4j.LoggerFactory;
  *
  * @param realm         the realm of the service user, which is also the realm that is read when a request names none
  * @param globalService whether the service registers as a global service, which the manager shows in every realm
- * @param chromePath    the Chrome, Chromium or Edge that makes the PDFs, or null to look for one
  * @param reportsDir    the folder in which the saved reports are kept
  */
 public record Config(
@@ -27,7 +26,6 @@ public record Config(
         int port,
         boolean insecureTls,
         boolean globalService,
-        String chromePath,
         Path reportsDir) {
 
     private static final Logger LOG = LoggerFactory.getLogger(Config.class);
@@ -55,7 +53,6 @@ public record Config(
     static Config from(UnaryOperator<String> env) {
         String realm = optional(env, "OR_REALM", MASTER_REALM);
         boolean globalService = Boolean.parseBoolean(optional(env, "OR_GLOBAL_SERVICE", "false"));
-        String chromePath = optional(env, "CHROME_PATH", "").strip();
         if (globalService && !realm.equals(MASTER_REALM)) {
             throw new IllegalArgumentException("OR_GLOBAL_SERVICE=true needs OR_REALM=" + MASTER_REALM
                     + ": the manager only accepts global services from a super user of the master realm");
@@ -69,7 +66,6 @@ public record Config(
                 Integer.parseInt(optional(env, "PORT", "5000")),
                 Boolean.parseBoolean(optional(env, "OR_INSECURE_TLS", "false")),
                 globalService,
-                chromePath.isEmpty() ? null : chromePath,
                 Path.of(optional(env, "REPORTS_DIR", "data/reports")));
     }
 
@@ -114,7 +110,6 @@ public record Config(
     public String toString() {
         return "Config[managerUrl=" + managerUrl + ", keycloakUrl=" + keycloakUrl + ", realm=" + realm
                 + ", clientId=" + clientId + ", port=" + port + ", insecureTls=" + insecureTls
-                + ", globalService=" + globalService + ", chromePath=" + chromePath
-                + ", reportsDir=" + reportsDir + "]";
+                + ", globalService=" + globalService + ", reportsDir=" + reportsDir + "]";
     }
 }

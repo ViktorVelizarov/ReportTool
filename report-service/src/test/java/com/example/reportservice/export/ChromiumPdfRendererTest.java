@@ -1,6 +1,7 @@
 package com.example.reportservice.export;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -16,17 +17,21 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Drives a real browser, so these tests are skipped on a machine that has none. They open small pages of their own that
- * play the part of {@code render.html}, which is tested together with the real web interface in
- * {@code ReportServiceTest}.
+ * Drives Playwright's Chromium, so these tests are skipped on a machine where it is not installed
+ * ({@code ./gradlew installBrowser}). They open small pages of their own that play the part of {@code render.html},
+ * which is tested together with the real web interface in {@code ReportServiceTest}.
  */
 class ChromiumPdfRendererTest {
+
+    private static final boolean INSTALLED = ChromiumPdfRenderer.isInstalled();
+    private static final String NOT_INSTALLED = "needs Playwright's Chromium: ./gradlew installBrowser";
 
     private static final JsonNode REPORT = report();
 
@@ -66,13 +71,9 @@ class ChromiumPdfRendererTest {
         }
     }
 
-    private static Path browser() {
-        return BrowserLocator.find(null).orElse(null);
-    }
-
     /** A renderer that opens the page of the test server, and gives up after the seconds. */
-    private static ChromiumPdfRenderer renderer(Path browser, TestServer page, int seconds) {
-        return new ChromiumPdfRenderer(browser, page.url(), false, Duration.ofSeconds(seconds));
+    private static ChromiumPdfRenderer renderer(TestServer page, int seconds) {
+        return new ChromiumPdfRenderer(page.url(), false, Duration.ofSeconds(seconds), Map.of());
     }
 
     private static TestServer serving(String html) throws IOException {
@@ -85,10 +86,14 @@ class ChromiumPdfRendererTest {
         }));
     }
 
+    /** The profiles that Playwright makes for its browsers, in the temporary folder of its Node.js driver. */
     private static Set<String> profiles() throws IOException {
+        boolean windows = System.getProperty("os.name").startsWith("Windows");
+        String temp = System.getenv(windows ? "TEMP" : "TMPDIR");
         Set<String> names = new TreeSet<>();
         try (DirectoryStream<Path> found = Files.newDirectoryStream(
-                Path.of(System.getProperty("java.io.tmpdir")), "report-studio-browser-*")) {
+                Path.of(temp != null ? temp : System.getProperty("java.io.tmpdir")),
+                "playwright_chromiumdev_profile-*")) {
             found.forEach(path -> names.add(path.getFileName().toString()));
         }
         return names;
@@ -96,12 +101,11 @@ class ChromiumPdfRendererTest {
 
     @Test
     void printsThePageAtTheScaleThatThePageAsksForAndLeavesNothingBehind() throws Exception {
-        Path browser = browser();
-        assumeTrue(browser != null, "needs Chrome, Chromium or Edge");
+        assumeTrue(INSTALLED, NOT_INSTALLED);
         Set<String> before = profiles();
 
         try (TestServer page = serving(TALL)) {
-            byte[] pdf = renderer(browser, page, 30).render(null, 1280, REPORT);
+            byte[] pdf = renderer(page, 30).render(null, 1280, REPORT);
 
             assertTrue(Pdfs.isPdf(pdf));
             assertEquals(3, Pdfs.pageCount(pdf), "2 pages if it were printed at its own size");
@@ -112,12 +116,11 @@ class ChromiumPdfRendererTest {
 
     @Test
     void opensThePageOfTheRealmWithTheReportInAWindowAsWideAsTheLayoutWithTheRulesForPrint() throws Exception {
-        Path browser = browser();
-        assumeTrue(browser != null, "needs Chrome, Chromium or Edge");
+        assumeTrue(INSTALLED, NOT_INSTALLED);
 
         try (TestServer page = serving(ECHO)) {
             ApiException e = assertThrows(ApiException.class,
-                    () -> renderer(browser, page, 30).render("manufacturer", 1000, REPORT));
+                    () -> renderer(page, 30).render("manufacturer", 1000, REPORT));
 
             assertEquals(502, e.status());
             String seen = e.getMessage();
@@ -132,13 +135,11 @@ class ChromiumPdfRendererTest {
 
     @Test
     void givesUpOnAPageThatIsNeverDrawn() throws Exception {
-        Path browser = browser();
-        assumeTrue(browser != null, "needs Chrome, Chromium or Edge");
+        assumeTrue(INSTALLED, NOT_INSTALLED);
         Set<String> before = profiles();
 
         try (TestServer page = serving(NEVER_DRAWN)) {
-            ApiException e = assertThrows(ApiException.class,
-                    () -> renderer(browser, page, 5).render(null, 1280, REPORT));
+            ApiException e = assertThrows(ApiException.class, () -> renderer(page, 5).render(null, 1280, REPORT));
 
             assertEquals(502, e.status());
             assertTrue(e.getMessage().contains("not drawn in time"), e.getMessage());
@@ -147,13 +148,18 @@ class ChromiumPdfRendererTest {
     }
 
     @Test
-    void saysSoWhenTheBrowserCannotBeStarted(@TempDir Path folder) throws Exception {
-        Path notABrowser = Files.writeString(folder.resolve("chrome"), "not a program");
+    void saysSoWhenTheBrowserIsNotThere(@TempDir Path folder) throws IOException {
+        Path browsers = Files.createDirectory(folder.resolve("browsers"));
+        // Playwright makes the profile of the browser before it finds that the browser is missing, and leaves it
+        String temp = Files.createDirectory(folder.resolve("temp")).toString();
+        ChromiumPdfRenderer renderer = new ChromiumPdfRenderer("http://127.0.0.1:1", false, Duration.ofSeconds(30),
+                Map.of("PLAYWRIGHT_BROWSERS_PATH", browsers.toString(), "TEMP", temp, "TMP", temp, "TMPDIR", temp));
 
-        ApiException e = assertThrows(ApiException.class,
-                () -> new ChromiumPdfRenderer(notABrowser, "http://127.0.0.1:1", false).render(null, 1280, REPORT));
+        ApiException e = assertThrows(ApiException.class, () -> renderer.render(null, 1280, REPORT));
 
         assertEquals(502, e.status());
-        assertTrue(e.getMessage().startsWith("The PDF could not be made: "), e.getMessage());
+        assertTrue(e.getMessage().startsWith("The PDF could not be made: Executable doesn't exist at "),
+                e.getMessage());
+        assertFalse(e.getMessage().contains("\n"), "one line, without Playwright's advice and log: " + e.getMessage());
     }
 }

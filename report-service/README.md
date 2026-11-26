@@ -18,7 +18,8 @@ deregisters on shutdown. It serves the realm of its service user or, registered 
 - A **service user** in the realm you want to register in. Create one in the manager UI (Users, Service users).
   Its client ID and secret are the credentials below. If registering fails with `HTTP 403`, give the user more roles.
   To serve every realm it has to be a super user, see below.
-- For the PDF export: Chrome, Chromium or Edge on the machine that runs the service, see [PDF export](#pdf-export).
+- For the PDF export: Playwright's Chromium, installed once with `./gradlew installBrowser`, see
+  [PDF export](#pdf-export).
   The rest of the service works without it.
 
 ## Configuration
@@ -37,7 +38,6 @@ take precedence. Copy [.env.example](.env.example) to `.env` (git-ignored) to ge
 | `PORT`              | `5000`                       | Port this service listens on                                                                       |
 | `REPORTS_DIR`       | `data/reports`               | The folder that the saved reports are kept in, see [Saved reports](#saved-reports)                 |
 | `OR_INSECURE_TLS`   | `false`                      | Skip TLS certificate verification, also in the browser of the PDF export. **Local testing only.**  |
-| `CHROME_PATH`       | a browser that is found      | The Chrome, Chromium or Edge that makes the PDFs, see [PDF export](#pdf-export)                    |
 
 The manager only accepts tokens whose issuer matches the `authServerUrl` it advertises at `/api/master/info`, so
 use the same host name for `OR_KEYCLOAK` that the manager and Keycloak are configured with (for example
@@ -208,19 +208,22 @@ refuses what is not a report.
 **How it works.** For every PDF the service starts a headless browser with a profile of its own, opens `/render.html` of
 this service in it, in a window as wide as the report is in Preview, and has it print the page when it is drawn. That
 page is the report as in Preview, without the toolbar and the sidebar; it reads the assets and data points from this
-service, as the interface does, so the PDF shows what the author saw. The service drives the browser with the Chrome
-DevTools protocol (`ChromiumPdfRenderer` and `DevTools`): it gives the page the report and the width, and waits until
-the page says that it is drawn. The [frontend README](../frontend/README.md#the-pdf-export) describes the page. The
-browser ends when the PDF is made, and its profile is removed. A PDF takes one to three seconds on a development
+service, as the interface does, so the PDF shows what the author saw. The service drives the browser with Playwright
+for Java (`ChromiumPdfRenderer`): it gives the page the report and the width, and waits until the page says that it is
+drawn. The [frontend README](../frontend/README.md#the-pdf-export) describes the page. The browser ends when the PDF is
+made, and its profile is removed. A PDF of a report with a few widgets takes about two seconds on a development
 machine, longer for a report with much data.
 
-**Which browser.** The one that `CHROME_PATH` names. Otherwise the service looks where Chrome and Edge (Windows) or
-Chrome, Chromium and Edge (macOS, Linux) are normally installed; any browser that is built on Chromium will do. When it
-finds none, the service starts all the same and says so in its log, and the endpoint answers `503`. It was tried with
-Chrome 157, Edge 156 and Playwright's Chromium 1208 on Windows 11, started from PowerShell. Edge started from a Git Bash
-terminal stopped at once, which Chrome did not: start the service from PowerShell, or set `CHROME_PATH` to Chrome.
-A Linux container was not tried: the browser needs its system libraries and fonts there, and Chrome does not start as
-root unless its sandbox is switched off, which the service does not do.
+**Which browser.** Playwright's own Chromium, in the new headless mode (Playwright's `chromium` channel). Install it
+once on a machine with `./gradlew installBrowser`, which runs Playwright's CLI with `install --no-shell chromium` and
+puts the browser in Playwright's folder for browsers (`%USERPROFILE%\AppData\Local\ms-playwright` on Windows;
+`PLAYWRIGHT_BROWSERS_PATH` moves it). A Docker image runs the same CLI with `install --with-deps --no-shell chromium`,
+which also installs the system libraries that the browser needs. The service never downloads a browser itself: when
+Chromium is not installed, the service starts all the same, says so in its log, and the endpoint answers `503`.
+Playwright is not thread safe, so every PDF has a Playwright of its own; each starts Playwright's driver, a Node.js
+program that comes with it in the `driver-bundle` jar (218 MB, with Node.js for every platform), next to the browser.
+Playwright starts Chromium without its sandbox, which is its default. It was tried with Playwright 1.65.1 (Chrome for
+Testing 159) on Windows 11. A Linux container was not tried.
 
 **Limits.** A body can be 2 MB at most (`413`). At most two browsers run at a time and a request waits up to a minute
 for its turn (`503`). A PDF that is not ready within a minute is a `502`, and so is a page that cannot draw the report;
@@ -284,8 +287,8 @@ failure to read or write a file is a `500`, with the cause in the log.
 ```
 
 The tests of the web interface itself are in the frontend folder (`npm test`). The tests of the PDF export that drive a
-real browser, among them one that makes the PDF of a report with the real web interface, are skipped on a machine that
-has no Chrome, Chromium or Edge.
+real browser, among them one that makes the PDF of a report with the real web interface, are skipped on a machine where
+Playwright's Chromium is not installed (`./gradlew installBrowser`).
 
 ## Layout
 
@@ -311,8 +314,8 @@ The code is in `src/main/java/com/example/reportservice`, one package per concer
   asset.
 - `model` - `ModelEndpoints` and the client that reads the asset model (asset types and their attributes) from
   `/api/{realm}/model`.
-- `export` - `PdfEndpoints` and the `PdfRenderer` that makes the PDF: `ChromiumPdfRenderer` starts the browser that
-  `BrowserLocator` finds and talks to it through `DevTools`, a small client of the Chrome DevTools protocol.
+- `export` - `PdfEndpoints` and the `PdfRenderer` that makes the PDF: `ChromiumPdfRenderer` has Playwright start its
+  Chromium for every PDF and print the page.
 - `report` - `ReportEndpoints` and the `ReportStore` that keeps the saved reports as files; `ReportDraft` is a report
   as it is sent to be saved, and checks it.
 

@@ -22,7 +22,7 @@ public final class PdfEndpoints {
 
     /** Stands in for the renderer when there is no browser to make PDFs with. */
     public static final PdfRenderer UNAVAILABLE = (realm, width, report) -> {
-        throw new ApiException(503, "PDF export needs Chrome, Chromium or Edge: install one, or set CHROME_PATH");
+        throw new ApiException(503, "PDF export needs Playwright's Chromium, which is not installed (see the README)");
     };
 
     private final PdfRenderer renderer;

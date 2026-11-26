@@ -4,7 +4,6 @@ import com.example.reportservice.asset.AssetEndpoints;
 import com.example.reportservice.branding.BrandingEndpoints;
 import com.example.reportservice.config.Config;
 import com.example.reportservice.datapoint.DatapointEndpoints;
-import com.example.reportservice.export.BrowserLocator;
 import com.example.reportservice.export.ChromiumPdfRenderer;
 import com.example.reportservice.export.PdfEndpoints;
 import com.example.reportservice.export.PdfRenderer;
@@ -49,8 +48,7 @@ public final class ReportService {
         }
 
         ManagerClient manager = new ManagerClient(config);
-        HttpServer server =
-                startServer(config.port(), manager, config.reportsDir(), config.chromePath(), config.insecureTls());
+        HttpServer server = startServer(config.port(), manager, config.reportsDir(), config.insecureTls());
         ServiceRegistration registration =
                 new ServiceRegistration(manager, describeService(config), config.globalService(), HEARTBEAT);
         registration.start();
@@ -81,18 +79,18 @@ public final class ReportService {
 
     /**
      * Starts the server for the data endpoints, the saved reports, the PDF export and, for every other path, the web
-     * interface. The reports are kept in {@code reportsDir}. The PDFs are made by the browser that {@code chromePath}
-     * names, or else by one that is found on the system.
+     * interface. The reports are kept in {@code reportsDir}. The PDFs are made by Playwright's Chromium when it is
+     * installed.
      */
-    static HttpServer startServer(int port, ManagerClient manager, Path reportsDir, String chromePath,
-            boolean insecureTls) throws IOException {
+    static HttpServer startServer(int port, ManagerClient manager, Path reportsDir, boolean insecureTls)
+            throws IOException {
         ReportEndpoints reports = new ReportEndpoints(reportsDir, Clock.systemUTC(), manager.realm());
         HttpServer server = HttpServer.create(new InetSocketAddress("0.0.0.0", port), 0);
         // the browser opens the web interface at this address, which is why the port is known only now
         String address = "http://127.0.0.1:" + server.getAddress().getPort();
-        PdfRenderer pdf = BrowserLocator.find(chromePath)
-                .<PdfRenderer>map(browser -> new ChromiumPdfRenderer(browser, address, insecureTls))
-                .orElse(PdfEndpoints.UNAVAILABLE);
+        PdfRenderer pdf = ChromiumPdfRenderer.isInstalled()
+                ? new ChromiumPdfRenderer(address, insecureTls)
+                : PdfEndpoints.UNAVAILABLE;
 
         Router router = new Router(new StaticHandler());
         new AssetEndpoints(manager).register(router);
