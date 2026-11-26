@@ -389,5 +389,7 @@ or-vaadin-confirm-dialog::part(overlay) { min-width: min(36rem, 90vw); }
   .descriptions:not(:has(.ai-block[data-state="approved"])) { display: none !important; }
   .layout { display: block; padding: 0; }
   .paper { margin: 0; padding: 0; border: 0; box-shadow: none; }
-  .ai-block { break-inside: avoid; }
+  .cover, .ai-block, .paper-foot { break-inside: avoid; }
+  .descriptions h2 { break-after: avoid; }
+}
 }

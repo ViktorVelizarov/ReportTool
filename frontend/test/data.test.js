@@ -89,6 +89,34 @@ test('an answer that is not a success is an error with the message of the servic
   }
 });
 
+test('a report is posted as JSON and the file that comes back is handed on', async () => {
+  const fetch = ServiceClient.fetch;
+  const sent = [];
+  try {
+    const file = new Blob(['%PDF-'], { type: 'application/pdf' });
+    ServiceClient.fetch = async (path, init) => {
+      sent.push({ path, ...init });
+      return { ok: true, status: 200, blob: async () => file };
+    };
+    assert.equal(await ServiceClient.postForFile('/export/pdf', { name: 'A report' }), file);
+    assert.deepEqual(sent, [{
+      path: '/export/pdf',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"name":"A report"}',
+    }]);
+
+    ServiceClient.fetch = async () => ({ ok: false, status: 503, json: async () => ({ error: 'no browser' }) });
+    await assert.rejects(ServiceClient.postForFile('/export/pdf', {}),
+      error => error.message === 'no browser' && error.status === 503);
+
+    ServiceClient.fetch = async () => { throw new TypeError('Failed to fetch'); };
+    await assert.rejects(ServiceClient.postForFile('/export/pdf', {}), /The report service cannot be reached/);
+  } finally {
+    ServiceClient.fetch = fetch;
+  }
+});
+
 // --- assets ---
 
 test('assets come in the shape of OpenRemote with only the requested attributes', async () => {

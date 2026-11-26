@@ -9,14 +9,12 @@ import { ReportContext } from '../data/report-context.js';
 import { h, onChange, replaceChildren } from '../dom.js';
 import '../kit/inputs.js';
 import { formatDate, formatRange, plural } from '../model/format.js';
+import { MAX_LAYOUT_WIDTH_PX, MIN_LAYOUT_WIDTH_PX, PAGE_WIDTH_PX } from '../model/pages.js';
 import { resolvePeriod } from '../model/periods.js';
 import { readingOrder } from '../model/report.js';
 import { approveAllBlocks, countDrafts, removeAllBlocks } from '../state.js';
 import { createBlockView } from './blocks.js';
 import { icon } from './icons.js';
-
-/** The width of the content of a page when printing, in CSS pixels: A4 landscape with 10 mm margins (see app.css). */
-const PRINT_WIDTH_PX = ((297 - 2 * 10) / 25.4) * 96;
 
 const coverKey = state => [state.name, state.periodId, state.asOf, state.template.widgets.length].join('|');
 
@@ -101,14 +99,36 @@ export function mountPaper(root, store) {
     }
   }
 
-  // The widgets are drawn for the width of the screen, so a printed report is scaled to the width of the page
+  render(store.get());
+  store.subscribe(render);
+}
+
+/**
+ * Has the browser print the report scaled to the width of the page, when the user prints it with Ctrl+P: the widgets
+ * are drawn for the width of the screen. (The PDF of the service is printed at a scale of its own, see render.js.)
+ */
+export function fitPrintToPage(root) {
   window.addEventListener('beforeprint', () => {
     root.style.removeProperty('zoom');
     const { width } = root.querySelector('or-dashboard-preview').getBoundingClientRect();
-    root.style.zoom = String(PRINT_WIDTH_PX / width);
+    root.style.zoom = String(PAGE_WIDTH_PX / width);
   });
   window.addEventListener('afterprint', () => root.style.removeProperty('zoom'));
+}
 
-  render(store.get());
-  store.subscribe(render);
+/**
+ * The width in pixels that the report has in Preview: the inside of the paper, which in Preview has all the room there
+ * is. While the report is edited the sidebar takes room beside the paper, which is counted back, so that the PDF is
+ * laid out in the same width whichever mode it is made in.
+ */
+export function previewWidth() {
+  const paper = document.getElementById('paper');
+  const sidebar = document.getElementById('sidebar');
+  const paperStyle = getComputedStyle(paper);
+  const layout = getComputedStyle(paper.closest('.layout'));
+  const inside = paper.clientWidth - parseFloat(paperStyle.paddingLeft) - parseFloat(paperStyle.paddingRight);
+  const beside = !sidebar.hidden && layout.flexDirection === 'row'
+    ? sidebar.offsetWidth + parseFloat(layout.columnGap)
+    : 0;
+  return Math.min(MAX_LAYOUT_WIDTH_PX, Math.max(MIN_LAYOUT_WIDTH_PX, Math.round(inside + beside)));
 }

@@ -86,7 +86,7 @@ public final class FakeManager implements AutoCloseable {
     /** A client that logs in to this fake and calls it. */
     public ManagerClient client() {
         String url = "http://127.0.0.1:" + server.getAddress().getPort();
-        return new ManagerClient(new Config(url, url + "/auth", "master", "id", "secret", 0, false, false));
+        return new ManagerClient(new Config(url, url + "/auth", "master", "id", "secret", 0, false, false, null));
     }
 
     /** Answers {@code call}, e.g. {@code "POST /asset/count"}, with this JSON body. */
