@@ -55,18 +55,34 @@ The widget types are line chart, bar chart, KPI, gauge, table, map and image. Th
   refreshes, and the preview sizes for phones and tablets.
 
 The builder uses parts of OpenRemote's component library: form fields, tabs, dialogs, the attribute picker,
-translations and icons. `js/kit/` has small stand-ins for them with the same names, properties and events. The calls
-the widgets make to the manager are answered by `js/data/asset-service.js`, with the data of the realm from the report
-service.
+translations and icons. The text field, number field, text area, select, toggle, checkbox, radio button, button,
+multi-select combo box, menu bar, badge, dialog and confirm dialog are OpenRemote's own `or-vaadin-*` components, and
+so are the scheduler (`or-scheduler`), `<or-translate>` and the `i18next` that it uses: all of them are bundled in
+`vendor/or-vaadin.js`. The settings of the builder, the top of the page and the dialogs are made of them, and the page
+takes its colours, font, radii and shadows from OpenRemote's theme, `vendor/or-theme.css`. The library has no component
+for a message, a card or a progress bar, which the design system of OpenRemote has: a message (saved, exported, failed)
+is a notification of Vaadin, a block of generated text and the page that cannot start are cards of Vaadin, and text
+that is being written shows a progress bar of Vaadin, all in the colours of that theme. `js/kit/` has small stand-ins,
+with the same names, properties and events, for what is not bundled yet: tabs, the attribute picker, icons, the loading
+indicator and the colour input; it also gives `i18next` the texts of the page (`js/kit/i18n.js`). Its `OrMwcDialog`,
+which the pickers of the builder use, draws an `or-vaadin-dialog`. The calls the widgets make to the manager are
+answered by `js/data/asset-service.js`, with the data of the realm from the report service.
+
+The top of the page is made after the header of an asset in OpenRemote's manager: the name of the report with the realm
+and a "Prototype" badge, and the buttons that save it and switch between editing and previewing it (in the manager,
+"Modify" and "view"). A bar below it has the time frame, the saved reports, the schedule, the text and the export. The
+page has no navigation bar or logo of its own, because the manager shows it in its Services page, under its own
+navigation.
 
 ### License
 
 The files in `js/builder/`, `js/data/util.js`, `js/data/time-window.js` and `js/data/units.js`, and the texts in
 `js/kit/texts.js`, are ported from OpenRemote, which is licensed under the **GNU Affero General Public License v3.0 or
-later**. Each of those files says so in its header. **The web interface as a whole is therefore a work based on
-OpenRemote, and it can only be distributed under AGPL-3.0-or-later**: anyone who uses it, also over a network, must be
-able to get its source code. That has to be decided before this code goes into a closed repository. The alternative is
-a builder of our own that is written without OpenRemote's code.
+later**. Each of those files says so in its header. `vendor/or-vaadin.js` and `vendor/or-theme.css` are OpenRemote's
+own components and theme, under the same license, bundled with Vaadin components (Apache-2.0). **The web interface as
+a whole is therefore a work based on OpenRemote, and it can only be distributed under AGPL-3.0-or-later**: anyone who
+uses it, also over a network, must be able to get its source code. That has to be decided before this code goes into a
+closed repository. The alternative is a builder of our own that is written without OpenRemote's code.
 
 ## What is real and what is mock
 
@@ -79,10 +95,10 @@ a builder of our own that is written without OpenRemote's code.
 | Time frames | Presets only: last 7, 30 and 90 days, last calendar month and last calendar quarter |
 | Instructions for the AI | "Generate text" first opens a dialog with two questions, which have to be answered: what the report shows, and what the AI should look out for. The answers are kept with the saved report, but nothing uses them yet. `js/model/prompt.js` can make the prompt from them (the answers, the figures of every widget and a few fixed rules), but the page neither shows nor sends it |
 | Generated text | Written from templates with the figures of the widgets (`js/model/ai.js`); there is no AI, so the text does not follow the answers |
-| Review | Generated text starts as a draft. Approve, edit or remove each block; a PDF only includes approved text. The "AI" tag marks drafts only: an approved block, the preview and the printed report do not show it |
+| Review | Generated text starts as a draft. Each block is a card with badges for its state (Draft, Approved or Editing) and the buttons Approve, Edit and Remove below the text; a notice above the blocks counts what is left to approve and approves or discards all of it at once. A block that is being written shows a progress bar. A PDF only includes approved text. The "AI" badge marks drafts only: an approved block, the preview and the printed report do not show it, nor the badges and buttons |
 | Export | The PDF, CSV and PNG buttons show progress and the name of the file, but create nothing |
 | Saved reports | Kept in memory only, and a reload forgets them. The studio opens with an empty report. A saved report keeps its answers to the two questions |
-| Schedule | A dialog sets when the report is made by itself (daily, weekly or monthly), the report admin, whose email address is required and who gets a reminder on every day the report is made, to check it first, who gets the report by email, with which subject and message (with the placeholders `{report}`, `{period}` and `{date}`, filled in for every report) and as which files, and shows the next reports with the subject of the next email. It is kept with the saved report, in memory; nothing is made or sent |
+| Schedule | A dialog sets when the report is made by itself, in OpenRemote's own scheduler (`or-scheduler`: once, or repeating every so many days, weeks, months or years, on days of the week or of the month, until a date or for a number of times), the report admin, whose email address is required and who gets a reminder on every day the report is made, to check it first, who gets the report by email, with which subject and message (with the placeholders `{report}`, `{period}` and `{date}`, filled in for every report) and as which files, and shows the next reports with the subject of the next email. When is an event of OpenRemote's calendar (`start`, `end` and a recurrence rule), the format that the manager uses. It is kept with the saved report, in memory; nothing is made or sent |
 
 What the live data looks like on the page:
 
@@ -99,7 +115,8 @@ widget; a clean document is a job for the PDF export.
 
 ## Layout
 
-- `index.html`, `css/app.css` - the page and its styles. The import map in `index.html` points `lit` to
+- `index.html`, `css/app.css` - the page and its styles. `css/app.css` is read after `vendor/or-theme.css` and gets
+  its colours, font, radii and shadows from that theme. The import map in `index.html` points `lit` to
   `vendor/lit.js`.
 - `js/main.js` - starts the page. `js/state.js` - the report (its name, time frame and template, the generated text,
   the saved reports) and the actions that change it, as pure functions.
@@ -111,14 +128,15 @@ widget; a clean document is a job for the PDF export.
   time frame) that the widgets read when they fetch data.
 - `js/model/` - the report apart from the page: time frames, statistics, the figures of the widgets for the text
   (`report.js`), the questions for the AI (`instructions.js`), the prompt they make (`prompt.js`), the text templates,
-  the schedule (`schedule.js`), formatting and file names.
-- `js/ui/` - the page around the builder: the toolbar, the paper (cover, text blocks, widget descriptions), the review
-  blocks, menus, dialogs (a question, the schedule, and the instructions for the AI), messages and icons, and the
-  message for a page that cannot start. `js/dom.js` has the helpers they build the page with; nothing is built with
-  `innerHTML`.
-- `js/kit/` - the stand-ins for OpenRemote's components, see above, and the texts (`texts.js`) and icons
-  (`mdi-icons.js`) of the page. An icon that the page does not have shows as the icon of an unknown type.
-- `vendor/` - third-party libraries. `test/` - the tests.
+  the schedule (`schedule.js`, which finds the dates of a repeat with `vendor/rrule.js`), formatting and file names.
+- `js/ui/` - the page around the builder: the header and the toolbar, the paper (cover, text blocks, widget
+  descriptions), the review blocks, dialogs (a question, the schedule, and the instructions for the AI), messages and
+  icons, and the message for a page that cannot start. `js/dom.js` has the helpers they build the page with; nothing is
+  built with `innerHTML`.
+- `js/kit/` - the stand-ins for the components of OpenRemote that are not bundled, see above, and the texts
+  (`texts.js`) and icons (`mdi-icons.js`) of the page. An icon that the page does not have shows as the icon of an
+  unknown type.
+- `vendor/` - third-party libraries, OpenRemote's components, theme and font included. `test/` - the tests.
 
 ## Test
 
@@ -128,7 +146,8 @@ npm test
 
 Uses the built-in test runner of Node.js (developed with Node 24); there is nothing to install. The tests cover the
 state, the report model, the prompt and the text, the schedule, the data layer, and the parts of the builder that need
-no browser: time windows, bar chart intervals and methods, the map, and the widget types with their default configs.
+no browser: time windows, bar chart intervals and methods, the map, the keys, and the widget types with their default
+configs.
 The data layer is tested against a fake of the service (`test/helpers/service.js`) that has the asset model and a few
 assets in the JSON that the service gives, with generated data points, and records every call; `test/helpers/` also
 has the report that the tests of the report and the state use. The modules that need a browser are checked for valid
@@ -143,9 +162,10 @@ syntax.
 - Saved reports are stored by the service. A template is the same JSON as an Insights dashboard.
 - A schedule is stored by the service with its report. A job in the service makes the report when it is due and mails
   it and the reminder to the report admin, which needs a mail server and a time zone for the schedule (the dialog uses
-  the one of the browser). Whether the report waits for the admin before it goes out is still to be decided. Generated
-  text has nobody to approve it when nobody is there, so it has to stay out of a scheduled report or go out marked as
-  a draft; that is still to be decided.
+  the one of the browser, and the rule is about the wall clock of that zone, also when summer time starts). The start
+  of the event is when the first report is made; its end is not used. Whether the report waits for the admin before it
+  goes out is still to be decided. Generated text has nobody to approve it when nobody is there, so it has to stay out
+  of a scheduled report or go out marked as a draft; that is still to be decided.
 - The service gives every point of a range, at most 100,000. An endpoint that averages per interval would send far less
   for a long time frame of an attribute that changes often.
 - The attribute picker reads all assets of a realm at once. For a large realm it needs a tree of the assets that loads

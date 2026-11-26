@@ -1,70 +1,82 @@
 /** A block of generated text that the author reviews: approve it, edit it or remove it. */
 
 import { h, keepFocus, replaceChildren } from '../dom.js';
+import '../kit/inputs.js';
 import { approveBlock, editBlock, removeBlock } from '../state.js';
 import { icon } from './icons.js';
 
-const MIN_EDIT_ROWS = 3;
-const MAX_EDIT_ROWS = 10;
-const CHARS_PER_ROW = 80;
-
 /**
- * The view of one block (id) of the generated text. update(ai) shows what the state holds for it, and only redraws
- * when the block changed. A block that is being edited is left alone for as long as it exists.
+ * The view of one block (id) of the generated text: a card with the title of the block as a heading of the level
+ * titleLevel, badges for the state of the text, the text, and the buttons that review it. update(ai) shows what the
+ * state holds for it, and only redraws when the block changed. A block that is being edited is left alone for as long
+ * as it exists.
  */
-export function createBlockView(store, id, title) {
-  const element = h('div', { class: 'ai-block', 'data-row': id, hidden: true });
+export function createBlockView(store, id, title, titleLevel = 2) {
+  const aiTag = h('or-vaadin-badge', { theme: 'neutral small' }, icon('creation', 14, 'icon'), 'AI');
+  const badges = h('div', { slot: 'header-suffix', class: 'ai-badges' });
+  const content = h('div');
+  const actions = h('div', { slot: 'footer', class: 'ai-actions' });
+  const element = h('vaadin-card', {
+    class: 'ai-block',
+    theme: 'outlined',
+    'card-title': title,
+    'title-heading-level': titleLevel,
+    'data-row': id,
+    hidden: true,
+  }, badges, content);
   let shown = null;
   let editing = false;
 
-  const label = () => [
-    h('span', { class: 'ai-tag' }, icon('creation', 13), 'AI'),
-    h('span', { class: 'ai-title' }, title),
-  ];
-
-  function action(text, iconName, name, onclick, showText = false) {
-    return h('button', {
-      type: 'button',
-      class: 'btn btn-sm ghost',
-      title: text,
-      'aria-label': showText ? undefined : text,
-      'data-action': name,
-      'data-focus': `${id}:${name}`,
-      onclick,
-    }, icon(iconName, 14), showText && text);
+  function button(text, iconName, name, theme, onclick) {
+    return h('or-vaadin-button', { theme, 'data-action': name, 'data-focus': `${id}:${name}`, onclick },
+      iconName && icon(iconName, 16, 'prefix'), text);
   }
 
-  function draw(block) {
+  /**
+   * Shows the card in a state: the badges at the right of the title, the content, and the buttons below. The AI tag
+   * marks text that is not approved yet. A card without buttons has no footer, so that no empty space is left.
+   */
+  function show(state, { badge, body, buttons = [] }) {
     element.hidden = false;
-    element.dataset.state = block.state;
-    replaceChildren(element,
-      h('div', { class: 'ai-block-head' },
-        label(),
-        h('span', { class: `status-tag ${block.state}` }, block.state === 'draft' ? 'Draft' : 'Approved'),
-        h('div', { class: 'ai-block-actions' },
-          block.state === 'draft'
-            && action('Approve', 'check', 'approve', () => store.update(s => approveBlock(s, id)), true),
-          action('Edit', 'pencil', 'edit', startEdit),
-          action('Remove', 'delete', 'remove', () => store.update(s => removeBlock(s, id)))),
-      ),
-      h('p', { class: 'ai-text' }, block.text));
+    element.dataset.state = state;
+    replaceChildren(badges, state !== 'approved' && aiTag, badge);
+    replaceChildren(content, body);
+    replaceChildren(actions, buttons);
+    if (buttons.length) element.append(actions);
+    else actions.remove();
+  }
+
+  const stateBadge = (theme, text, iconName) =>
+    h('or-vaadin-badge', { theme: `${theme} small` }, iconName && icon(iconName, 14, 'icon'), text);
+
+  function draw(block) {
+    const draft = block.state === 'draft';
+    show(block.state, {
+      badge: draft ? stateBadge('warning', 'Draft') : stateBadge('success', 'Approved', 'check'),
+      body: h('p', { class: 'ai-text' }, block.text),
+      buttons: [
+        draft && button('Approve', 'check', 'approve', 'small', () => store.update(s => approveBlock(s, id))),
+        button('Edit', 'pencil', 'edit', 'tertiary small', startEdit),
+        button('Remove', 'delete', 'remove', 'tertiary error small', () => store.update(s => removeBlock(s, id))),
+      ],
+    });
   }
 
   function drawLoading() {
-    element.hidden = false;
-    element.dataset.state = 'loading';
-    replaceChildren(element,
-      h('div', { class: 'ai-block-head' }, label(), h('span', { class: 'status-tag loading' }, 'Writing…')),
-      h('div', { class: 'skeleton line' }),
-      h('div', { class: 'skeleton line short' }));
+    show('loading', {
+      body: [
+        h('p', { class: 'ai-loading-label' }, 'Writing…'),
+        h('vaadin-progress-bar', { indeterminate: true, 'aria-label': `Writing: ${title}` }),
+      ],
+    });
   }
 
   function startEdit() {
     editing = true;
-    const area = h('textarea', {
+    const area = h('or-vaadin-text-area', {
       class: 'ai-edit',
-      rows: Math.min(MAX_EDIT_ROWS, Math.max(MIN_EDIT_ROWS, Math.ceil(shown.text.length / CHARS_PER_ROW))),
-      'aria-label': `Edit: ${title}`,
+      'accessible-name': `Edit: ${title}`,
+      'data-focus': `${id}:text`,
       onkeydown: event => {
         if (event.key === 'Escape') {
           event.stopPropagation();
@@ -84,17 +96,18 @@ export function createBlockView(store, id, title) {
 
     function cancel() {
       editing = false;
-      draw(shown);
-      element.querySelector('[data-action="edit"]').focus();
+      keepFocus(element, () => draw(shown), '[data-action="edit"]');
     }
 
-    replaceChildren(element,
-      h('div', { class: 'ai-block-head' }, label(), h('span', { class: 'status-tag draft' }, 'Editing')),
-      area,
-      h('div', { class: 'ai-edit-actions' },
-        h('button', { type: 'button', class: 'btn btn-sm primary', onclick: save }, 'Save and approve'),
-        h('button', { type: 'button', class: 'btn btn-sm', onclick: cancel }, 'Cancel')));
-    area.focus();
+    show(shown.state, {
+      badge: stateBadge('warning', 'Editing'),
+      body: area,
+      buttons: [
+        button('Save and approve', null, 'save', 'primary small', save),
+        button('Cancel', null, 'cancel', 'tertiary small', cancel),
+      ],
+    });
+    area.updateComplete.then(() => area.focus());
   }
 
   return {

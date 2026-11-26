@@ -32,6 +32,11 @@ function formatShortDate(date) {
   return date.toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' });
 }
 
+/** "08:30". */
+export function formatTime(date) {
+  return date.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+}
+
 export function formatDateTime(date) {
   return date.toLocaleString(LOCALE, {
     weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
