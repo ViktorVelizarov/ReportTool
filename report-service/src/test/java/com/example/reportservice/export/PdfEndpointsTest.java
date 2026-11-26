@@ -141,7 +141,7 @@ class PdfEndpointsTest {
             HttpResponse<String> response = without.post("/export/pdf", "{}");
 
             assertEquals(503, response.statusCode());
-            assertTrue(json(response).get("error").asText().contains("CHROME_PATH"));
+            assertTrue(json(response).get("error").asText().contains("Playwright's Chromium"));
         }
     }
 }

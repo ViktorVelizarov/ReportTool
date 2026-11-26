@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.example.reportservice.config.Config;
-import com.example.reportservice.export.BrowserLocator;
+import com.example.reportservice.export.ChromiumPdfRenderer;
 import com.example.reportservice.json.Json;
 import com.example.reportservice.support.FakeManager;
 import com.example.reportservice.support.Pdfs;
@@ -123,7 +123,7 @@ class ReportServiceTest {
 
     @Test
     void makesThePdfOfAReportWithTheWebInterfaceAndTheDataOfTheManager(@TempDir Path reports) throws Exception {
-        assumeTrue(BrowserLocator.find(null).isPresent(), "needs Chrome, Chromium or Edge");
+        assumeTrue(ChromiumPdfRenderer.isInstalled(), "needs Playwright's Chromium: ./gradlew installBrowser");
         try (FakeManager manager = new FakeManager()
                 .respond("POST /asset/query", FakeManager.ASSETS)
                 .respond("POST /asset/count", "2")
