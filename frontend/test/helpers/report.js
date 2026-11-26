@@ -13,7 +13,7 @@ const TANK_1 = ref(IDS.drip1, 'tankLevel');
 const SALINITY = ref(IDS.sensor, 'salinity');
 const TEMPERATURE = ref(IDS.sensor, 'temperature');
 
-/** The ids of the widgets are irrigation-1 to irrigation-8, in the order that the report is read. */
+/** The ids of the widgets are irrigation-1 to irrigation-7, in the order that the report is read. */
 export const REPORT = {
   name: 'Irrigation report',
   periodId: 'last7',
@@ -62,18 +62,6 @@ export const REPORT = {
       name: 'Irrigation',
       box: [6, 7, 6, 3],
       config: { assetType: 'IrrigationAsset', allOfType: true, attributeNames: ['flowWater', 'tankLevel'] },
-    },
-    {
-      type: 'map',
-      name: 'Irrigation map',
-      box: [0, 10, 6, 5],
-      config: {
-        assetType: 'IrrigationAsset',
-        attributeName: 'tankLevel',
-        valueType: 'positiveNumber',
-        showLabels: true,
-        thresholds: [[0, RED], [200, ORANGE], [500, GREEN]],
-      },
     },
     {
       type: 'image',

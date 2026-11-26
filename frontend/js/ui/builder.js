@@ -4,6 +4,8 @@
  * copies of its template, and what the user does in them comes back as events that change the store.
  */
 
+import { html } from 'lit';
+import { getConfirmDialogContent, showConfirmDialog } from '../../vendor/or-vaadin.js';
 import { DashboardKeyEmitter } from '../builder/or-dashboard-keyhandler.js';
 import { ReportContext } from '../data/report-context.js';
 import { objectsEqual } from '../data/util.js';
@@ -53,8 +55,17 @@ export function mountBuilder({ store, preview, sidebar, toolsFor, onSave }) {
     if (!preview.selectedWidget) store.update(state => selectWidget(state, undefined));
   });
 
+  // A widget is removed after "Are you sure?", whether the button of the sidebar or the Delete key asks for it
+  function askToDelete(widget) {
+    showConfirmDialog(document.body, html`
+      <or-vaadin-confirm-dialog @confirm=${() => store.update(state => removeWidget(state, widget.id))}>
+        ${getConfirmDialogContent('error', 'areYouSure', 'dashboard.deleteWidgetWarning', 'delete', 'cancel')}
+      </or-vaadin-confirm-dialog>
+    `);
+  }
+
   sidebar.addEventListener('deselect', () => store.update(state => selectWidget(state, undefined)));
-  sidebar.addEventListener('delete-widget', event => store.update(state => removeWidget(state, event.detail.id)));
+  sidebar.addEventListener('delete-widget', event => askToDelete(event.detail));
   sidebar.addEventListener('widget-update', event => store.update(state => updateWidget(state, event.detail)));
   sidebar.addEventListener('board-update', event => {
     store.update(state => setTemplate(state, event.detail.template));
@@ -62,7 +73,11 @@ export function mountBuilder({ store, preview, sidebar, toolsFor, onSave }) {
   });
 
   const keys = new DashboardKeyEmitter();
-  keys.addListener('delete', () => store.update(state => removeWidget(state, state.selectedId)));
+  keys.addListener('delete', () => {
+    const { selectedId, template } = store.get();
+    const selected = template.widgets.find(widget => widget.id === selectedId);
+    if (selected) askToDelete(selected);
+  });
   keys.addListener('deselect', () => store.update(state => selectWidget(state, undefined)));
   keys.addListener('save', onSave);
 

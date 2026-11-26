@@ -1,23 +1,20 @@
 /*
  * Ported to plain JavaScript from OpenRemote's or-dashboard-builder (src/panels/assettypes-panel.ts), the choice of an
- * asset type, its assets and attributes in the settings of the table and the map. Original:
+ * asset type, its assets and attributes in the settings of the table. Original:
  * Copyright 2026, OpenRemote Inc., AGPL-3.0-or-later (https://github.com/openremote/openremote).
- *
- * The asset type is chosen from a drop-down instead of a combo box, and the assets in a dialog with check boxes
- * instead of an asset tree.
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { css, html, when } from 'lit';
+import { css, html, ref, styleMap, when } from 'lit';
+import { OrMwcDialog, showDialog } from '../../../vendor/or-mwc.js';
+import { comboBoxRenderer } from '../../../vendor/or-vaadin.js';
 import { AssetModelUtil } from '../../data/asset-model.js';
 import { getAssetTypeLabel, sortByString } from '../../data/util.js';
-import { showDialog } from '../../kit/dialog.js';
 import { i18next } from '../../kit/i18n.js';
 import '../../kit/inputs.js';
 import { OrElement } from '../../kit/or-element.js';
-import { getAssetDescriptorIconTemplate } from '../../kit/or-icon.js';
-import { OrAssetSelector, OrAssetSelectorPickedEvent } from '../../kit/pickers.js';
+import '../../kit/or-icon.js';
 
 class AssetTypeSelectEvent extends CustomEvent {
   static NAME = 'assettype-select';
@@ -112,14 +109,22 @@ export class AssettypesPanel extends OrElement {
   render() {
     const assetTypeItems = this.mapDescriptors(this._assetTypes);
     const selected = this.assetType ? assetTypeItems.find(item => item.value === this.assetType) : undefined;
+    const itemRenderer = listItem => html`
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <or-icon icon=${listItem.icon} style=${listItem.styleMap ? styleMap(listItem.styleMap) : undefined}></or-icon>
+        <span>${listItem.text}</span>
+      </div>
+    `;
     return html`
       <div style="display: flex; flex-direction: column; gap: 8px;">
         <!-- Select asset type -->
-        <or-vaadin-select .items=${assetTypeItems} .value=${this.assetType ?? ''} required
+        <or-vaadin-combo-box .items=${assetTypeItems} .selectedItem=${selected} required
+          item-value-path="value" item-label-path="text" ${comboBoxRenderer(itemRenderer, [])}
           @change=${event => { this.assetType = event.currentTarget.value; }}>
-          <span slot="prefix">${getAssetDescriptorIconTemplate(selected?.data)}</span>
+          <or-icon slot="prefix" icon=${selected?.icon ?? 'selection-ellipse'}
+            style=${selected?.styleMap ? styleMap(selected.styleMap) : undefined}></or-icon>
           <or-translate slot="label" value="filter.assetTypeLabel"></or-translate>
-        </or-vaadin-select>
+        </or-vaadin-combo-box>
 
         <!-- Switch to include all assets of this type  -->
         ${when(this.config.assets?.allOfTypeOption, () => html`
@@ -157,20 +162,27 @@ export class AssettypesPanel extends OrElement {
               </or-vaadin-multi-select-combo-box>`;
           }
           return html`
-            <or-vaadin-select .items=${options.map(option => ({ value: option.key, label: option.value }))}
-              .value=${selectedItems[0]?.key ?? ''} ?disabled=${!this.assetType}
+            <or-vaadin-combo-box .items=${options} .selectedItem=${selectedItems[0]}
+              item-value-path="key" item-label-path="value" ?disabled=${!this.assetType}
               @change=${event => { this.attributeNames = [event.currentTarget.value]; }}>
               <or-translate slot="label" value="filter.attributeLabel"></or-translate>
-            </or-vaadin-select>`;
+            </or-vaadin-combo-box>`;
         })}
       </div>
     `;
   }
 
+  /** The asset types as the items of a list: the label, the icon and the colour of the type. */
   mapDescriptors(descriptors) {
     return descriptors
-      .map(descriptor => ({ value: descriptor.name, label: getAssetTypeLabel(descriptor), data: descriptor }))
-      .sort(sortByString(item => item.label));
+      .map(descriptor => ({
+        styleMap: { color: descriptor.colour ? `#${descriptor.colour}` : 'unset' },
+        icon: descriptor.icon,
+        text: getAssetTypeLabel(descriptor),
+        value: descriptor.name,
+        data: descriptor,
+      }))
+      .sort(sortByString(item => item.text));
   }
 
   /** [name, label] of the attributes of a type, by label. */
@@ -184,11 +196,36 @@ export class AssettypesPanel extends OrElement {
       .sort(sortByString(item => item[1]));
   }
 
+  /** A dialog with the asset tree, of which only the assets of the type can be chosen. */
   openAssetSelector(assetType, assetIds, multi = false) {
-    const dialog = showDialog(new OrAssetSelector(assetType, assetIds ?? [], multi));
-    dialog.addEventListener(OrAssetSelectorPickedEvent.NAME, event => {
-      this.assetIds = multi ? event.detail : event.detail[0];
-    });
+    let assetTree;
+    const config = { select: { types: [assetType], multiSelect: multi } };
+    showDialog(new OrMwcDialog()
+      .setHeading(i18next.t('linkedAssets'))
+      .setStyles(html`<style>
+        or-asset-tree {
+          min-height: 400px;
+          max-height: 50vh;
+        }
+      </style>`)
+      .setContent(html`
+        <div style="width: 400px;">
+          <or-asset-tree ${ref(element => { assetTree = element; })} id="chart-asset-tree" readonly disableSubscribe
+            .config=${config}
+            .selectedIds=${assetIds} .showSortBtn=${false} .showFilterIcon=${false} .checkboxes=${multi}>
+          </or-asset-tree>
+        </div>`)
+      .setActions([
+        { default: true, actionName: 'cancel', content: 'cancel' },
+        {
+          actionName: 'ok',
+          content: 'ok',
+          action: () => {
+            if (assetTree?.selectedIds) this.assetIds = multi ? assetTree.selectedIds : assetTree.selectedIds[0];
+          },
+        },
+      ])
+      .setDismissAction({ actionName: 'cancel' }));
   }
 }
 

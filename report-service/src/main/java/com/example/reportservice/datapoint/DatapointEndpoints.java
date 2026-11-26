@@ -9,6 +9,8 @@ import com.example.reportservice.web.Router;
 import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -19,6 +21,12 @@ public final class DatapointEndpoints {
 
     private static final Pattern EPOCH_MILLIS = Pattern.compile("\\d{1,15}");
     private static final String NOT_FOUND = "asset or attribute not found";
+    /** An amount and a unit, as the manager's interval query wants them: "1 hour", "5 minutes". */
+    private static final Pattern INTERVAL =
+            Pattern.compile("[1-9]\\d{0,5} (?:minute|hour|day|week|month|year)s?", Pattern.CASE_INSENSITIVE);
+    private static final Pattern FLAG = Pattern.compile("true|false");
+    private static final Set<String> FORMULAS =
+            Set.of("MIN", "AVG", "MAX", "DIFFERENCE", "COUNT", "SUM", "MODE", "MEDIAN");
 
     private final ManagerClient manager;
     private final DatapointClient datapoints;
@@ -30,6 +38,7 @@ public final class DatapointEndpoints {
 
     public void register(Router router) {
         router.get("/assets/{id}/attributes/{name}/datapoints", this::getDatapoints);
+        router.get("/assets/{id}/attributes/{name}/datapoints/interval", this::getInterval);
         router.get("/assets/{id}/attributes/{name}/datapoints/period", this::getPeriod);
     }
 
@@ -51,6 +60,36 @@ public final class DatapointEndpoints {
         return explainingFailures(() -> {
             requireInRealm(realm, assetId);
             return datapoints.all(assetId, attribute, from, to);
+        });
+    }
+
+    /**
+     * {@code GET /assets/{id}/attributes/{name}/datapoints/interval?realm=&from=&to=&interval=&formula=&gapFill=}: the
+     * data points of the range made into one point per interval, oldest first, as the manager's interval query gives
+     * them (see {@link DatapointClient#interval}). {@code from}, {@code to} and the realm are as for the data points;
+     * {@code interval} (required) is an amount and a unit such as {@code 1 hour}, {@code formula} (required) is one of
+     * MIN, AVG, MAX, DIFFERENCE, COUNT, SUM, MODE and MEDIAN, and {@code gapFill} ({@code true} or {@code false}, the
+     * default) says whether an interval without data points is a point with no value.
+     */
+    private Object getInterval(Request request) throws IOException, InterruptedException {
+        String realm = request.query("realm", Ids.REALM, "realm", manager.realm());
+        String assetId = request.path("id", Ids.ASSET_ID, "asset id");
+        String attribute = request.path("name", Ids.NAME, "attribute name");
+        long from = parseTime("from", request.requiredQuery("from"));
+        String toParam = request.query("to");
+        long to = toParam == null ? System.currentTimeMillis() : parseTime("to", toParam);
+        if (from > to) {
+            throw new ApiException(400, "from must not be after to");
+        }
+        String interval = Request.require(INTERVAL, request.requiredQuery("interval"), "interval");
+        String formula = request.requiredQuery("formula").toUpperCase(Locale.ROOT);
+        if (!FORMULAS.contains(formula)) {
+            throw new ApiException(400, "invalid formula");
+        }
+        boolean gapFill = Boolean.parseBoolean(request.query("gapFill", FLAG, "gapFill", "false"));
+        return explainingFailures(() -> {
+            requireInRealm(realm, assetId);
+            return datapoints.interval(assetId, attribute, from, to, interval, formula, gapFill);
         });
     }
 
@@ -77,7 +116,7 @@ public final class DatapointEndpoints {
         Object run() throws IOException, InterruptedException;
     }
 
-    /** Replaces the manager's bare 404 and 413 answers to a data point call with an explanation. */
+    /** Replaces the manager's bare 404, 413 and 400 answers to a data point call with an explanation. */
     private static Object explainingFailures(DatapointCall call) throws IOException, InterruptedException {
         try {
             return call.run();
@@ -87,6 +126,10 @@ public final class DatapointEndpoints {
             }
             if (e.status() == 413) {
                 throw new ApiException(413, "too many data points for one query: use a shorter range");
+            }
+            if (e.status() == 400) {
+                throw new ApiException(400, "the data points cannot be made into intervals: the attribute must be a "
+                        + "number or a flag, and a flag has no difference");
             }
             throw e;
         }

@@ -7,6 +7,12 @@
  */
 
 import { css, guard, html, map, styleMap, unsafeCSS, when } from 'lit';
+import {
+  OrAssetAttributePicker,
+  OrAssetAttributePickerPickedEvent,
+  showDialog,
+  showSnackbar,
+} from '../../../vendor/or-mwc.js';
 import { AssetModelUtil } from '../../data/asset-model.js';
 import { AssetService } from '../../data/asset-service.js';
 import { getAttributeLabel, sortByString } from '../../data/util.js';
@@ -15,9 +21,6 @@ import '../../kit/inputs.js';
 import { OrElement } from '../../kit/or-element.js';
 import { getAssetDescriptorIconTemplate } from '../../kit/or-icon.js';
 import '../../kit/or-icon.js';
-import { showDialog } from '../../kit/dialog.js';
-import { OrAssetAttributePicker, OrAssetAttributePickerPickedEvent } from '../../kit/pickers.js';
-import { showSnackbar } from '../../kit/snackbar.js';
 import { DefaultColor5, style } from '../style.js';
 
 /** Sent when the user clicks an action of an attribute. */

@@ -2,25 +2,28 @@
  * Ported to plain JavaScript from OpenRemote's or-dashboard-builder (src/settings/barchart-settings.ts).
  * Original: Copyright 2026, OpenRemote Inc., AGPL-3.0-or-later (https://github.com/openremote/openremote).
  *
- * Added: the choice to follow the time frame of the report. Not ported: allowing the viewer to change the time range.
+ * Added: the choice to follow the time frame of the report. Left out: "Allow time range selection", as the chart has no
+ * time controls in a report (see barchart-widget.js).
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { css, html, when } from 'lit';
+import { css, html, ref, when } from 'lit';
+import { ListType, OrAttributeBarChart, OrMwcDialog, showDialog } from '../../../vendor/or-mwc.js';
 import { NUMERIC_VALUE_TYPES } from '../../data/asset-model.js';
-import { getDefaultTimeWindowOptions } from '../../data/time-window.js';
-import { showDialog, OrMwcDialog } from '../../kit/dialog.js';
 import { i18next } from '../../kit/i18n.js';
 import '../../kit/inputs.js';
 import { getAssetDescriptorIconTemplate } from '../../kit/or-icon.js';
 import '../panels/attributes-chart-panel.js';
-import { BAR_METHOD_KEYS } from '../util/bar-chart-data.js';
-import { DEFAULT_CHART_COLORS, getDefaultIntervalOptions, hasRef, sameRef } from '../util/chart-helpers.js';
+import { DEFAULT_CHART_COLORS, hasRef, sameRef } from '../util/chart-helpers.js';
 import '../util/settings-panel.js';
 import { WidgetSettings } from '../util/widget-settings.js';
 
-const BAR_TIME_PREFIXES = ['this', 'last'];
+/** The methods that make one value of the data points in an interval, by the key in the attribute settings. */
+const BAR_METHOD_KEYS = [
+  'methodAvgAttributes', 'methodCountAttributes', 'methodDifferenceAttributes', 'methodMaxAttributes',
+  'methodMedianAttributes', 'methodMinAttributes', 'methodModeAttributes', 'methodSumAttributes',
+];
 const COLOR_INPUT_DELAY_MS = 200;
 
 const styling = css`
@@ -89,9 +92,9 @@ export class BarChartSettings extends WidgetSettings {
     };
 
     const option = item => ({ value: item, label: i18next.t(item.toLowerCase()) });
-    const prefixOptions = BAR_TIME_PREFIXES.map(option);
-    const windowOptions = [...getDefaultTimeWindowOptions().keys()].map(option);
-    const intervalOptions = [...getDefaultIntervalOptions().keys()]
+    const prefixOptions = OrAttributeBarChart.getDefaultTimePrefixOptions().map(option);
+    const windowOptions = [...OrAttributeBarChart.getDefaultTimeWindowOptions().keys()].map(option);
+    const intervalOptions = [...OrAttributeBarChart.getDefaultIntervalOptions().keys()]
       .map(item => ({ value: item, label: i18next.t(`intervalBy${item.toLowerCase()}`) }));
 
     return html`
@@ -322,30 +325,37 @@ export class BarChartSettings extends WidgetSettings {
   /** A dialog with a check box for every method; the attribute gets a bar for each method that is checked. */
   openAlgorithmMethodsDialog(attributeRef) {
     const { attributeSettings } = this.widgetConfig;
-    let selected = BAR_METHOD_KEYS.filter(key => hasRef(attributeSettings[key], attributeRef));
+    const methodList = BAR_METHOD_KEYS.map(key => ({
+      text: key,
+      value: key,
+      data: hasRef(attributeSettings[key], attributeRef) ? key : undefined,
+      translate: true,
+    }));
+    let list;
     showDialog(new OrMwcDialog()
-      .setHeading(i18next.t('algorithmMethod'))
       .setContent(html`
-        <div class="dialog-card" style="min-width: 260px;">
-          <or-vaadin-checkbox-group theme="vertical" .value=${selected}
-            @value-changed=${event => { selected = event.detail.value; }}>
-            ${BAR_METHOD_KEYS.map(key => html`
-              <or-vaadin-checkbox value=${key} label=${i18next.t(key)}></or-vaadin-checkbox>`)}
-          </or-vaadin-checkbox-group>
+        <div id="method-creator">
+          <or-mwc-list ${ref(element => { list = element; })} id="method-creator-list" .type=${ListType.MULTI_CHECKBOX}
+            .listItems=${methodList} .values=${methodList.map(item => item.data)}></or-mwc-list>
         </div>`)
+      .setHeading(i18next.t('algorithmMethod'))
       .setActions([
-        { actionName: 'cancel', content: 'cancel', default: true },
+        { actionName: 'cancel', content: 'cancel' },
         {
+          default: true,
           actionName: 'ok',
           content: 'ok',
           action: () => {
+            if (!list) return;
+            // Every method that the attribute has is removed, and then the methods that are checked are added
             BAR_METHOD_KEYS.filter(key => hasRef(this.widgetConfig.attributeSettings[key], attributeRef))
               .forEach(key => this.toggleAttributeSetting(key, attributeRef, false));
-            selected.forEach(key => this.toggleAttributeSetting(key, attributeRef, false));
+            list.values?.forEach(key => this.toggleAttributeSetting(key, attributeRef, false));
             this.notifyConfigUpdate();
           },
         },
-      ]));
+      ])
+      .setDismissAction(null));
   }
 
   onFollowReportToggle(event) {

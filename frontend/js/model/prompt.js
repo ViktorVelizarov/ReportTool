@@ -53,8 +53,7 @@ function linesOf(widget) {
         `${label}, ${asset.name}: ${value === undefined ? 'no value yet' : `currently ${value}`}`);
     default: {
       if (!widget.assets.length || !widget.attributes.length) return [];
-      const how = widget.type === 'map' ? 'coloured by' : 'attributes';
-      return [`assets ${listNames(widget.assets)}; ${how} ${listNames(widget.attributes)}`];
+      return [`assets ${listNames(widget.assets)}; attributes ${listNames(widget.attributes)}`];
     }
   }
 }

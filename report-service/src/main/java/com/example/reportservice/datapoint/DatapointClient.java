@@ -56,7 +56,34 @@ final class DatapointClient {
                 .put("type", "all")
                 .put("fromTimestamp", from)
                 .put("toTimestamp", to);
-        JsonNode points = manager.request("POST", "/asset/datapoint/" + assetId + "/" + attributeName, query);
+        return datapoints(manager.request("POST", "/asset/datapoint/" + assetId + "/" + attributeName, query));
+    }
+
+    /**
+     * The data points from {@code from} to {@code to} (Unix milliseconds, both included) made into one point per
+     * interval, oldest first, as the manager's interval query gives them: the point is at the start of the interval and
+     * has the value that the formula ({@code MIN}, {@code AVG}, {@code MAX}, {@code DIFFERENCE}, {@code COUNT},
+     * {@code SUM}, {@code MODE} or {@code MEDIAN}) makes of the data points in it. The manager lines the intervals up
+     * on the clock of its own time zone: a day starts at its midnight, a week on its Monday and a month on its first.
+     * With {@code gapFill} an interval without data points is a point as well, with no value (except for {@code MODE},
+     * which has no point for it). {@code interval} is an amount and a unit, such as "1 hour".
+     *
+     * @throws com.example.reportservice.openremote.HttpStatusException 400 for an attribute that is not a number or a
+     *         flag, or a {@code DIFFERENCE} of a flag
+     */
+    List<Datapoint> interval(String assetId, String attributeName, long from, long to, String interval,
+                             String formula, boolean gapFill) throws IOException, InterruptedException {
+        ObjectNode query = Json.object()
+                .put("type", "interval")
+                .put("fromTimestamp", from)
+                .put("toTimestamp", to)
+                .put("interval", interval)
+                .put("formula", formula)
+                .put("gapFill", gapFill);
+        return datapoints(manager.request("POST", "/asset/datapoint/" + assetId + "/" + attributeName, query));
+    }
+
+    private static List<Datapoint> datapoints(JsonNode points) throws IOException {
         if (points == null || !points.isArray()) {
             throw new IOException("Unexpected response to the data point query");
         }

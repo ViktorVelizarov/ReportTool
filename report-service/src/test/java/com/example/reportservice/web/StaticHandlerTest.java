@@ -62,7 +62,7 @@ class StaticHandlerTest {
         }
 
         List<String> required = List.of("/vendor/or-theme.css", "/css/app.css", "/js/main.js",
-                "/vendor/gridstack-all.js", "/vendor/echarts.min.js", "/vendor/gauge.min.js");
+                "/vendor/gridstack-all.js");
         assertTrue(files.containsAll(required), files.toString());
         for (String file : files) {
             HttpResponse<String> response = server.get(file);
@@ -93,18 +93,41 @@ class StaticHandlerTest {
 
     @Test
     void servesTheModulesOfTheImportMap() throws Exception {
-        assertTrue(server.get("/").body().contains("\"lit\": \"./vendor/lit.js\""));
-        for (String file : List.of("/vendor/lit.js", "/js/builder/index.js", "/js/data/asset-service.js")) {
+        List<String> modules = importMapModules(server.get("/").body());
+
+        assertTrue(modules.containsAll(List.of("/vendor/lit.js", "/vendor/or-vaadin.js", "/js/kit/core.js")),
+                modules.toString());
+        for (String file : modules) {
             HttpResponse<String> response = server.get(file);
             assertEquals(200, response.statusCode(), file);
             assertEquals("text/javascript; charset=utf-8", response.headers().firstValue("Content-Type").orElse(null));
         }
+        for (String file : List.of("/vendor/or-mwc.js", "/js/builder/index.js", "/js/data/asset-service.js")) {
+            assertEquals(200, server.get(file).statusCode(), file);
+        }
+    }
+
+    @Test
+    void printsThePdfWithTheSameImportMapAsThePage() throws Exception {
+        assertEquals(importMapModules(server.get("/").body()), importMapModules(server.get("/render.html").body()));
+    }
+
+    /** The files that the import map of a page points to, as paths on the server. */
+    private static List<String> importMapModules(String page) {
+        Matcher map = Pattern.compile("<script type=\"importmap\">(.*?)</script>", Pattern.DOTALL).matcher(page);
+        assertTrue(map.find(), "the page has no import map");
+        List<String> modules = new ArrayList<>();
+        Matcher target = Pattern.compile("\"\\./([^\"]+)\"").matcher(map.group(1));
+        while (target.find()) {
+            modules.add("/" + target.group(1));
+        }
+        return modules;
     }
 
     @Test
     void doesNotServeAFileThatItHasNoTypeFor() throws Exception {
         // the licence notes of the libraries are in the jar, but they are not part of the page
-        for (String file : List.of("/vendor/gauge.min.js.LICENSE.txt", "/vendor/fonts/LICENSE.txt",
+        for (String file : List.of("/vendor/gridstack-all.js.LICENSE.txt", "/vendor/fonts/LICENSE.txt",
                 "/vendor/README.md", "/img/plan.png", "/data.json")) {
             assertEquals(404, server.get(file).statusCode(), file);
         }

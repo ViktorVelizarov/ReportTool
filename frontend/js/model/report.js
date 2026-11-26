@@ -62,9 +62,9 @@ function shownValue(type, config, attribute) {
   return getAttributeValueAsString(attribute, undefined, true);
 }
 
-/** The assets that a table or map widget lists, with the labels of the attributes it shows. */
-async function listedAssets({ assetType, allOfType, assetIds, attributeNames, attributeName }) {
-  const names = attributeNames ?? [attributeName].filter(Boolean);
+/** The assets that a table widget lists, with the labels of the attributes it shows. */
+async function listedAssets({ assetType, allOfType, assetIds, attributeNames = [] }) {
+  const names = attributeNames;
   if (!assetType || (!allOfType && !assetIds?.length)) return { assets: [], attributes: [] };
   const assets = await AssetService.queryAssets({
     types: [assetType], ids: allOfType ? undefined : assetIds, select: { attributes: names },
@@ -79,7 +79,7 @@ async function listedAssets({ assetType, allOfType, assetIds, attributeNames, at
 /**
  * The figures of a widget: { id, name, type } and, by type, the entries of the attributes it shows over time (barchart,
  * kpi, linechart: with range, stats and previous), or at this moment (gauge, image: with value, as the widget shows
- * it), or the assets and attribute labels it lists (map, table).
+ * it), or the assets and attribute labels it lists (table).
  */
 async function figuresOf({ id, displayName, widgetTypeId: type, widgetConfig: config }, context) {
   const widget = { id, name: displayName, type };
@@ -98,7 +98,6 @@ async function figuresOf({ id, displayName, widgetTypeId: type, widgetConfig: co
         ({ ...describeAttribute(asset, attribute), value: shownValue(type, config, attribute) }));
       return { ...widget, entries };
     }
-    case 'map':
     case 'table':
       return { ...widget, ...await listedAssets(config) };
     default:

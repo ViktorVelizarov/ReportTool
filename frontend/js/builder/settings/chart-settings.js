@@ -2,9 +2,9 @@
  * Ported to plain JavaScript from OpenRemote's or-dashboard-builder (src/settings/chart-settings.ts).
  * Original: Copyright 2026, OpenRemote Inc., AGPL-3.0-or-later (https://github.com/openremote/openremote).
  *
- * Added: the choice to follow the time frame of the report. Not ported: allowing the viewer to change the time range,
- * the zoom bar and the choice of the data sampling (there is one algorithm), which are for looking around in a
- * dashboard.
+ * Added: the choice to follow the time frame of the report. Not ported: the choice of the data sampling, which the
+ * original only shows when there is more than one algorithm to choose from, and there is one, and "Allow time range
+ * selection", as the chart has no time controls in a report (see util/report-chart.js).
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -154,6 +154,12 @@ export class ChartSettings extends WidgetSettings {
               <span><or-translate value="dashboard.showLegend"></or-translate></span>
               <or-vaadin-toggle ?checked=${config.showLegend}
                 @change=${event => this.onShowLegendToggle(event)}></or-vaadin-toggle>
+            </div>
+            <!-- Datazoombar -->
+            <div class="switch-container">
+              <span><or-translate value="dashboard.showZoomBar"></or-translate></span>
+              <or-vaadin-toggle ?checked=${config.showZoomBar}
+                @change=${event => this.onShowZoomBarToggle(event)}></or-vaadin-toggle>
             </div>
           </div>
         </settings-panel>
@@ -346,6 +352,11 @@ export class ChartSettings extends WidgetSettings {
 
   onShowLegendToggle(event) {
     this.widgetConfig.showLegend = event.currentTarget.checked;
+    this.notifyConfigUpdate();
+  }
+
+  onShowZoomBarToggle(event) {
+    this.widgetConfig.showZoomBar = event.currentTarget.checked;
     this.notifyConfigUpdate();
   }
 

@@ -21,7 +21,6 @@ import { ChartWidget } from './widgets/chart-widget.js';
 import { GaugeWidget } from './widgets/gauge-widget.js';
 import { ImageWidget } from './widgets/image-widget.js';
 import { KpiWidget } from './widgets/kpi-widget.js';
-import { MapWidget } from './widgets/map-widget.js';
 import { TableWidget } from './widgets/table-widget.js';
 
 /** Registers the widget types, the key is the identifier that is saved with a widget (widgetTypeId). */
@@ -31,6 +30,5 @@ export function registerWidgetTypes() {
   widgetTypes.set('image', ImageWidget.getManifest());
   widgetTypes.set('kpi', KpiWidget.getManifest());
   widgetTypes.set('linechart', ChartWidget.getManifest());
-  widgetTypes.set('map', MapWidget.getManifest());
   widgetTypes.set('table', TableWidget.getManifest());
 }

@@ -118,10 +118,14 @@ function datapointValue(assetId, { name, type }, timestamp) {
   return Math.round((20 + (seed % 7) + 8 * wave) * 100) / 100;
 }
 
+/** The first and the last data point of the fake history are at a full hour. */
+const firstPointAt = from => Math.ceil(Math.max(from, HISTORY_START) / HOUR) * HOUR;
+const lastPointAt = to => Math.floor(Math.min(to, NOW) / HOUR) * HOUR;
+
 /** The data points of an attribute from from to to (both included), newest first, as the service gives them. */
 function datapointsOf(asset, attr, from, to) {
   const points = [];
-  for (let t = Math.ceil(Math.max(from, HISTORY_START) / HOUR) * HOUR; t <= Math.min(to, NOW); t += HOUR) {
+  for (let t = firstPointAt(from); t <= lastPointAt(to); t += HOUR) {
     points.push({ timestamp: t, value: datapointValue(asset.id, attr, t) });
   }
   return points.reverse();
@@ -192,7 +196,7 @@ function respondReports(method, id, realm, body) {
 
 function respond(url, init) {
   const { pathname, searchParams } = new URL(url, 'http://service');
-  const [, first, id, second, name, last] = pathname.split('/');
+  const [, first, id, second, name, last, tail] = pathname.split('/');
 
   if (pathname === '/model/assetInfos') return answer(200, ASSET_INFOS);
   if (pathname === '/branding') return answer(200, BRANDING);
@@ -213,6 +217,12 @@ function respond(url, init) {
   if (second !== 'attributes' || last !== 'datapoints') return answer(404, { error: 'not found' });
   const attr = asset?.attributes[name];
   if (!attr) return answer(404, { error: 'asset or attribute not found' });
+  if (tail === 'period') {
+    const [oldestTimestamp, latestTimestamp] = hasHistory(attr)
+      ? [firstPointAt(HISTORY_START), lastPointAt(NOW)]
+      : [null, null];
+    return answer(200, { assetId: id, attributeName: name, oldestTimestamp, latestTimestamp });
+  }
   return answer(200, hasHistory(attr)
     ? datapointsOf(asset, attr, Number(searchParams.get('from')), Number(searchParams.get('to')))
     : []);

@@ -4,8 +4,8 @@
  * the dashboard; while a widget is selected, the settings of that widget take their place. Original: Copyright 2026,
  * OpenRemote Inc., AGPL-3.0-or-later (https://github.com/openremote/openremote).
  *
- * Events: "delete-widget" (detail: the widget), "deselect", "widget-update" (detail: the changed widget) and
- * "board-update" (detail: { template, force }).
+ * Events: "delete-widget" (detail: the widget; whoever listens asks "Are you sure?" first, as the builder of OpenRemote
+ * does), "deselect", "widget-update" (detail: the changed widget) and "board-update" (detail: { template, force }).
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -15,7 +15,7 @@ import { i18next } from '../kit/i18n.js';
 import '../kit/inputs.js';
 import { OrElement } from '../kit/or-element.js';
 import '../kit/or-icon.js';
-import '../kit/tabs.js';
+import '../../vendor/or-mwc.js';
 import './or-dashboard-boardsettings.js';
 import './or-dashboard-browser.js';
 import './or-dashboard-widgetsettings.js';
@@ -78,11 +78,11 @@ export class OrDashboardSidebar extends OrElement {
               <span id="title" title=${this.selectedWidget.displayName}>${this.selectedWidget.displayName}</span>
             </div>
             <div id="sidebar-widget-headeractions">
-              <or-vaadin-button theme="icon tertiary" title=${i18next.t('delete')}
+              <or-vaadin-button theme="icon" title=${i18next.t('delete')}
                 @click=${() => this.dispatchEvent(new CustomEvent('delete-widget', { detail: this.selectedWidget }))}>
                 <or-icon icon="delete"></or-icon>
               </or-vaadin-button>
-              <or-vaadin-button theme="icon tertiary" title=${i18next.t('deselect')}
+              <or-vaadin-button theme="icon" title=${i18next.t('deselect')}
                 @click=${() => this.dispatchEvent(new CustomEvent('deselect'))}>
                 <or-icon icon="close"></or-icon>
               </or-vaadin-button>
