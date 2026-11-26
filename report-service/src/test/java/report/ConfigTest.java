@@ -15,7 +15,7 @@ class ConfigTest {
     @Test
     void parsesDotEnvSyntax() {
         Map<String, String> values = Config.parseDotEnv(List.of(
-                "﻿# comment",
+                "\uFEFF# comment",
                 "",
                 "PLAIN=value",
                 "export EXPORTED=1",

@@ -22,16 +22,20 @@ record Config(
 
     /** @throws IllegalArgumentException if a required setting is missing or invalid */
     static Config load() throws IOException {
-        Map<String, String> file = Map.of();
-        if (Files.isRegularFile(ENV_FILE)) {
-            file = parseDotEnv(Files.readAllLines(ENV_FILE));
-            System.out.println("loaded " + file.size() + " settings from " + ENV_FILE.toAbsolutePath());
-        }
-        Map<String, String> dotenv = file;
+        Map<String, String> dotenv = readDotEnv();
         return from(name -> {
             String value = System.getenv(name);
             return value != null ? value : dotenv.get(name);
         });
+    }
+
+    private static Map<String, String> readDotEnv() throws IOException {
+        if (!Files.isRegularFile(ENV_FILE)) {
+            return Map.of();
+        }
+        Map<String, String> values = parseDotEnv(Files.readAllLines(ENV_FILE));
+        System.out.println("loaded " + values.size() + " settings from " + ENV_FILE.toAbsolutePath());
+        return values;
     }
 
     static Config from(UnaryOperator<String> env) {
@@ -45,12 +49,14 @@ record Config(
                 Boolean.parseBoolean(optional(env, "OR_INSECURE_TLS", "false")));
     }
 
-    /** Parses {@code NAME=value} lines; blank lines, {@code #} comments, {@code export} and surrounding quotes are handled. */
+    /**
+     * Parses {@code NAME=value} lines; blank lines, {@code #} comments, {@code export} and surrounding quotes are
+     * handled.
+     */
     static Map<String, String> parseDotEnv(List<String> lines) {
         Map<String, String> values = new LinkedHashMap<>();
         for (String raw : lines) {
-            String line = raw.strip();
-            if (line.startsWith("﻿")) line = line.substring(1);
+            String line = raw.replace("\uFEFF", "").strip(); // a byte order mark may start the file
             if (line.startsWith("export ")) line = line.substring(7).stripLeading();
             int eq = line.indexOf('=');
             if (line.startsWith("#") || eq <= 0) continue;
