@@ -36,13 +36,26 @@ export function resolvePeriod(id, now = new Date()) {
   return { id, label: PERIODS.find(period => period.id === id).label, start, end };
 }
 
+/** Whether a moment is the first moment of a calendar month, in the time zone of the browser. */
+function startsMonth(at) {
+  const date = new Date(at);
+  return at === new Date(date.getFullYear(), date.getMonth(), 1).getTime();
+}
+
 /**
- * The range [from, to] in milliseconds of the same length that ends right before the given range starts. A range ends
- * at its last millisecond (a calendar month) or at the moment the next one starts (the last 7 days, which end on the
- * hour); its length in whole seconds is the same for both, so the range before starts at the same time of day as the
- * range, and a range that starts at midnight has one before it that starts at midnight too.
+ * The range [from, to] in milliseconds that ends right before the given range starts, to compare it with. A range of
+ * whole calendar months, as the last month and the last quarter are, has the same number of calendar months before it:
+ * September before October, however long each is and wherever summer time ends. Any other range has one of the same
+ * length before it. A range ends at its last millisecond (a calendar month) or at the moment the next one starts (the
+ * last 7 days, which end on the hour); its length in whole seconds is the same for both, so the range before starts at
+ * the same time of day as the range, and a range that starts at midnight has one before it that starts at midnight too.
  */
 export function previousRange([from, to]) {
+  if (startsMonth(from) && startsMonth(to + 1)) {
+    const [start, next] = [new Date(from), new Date(to + 1)];
+    const months = (next.getFullYear() - start.getFullYear()) * 12 + next.getMonth() - start.getMonth();
+    return [new Date(start.getFullYear(), start.getMonth() - months, 1).getTime(), from - 1];
+  }
   const length = Math.round((to - from) / SECOND) * SECOND;
   return [from - length, from - 1];
 }

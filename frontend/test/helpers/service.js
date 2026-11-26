@@ -142,6 +142,35 @@ function datapointsOf(asset, attr, from, to) {
   return points.reverse();
 }
 
+const INTERVAL_UNITS = { MINUTE: 60_000, HOUR, DAY };
+const FORMULAS = {
+  AVG: values => values.reduce((sum, value) => sum + value, 0) / values.length,
+  MIN: values => Math.min(...values),
+  MAX: values => Math.max(...values),
+  SUM: values => values.reduce((sum, value) => sum + value, 0),
+  COUNT: values => values.length,
+};
+
+/**
+ * The data points of an attribute per interval, as the manager's interval query gives them, oldest first: one for each
+ * interval from the one with from in it to the one with to in it, with the formula of the values in it, or null for an
+ * interval without data points (the fake always fills the gaps). Only minutes, hours and days in UTC, and the formulas
+ * above: the tests ask for no others.
+ */
+function intervalsOf(asset, attr, searchParams) {
+  const [from, to] = ['from', 'to'].map(key => Number(searchParams.get(key)));
+  const [steps, unit] = searchParams.get('interval').split(' ');
+  const length = Number(steps) * INTERVAL_UNITS[unit];
+  const points = datapointsOf(asset, attr, from, to);
+  const intervals = [];
+  for (let start = Math.floor(from / length) * length; start <= to; start += length) {
+    const values = points.filter(point => point.timestamp >= start && point.timestamp < start + length)
+      .map(point => point.value);
+    intervals.push({ timestamp: start, value: values.length ? FORMULAS[searchParams.get('formula')](values) : null });
+  }
+  return intervals;
+}
+
 /** The asset with the attributes that the query asks for: none without a selection, all for a star. */
 function selected(asset, selection) {
   const { attributes, ...rest } = asset;
@@ -236,6 +265,7 @@ function respond(url, init) {
       : [null, null];
     return answer(200, { assetId: id, attributeName: name, oldestTimestamp, latestTimestamp });
   }
+  if (tail === 'interval') return answer(200, hasHistory(attr) ? intervalsOf(asset, attr, searchParams) : []);
   return answer(200, hasHistory(attr)
     ? datapointsOf(asset, attr, Number(searchParams.get('from')), Number(searchParams.get('to')))
     : []);

@@ -1,9 +1,10 @@
 /**
  * The figures behind a report, for the generated text. They come from the same service as the data of the widgets and
- * cover the same time, so the text always agrees with what the widgets show. They also have what the widgets do not
- * show: the figures of every attribute over the time just before, and over the time frame of the report for an
- * attribute that a gauge or an image shows at this moment. Which of those the AI is given is for the author to choose
- * (see prompt.js). Pure apart from those calls: the same template and context always give the same figures.
+ * cover the same time, so the text always agrees with what the widgets show: the bars of a bar chart are fetched as the
+ * chart fetches them, and a gauge has its scale. They also have what the widgets do not show: the figures of every
+ * attribute over the time just before, and over the time frame of the report for an attribute that a gauge or an image
+ * shows at this moment. Which of those the AI is given is for the author to choose (see prompt.js). Pure apart from
+ * those calls: the same template and context always give the same figures.
  */
 
 import { configRange } from '../builder/util/widget-time.js';
@@ -12,7 +13,9 @@ import { AssetService } from '../data/asset-service.js';
 import { ReportContext } from '../data/report-context.js';
 import { getAttributeLabel, getAttributeValueAsString, resolveUnits } from '../data/util.js';
 import { previousRange } from './periods.js';
+import { barFormulas, barInterval, gaugeScale, placeOnScale } from './shown.js';
 import { analyze, cardChange, summarize } from './stats.js';
+import { HOUR } from './time.js';
 
 /** What the text needs to know about an attribute of an asset. */
 function describeAttribute(asset, attribute) {
@@ -61,6 +64,26 @@ async function seriesEntry({ ref, asset, attribute }, range) {
 }
 
 /**
+ * An attribute of a bar chart: its figures (see seriesEntry) and its bars as the chart draws them, [{ formula, points:
+ * [{ x: the start of the interval, y: its value, or null for an interval without data points }] }], one set for each
+ * method of the attribute. They are fetched as the chart fetches them: per interval of the chart (see barInterval),
+ * from the start of the time frame to just before its end, with the intervals without data points.
+ */
+async function barEntry(item, range, config, interval) {
+  const entry = await seriesEntry(item, range);
+  if (!entry.numeric) return { ...entry, bars: [] };
+  const [from, to] = range;
+  const query = {
+    type: 'interval', fromTimestamp: from, toTimestamp: to - 1, interval: `${interval.steps} ${interval.unit}`,
+    gapFill: true,
+  };
+  const bars = await Promise.all(barFormulas(config.attributeSettings, item.ref).map(async formula => ({
+    formula, points: await AssetService.getDatapoints(item.ref.id, item.ref.name, { ...query, formula }),
+  })));
+  return { ...entry, bars };
+}
+
+/**
  * The current value of an attribute as the widget shows it, with its unit: the gauge and the KPI round it to their
  * decimals, the image shows it as OpenRemote does. Undefined when the attribute has no value.
  */
@@ -75,15 +98,25 @@ function shownValue(type, config, attribute) {
 }
 
 /**
+ * Whether an attribute got its value after the time [from, to] had ended, so that the value is not of that time: more
+ * than an hour after its end. The last 7, 30 and 90 days end on the whole hour before the report moment, so a value of
+ * the hour after that still counts as the value at the end. A value that the attribute had before the end was still
+ * its value at the end. An attribute without a value has none that came after.
+ */
+const valueAfter = ({ value, timestamp }, [, to]) => value != null && timestamp > to + HOUR;
+
+/**
  * An attribute of a KPI: its figures over the period of the KPI, and the two figures that the card itself shows, which
  * are the current value and the change from the first to the last data point of the period. The change is null without
- * data points, where the card shows a 0.
+ * data points, where the card shows a 0. afterTimeFrame says whether the current value came after the period, which
+ * ends at the report moment: when the report is made for an earlier moment, or the page has been open for a while.
  */
 async function kpiEntry(item, range, config) {
   const entry = await seriesEntry(item, range);
   return {
     ...entry,
     value: shownValue('kpi', config, item.attribute),
+    afterTimeFrame: valueAfter(item.attribute, range),
     change: entry.stats ? cardChange(entry.stats, config.deltaFormat === 'percentage') : null,
   };
 }
@@ -103,23 +136,39 @@ async function listedAssets({ assetType, allOfType, assetIds, attributeNames = [
 }
 
 /**
- * An attribute of a gauge or an image: the value that the widget shows, and the figures of the attribute over the time
- * frame of the report and the time before it, which the widget does not show.
+ * An attribute of a gauge or an image: the value that the widget shows, whether it came after the time frame of the
+ * report (afterTimeFrame, as when the time frame is last month), and the figures of the attribute over the time frame
+ * and the time before it, which the widget does not show.
  */
 async function currentEntry(type, item, range, config) {
-  return { ...await seriesEntry(item, range), value: shownValue(type, config, item.attribute) };
+  return {
+    ...await seriesEntry(item, range),
+    value: shownValue(type, config, item.attribute),
+    afterTimeFrame: valueAfter(item.attribute, range),
+  };
+}
+
+/**
+ * An attribute of a gauge: as currentEntry, and where its value lies on the scale of the gauge (place, see placeOnScale
+ * in shown.js), or null when the gauge shows no number of this time frame.
+ */
+async function gaugeEntry(item, range, config, scale) {
+  const entry = await currentEntry('gauge', item, range, config);
+  const { value } = item.attribute;
+  return { ...entry, place: typeof value === 'number' && !entry.afterTimeFrame ? placeOnScale(value, scale) : null };
 }
 
 /**
  * The figures of a widget: { id, name, type } and, by type, the entries of the attributes it shows over time (barchart,
- * kpi, linechart: with range, stats, analysis and previous; kpi also with value and change, as the card shows them), or
- * at this moment (gauge, image: with value, as the widget shows it, and with the figures over the time frame of the
- * report), or the assets and attribute labels it lists (table).
+ * kpi, linechart: with range, stats, analysis and previous; a bar chart also with the interval of its bars and its
+ * entries with their bars; kpi also with value, afterTimeFrame and change, as the card shows them), or at this moment
+ * (gauge, image: with value, as the widget shows it, afterTimeFrame, and with the figures over the time frame of the
+ * report; a gauge also with its scale and its entries with their place on it), or the assets and attribute labels it
+ * lists (table).
  */
 async function figuresOf({ id, displayName, widgetTypeId: type, widgetConfig: config }, context) {
   const widget = { id, name: displayName, type };
   switch (type) {
-    case 'barchart':
     case 'kpi':
     case 'linechart': {
       const range = configRange(type, config, context);
@@ -128,7 +177,20 @@ async function figuresOf({ id, displayName, widgetTypeId: type, widgetConfig: co
         (type === 'kpi' ? kpiEntry(item, range, config) : seriesEntry(item, range))));
       return { ...widget, range, entries };
     }
-    case 'gauge':
+    case 'barchart': {
+      const range = configRange(type, config, context);
+      const interval = barInterval(range, config.defaultInterval);
+      const found = await resolveRefs(config.attributeRefs);
+      return { ...widget, range, interval, entries: await Promise.all(found.map(item =>
+        barEntry(item, range, config, interval))) };
+    }
+    case 'gauge': {
+      const range = [context.period.start.getTime(), context.period.end.getTime()];
+      const scale = gaugeScale(config);
+      const found = await resolveRefs(config.attributeRefs);
+      const entries = await Promise.all(found.map(item => gaugeEntry(item, range, config, scale)));
+      return { ...widget, scale, entries };
+    }
     case 'image': {
       const range = [context.period.start.getTime(), context.period.end.getTime()];
       const found = await resolveRefs(config.attributeRefs);

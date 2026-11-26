@@ -1,5 +1,7 @@
 /** Figures computed from data points: [{ x: timestamp, y: value }], oldest first. */
 
+import { HOUR } from './time.js';
+
 export function summarize(points) {
   if (!points.length) return null;
   let min = points[0];
@@ -11,9 +13,11 @@ export function summarize(points) {
     if (point.y > max.y) max = point;
   }
   const latest = points.at(-1);
+  const mean = sum / points.length;
   return {
     count: points.length,
-    mean: sum / points.length,
+    mean,
+    deviation: standardDeviation(points.map(point => point.y), mean),
     min: min.y, minAt: min.x,
     max: max.y, maxAt: max.x,
     first: points[0].y,
@@ -25,6 +29,25 @@ export function summarize(points) {
 export function percentChange(current, previous) {
   if (previous == null || previous === 0) return null;
   return (current - previous) / Math.abs(previous) * 100;
+}
+
+/** A figure changed notably from the time before when it moved this many standard deviations of the time itself. */
+const NOTABLE_DEVIATIONS = 0.5;
+
+/**
+ * Which figures of a time (see summarize) changed notably from the time just before, as { mean, min, max }: the
+ * average when it moved NOTABLE_DEVIATIONS standard deviations of the time or more, the lowest when it lies that far
+ * below the lowest of the time before, and the highest when it lies that far above its highest. In a time in which the
+ * value never changed, any change counts.
+ */
+export function notableChanges(current, previous) {
+  const reach = NOTABLE_DEVIATIONS * current.deviation;
+  const notable = change => change > 0 && change >= reach;
+  return {
+    mean: notable(Math.abs(current.mean - previous.mean)),
+    min: notable(previous.min - current.min),
+    max: notable(current.max - previous.max),
+  };
 }
 
 /** The number with a plus sign when it is above zero; a zero is never negative. */
@@ -47,6 +70,12 @@ const GAP_FACTOR = 3;
 
 /** The fewest measurements in a row with the same value that count as a value that did not change. */
 const MIN_UNCHANGED = 6;
+
+/**
+ * A time without measurements, or in which the value stayed the same, is far longer than usual when it lasts this many
+ * times as long as the longest one on a normal day, or longer.
+ */
+const FAR_LONGER_TIMES = 3;
 
 /** The fewest measurements in a day that an average of it is taken from. */
 const MIN_IN_DAY = 2;
@@ -71,6 +100,18 @@ const FEW_MEASUREMENTS = 0.75;
 
 /** The halves of a time frame differ when their averages are this many standard deviations apart, or more. */
 const TREND_DEVIATIONS = 0.5;
+
+/** The fewest measurements that a level change is looked for in. */
+const MIN_FOR_LEVEL = 10;
+
+/** The least share of the measurements on each side of a level change. */
+const LEVEL_SIDE = 0.15;
+
+/** A level change leaves at most this share of the scatter that a straight line through the measurements leaves. */
+const LEVEL_FIT = 0.5;
+
+/** A level change is at least this many times the scatter that is left around its two levels. */
+const LEVEL_SIZE = 3;
 
 const average = values => values.reduce((sum, value) => sum + value, 0) / values.length;
 
@@ -129,6 +170,54 @@ function trendOf(points, [from, to], deviation) {
   return { direction: steady ? 'steady' : secondHalf > firstHalf ? 'rising' : 'falling', firstHalf, secondHalf };
 }
 
+/** The scatter that the best straight line through the measurements leaves: the sum of the squared distances to it. */
+function straightLineScatter(points) {
+  const times = points.map(point => (point.x - points[0].x) / HOUR);
+  const values = points.map(point => point.y);
+  const [meanTime, meanValue] = [average(times), average(values)];
+  let timeSquares = 0;
+  let products = 0;
+  let valueSquares = 0;
+  times.forEach((time, index) => {
+    timeSquares += (time - meanTime) ** 2;
+    products += (time - meanTime) * (values[index] - meanValue);
+    valueSquares += (values[index] - meanValue) ** 2;
+  });
+  return timeSquares ? valueSquares - products ** 2 / timeSquares : valueSquares;
+}
+
+/**
+ * A moment from which the value stayed at another level: { at, before, after }, with the averages before and after it,
+ * or null. Of the moments with at least LEVEL_SIDE of the measurements on each side, the one whose two averages leave
+ * the least scatter is taken. It is a level change when that scatter is at most LEVEL_FIT of what a straight line
+ * leaves, so that a slow drift or the ups and downs of a day are none, and when the change is at least LEVEL_SIZE times
+ * the scatter that is left (as a standard deviation), so that a small shift is none.
+ */
+function levelChange(points) {
+  const count = points.length;
+  if (count < MIN_FOR_LEVEL) return null;
+  const sums = [0];
+  const squares = [0];
+  for (const { y } of points) {
+    sums.push(sums.at(-1) + y);
+    squares.push(squares.at(-1) + y ** 2);
+  }
+  /** The sum of the squared distances of the values from first up to last to their average. */
+  const scatter = (first, last) => squares[last] - squares[first] - (sums[last] - sums[first]) ** 2 / (last - first);
+  const side = Math.ceil(LEVEL_SIDE * count);
+  let best = null;
+  for (let split = side; split <= count - side; split++) {
+    const left = Math.max(0, scatter(0, split) + scatter(split, count));
+    if (!best || left < best.left) best = { split, left };
+  }
+  const line = straightLineScatter(points);
+  if (line <= 0 || best.left > LEVEL_FIT * line) return null;
+  const before = sums[best.split] / best.split;
+  const after = (sums[count] - sums[best.split]) / (count - best.split);
+  return Math.abs(after - before) >= LEVEL_SIZE * Math.sqrt(best.left / count)
+    ? { at: points[best.split].x, before, after } : null;
+}
+
 function groupBy(points, keyOf) {
   const groups = new Map();
   for (const point of points) {
@@ -183,41 +272,73 @@ function daysThatStandOut(points, [from, to], deviation) {
 }
 
 /**
- * The longest time without measurements, also at the start and at the end of the time frame: { from, to, duration },
- * or null when no pause is GAP_FACTOR times the usual pause or longer.
+ * How long the longest of some spans of time ({ from, to }) is on a normal day: the median, over the whole days of the
+ * time frame [from, to], of the longest span that starts in each day. Null with fewer than MIN_DAYS whole days, as
+ * there is then no normal day to compare with.
  */
-function longestGap(points, [from, to], pause) {
-  if (!pause) return null;
-  const times = [Math.min(from, points[0].x), ...points.map(point => point.x), Math.max(to, points.at(-1).x)];
-  let longest = null;
-  for (let index = 1; index < times.length; index++) {
-    const duration = times[index] - times[index - 1];
-    if (!longest || duration > longest.duration) longest = { from: times[index - 1], to: times[index], duration };
+function usualLongestInDay(spans, [from, to]) {
+  const longestPerDay = new Map();
+  for (const span of spans) {
+    const day = startOfDay(span.from);
+    if (day < from || startOfNextDay(day) - 1 > to) continue;
+    longestPerDay.set(day, Math.max(longestPerDay.get(day) ?? 0, span.to - span.from));
   }
-  return longest.duration >= GAP_FACTOR * pause ? longest : null;
+  return longestPerDay.size < MIN_DAYS ? null : median([...longestPerDay.values()]);
 }
 
-/** The longest stretch of measurements in a row with the same value: { value, from, to, count }, or null. */
-function longestUnchanged(points) {
-  let longest = null;
+/**
+ * The longest time without measurements, also at the start and at the end of the time frame, when it is far longer
+ * than usual: { from, to, duration, usual }, or null. It is far longer than usual when it is GAP_FACTOR times the usual
+ * pause or longer and, when the time frame has a normal day to compare with, FAR_LONGER_TIMES times the longest time
+ * without measurements on a normal day (usual, see usualLongestInDay) or longer, so that a pause that comes every
+ * night does not count. usual is null without a normal day.
+ */
+function longestGap(points, range, pause) {
+  if (!pause) return null;
+  const [from, to] = range;
+  const times = [Math.min(from, points[0].x), ...points.map(point => point.x), Math.max(to, points.at(-1).x)];
+  const gaps = times.slice(1).map((time, index) => ({ from: times[index], to: time, duration: time - times[index] }));
+  const longest = gaps.reduce((best, gap) => (gap.duration > best.duration ? gap : best));
+  const usual = usualLongestInDay(gaps, range);
+  const farLonger = longest.duration >= GAP_FACTOR * pause
+    && (usual == null || longest.duration >= FAR_LONGER_TIMES * usual);
+  return farLonger ? { ...longest, usual } : null;
+}
+
+/** The stretches of measurements in a row with the same value, oldest first: [{ value, from, to, count }]. */
+function sameValueStretches(points) {
+  const stretches = [];
   let start = 0;
   for (let index = 1; index <= points.length; index++) {
     if (index < points.length && points[index].y === points[start].y) continue;
-    const count = index - start;
-    if (count >= MIN_UNCHANGED && (!longest || count > longest.count)) {
-      longest = { value: points[start].y, from: points[start].x, to: points[index - 1].x, count };
-    }
+    stretches.push({ value: points[start].y, from: points[start].x, to: points[index - 1].x, count: index - start });
     start = index;
   }
-  return longest;
+  return stretches;
+}
+
+/**
+ * The longest time in which the value did not change, when it is far longer than usual: { value, from, to, count,
+ * usual }, or null. It is the longest stretch of at least MIN_UNCHANGED measurements in a row with the same value.
+ * usual is how long the value stays the same on a normal day (see usualLongestInDay; 0 when it changes at every
+ * measurement). The stretch stands out when it lasts FAR_LONGER_TIMES times as long as usual, or longer. Null without
+ * a normal day to compare with.
+ */
+function unchangedFarLongerThanUsual(points, range) {
+  const stretches = sameValueStretches(points);
+  const longest = stretches.filter(stretch => stretch.count >= MIN_UNCHANGED)
+    .reduce((best, stretch) => (!best || stretch.to - stretch.from > best.to - best.from ? stretch : best), null);
+  if (!longest) return null;
+  const usual = usualLongestInDay(stretches, range);
+  return usual != null && longest.to - longest.from >= FAR_LONGER_TIMES * usual ? { ...longest, usual } : null;
 }
 
 /**
  * What else the data points of a time frame [from, to] say, for the prompt of the AI: the biggest rise and drop between
- * two measurements in a row (rise, drop), the trend from the first half of the time frame to the second, the whole days
- * that stand out from a normal day (days), the longest time without measurements (gap) and the longest stretch with the
- * same value (unchanged). Each is null when there is too little data for it, or nothing to say. Null without data
- * points.
+ * two measurements in a row (rise, drop), a moment from which the value stayed at another level (level), the trend
+ * from the first half of the time frame to the second, the whole days that stand out from a normal day (days), and the
+ * longest time without measurements (gap) and the longest stretch with the same value (unchanged), each when it is far
+ * longer than usual. Each is null when there is too little data for it, or nothing to say. Null without data points.
  */
 export function analyze(points, range) {
   if (!points.length) return null;
@@ -227,9 +348,10 @@ export function analyze(points, range) {
   const pause = usualPause(points);
   return {
     ...biggestSteps(points, pause),
+    level: levelChange(points),
     trend: trendOf(points, range, deviation),
     days: daysThatStandOut(points, range, deviation),
     gap: longestGap(points, range, pause),
-    unchanged: longestUnchanged(points),
+    unchanged: unchangedFarLongerThanUsual(points, range),
   };
 }

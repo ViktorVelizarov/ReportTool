@@ -48,6 +48,11 @@ export function formatDay(date) {
   return date.toLocaleDateString(LOCALE, { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
+/** "October 2026". */
+export function formatMonth(date) {
+  return date.toLocaleDateString(LOCALE, { month: 'long', year: 'numeric' });
+}
+
 /** A length of time, in whole minutes: "45 min", "14 h", "2 h 30 min", "3 days 4 h". */
 export function formatDuration(ms) {
   const minutes = Math.round(ms / 60_000);

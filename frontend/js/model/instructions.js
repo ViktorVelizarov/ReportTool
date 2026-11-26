@@ -31,13 +31,15 @@ export const SWITCHES = [
   {
     id: 'beyondWidgets',
     label: 'Add insights beyond the widgets',
-    hint: 'Rises and drops, the trend, days that stand out, gaps and unchanged values of each attribute, also of the '
-      + 'attributes that gauges and images show.',
+    hint: 'Every figure of every attribute that its widget does not show: the average, lowest and highest, rises and '
+      + 'drops, level changes, the trend, days that stand out, gaps and values that stood still, also for KPIs, gauges '
+      + 'and images.',
   },
   {
     id: 'previousPeriod',
     label: 'Compare with the previous period',
-    hint: 'The same figures for the time just before, as long as the time frame.',
+    hint: 'The average, the lowest and the highest value of the time just before; with insights beyond the widgets, '
+      + 'only those that changed notably.',
   },
 ];
 
