@@ -48,8 +48,7 @@ public final class ReportService {
         }
 
         ManagerClient manager = new ManagerClient(config);
-        HttpServer server =
-                startServer(config.port(), manager, config.reportsDir(), config.chromePath(), config.insecureTls());
+        HttpServer server = startServer(config.port(), manager, config.reportsDir(), config.insecureTls());
         ServiceRegistration registration =
                 new ServiceRegistration(manager, describeService(config), config.globalService(), HEARTBEAT);
         registration.start();
@@ -80,11 +79,11 @@ public final class ReportService {
 
     /**
      * Starts the server for the data endpoints, the saved reports, the PDF export and, for every other path, the web
-     * interface. The reports are kept in {@code reportsDir}. The PDFs are made by Playwright's Chromium when
-     * it is installed.
+     * interface. The reports are kept in {@code reportsDir}. The PDFs are made by Playwright's Chromium when it is
+     * installed.
      */
-    static HttpServer startServer(int port, ManagerClient manager, Path reportsDir, String chromePath,
-            boolean insecureTls) throws IOException {
+    static HttpServer startServer(int port, ManagerClient manager, Path reportsDir, boolean insecureTls)
+            throws IOException {
         ReportEndpoints reports = new ReportEndpoints(reportsDir, Clock.systemUTC(), manager.realm());
         HttpServer server = HttpServer.create(new InetSocketAddress("0.0.0.0", port), 0);
         // the browser opens the web interface at this address, which is why the port is known only now

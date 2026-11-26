@@ -29,7 +29,7 @@ class ReportServiceTest {
 
     private static Config config(boolean globalService) {
         return new Config("http://manager", "http://manager/auth", "master", "id", "secret", 5000, false,
-                globalService, null, Path.of("reports"));
+                globalService, Path.of("reports"));
     }
 
     @Test
@@ -60,7 +60,7 @@ class ReportServiceTest {
                 .respond("POST /asset/query", FakeManager.ASSETS)
                 .respond("POST /asset/count", "2")
                 .respond("GET /model/assetInfos", FakeManager.ASSET_INFOS)) {
-            HttpServer server = ReportService.startServer(0, manager.client(), reports, null, false);
+            HttpServer server = ReportService.startServer(0, manager.client(), reports, false);
             try {
                 int port = server.getAddress().getPort();
 
@@ -99,7 +99,7 @@ class ReportServiceTest {
     @Test
     void keepsTheSavedReportsInTheFolderItWasGiven(@TempDir Path reports) throws Exception {
         try (FakeManager manager = new FakeManager()) {
-            HttpServer server = ReportService.startServer(0, manager.client(), reports, null, false);
+            HttpServer server = ReportService.startServer(0, manager.client(), reports, false);
             try {
                 int port = server.getAddress().getPort();
                 String report = "{\"name\":\"Weekly\",\"periodId\":\"last7\",\"template\":{\"widgets\":[]}}";
@@ -128,7 +128,7 @@ class ReportServiceTest {
                 .respond("POST /asset/query", FakeManager.ASSETS)
                 .respond("POST /asset/count", "2")
                 .respond("GET /model/assetInfos", FakeManager.ASSET_INFOS)) {
-            HttpServer server = ReportService.startServer(0, manager.client(), reports, null, false);
+            HttpServer server = ReportService.startServer(0, manager.client(), reports, false);
             try {
                 HttpRequest request = HttpRequest.newBuilder(
                         URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/export/pdf"))

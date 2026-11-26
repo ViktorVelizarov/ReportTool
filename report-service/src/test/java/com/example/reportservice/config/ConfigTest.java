@@ -46,7 +46,6 @@ class ConfigTest {
         assertEquals(5000, config.port());
         assertFalse(config.insecureTls());
         assertFalse(config.globalService());
-        assertNull(config.chromePath());
         assertEquals(Path.of("data/reports"), config.reportsDir());
     }
 
@@ -59,22 +58,13 @@ class ConfigTest {
                 "OR_REALM", "building",
                 "PORT", "6000",
                 "OR_INSECURE_TLS", "TRUE",
-                "CHROME_PATH", " /opt/chromium/chrome ",
                 "REPORTS_DIR", "/var/lib/report-studio")::get);
 
         assertEquals("https://localhost", config.managerUrl());
         assertEquals("building", config.realm());
         assertEquals(6000, config.port());
         assertTrue(config.insecureTls());
-        assertEquals("/opt/chromium/chrome", config.chromePath());
         assertEquals(Path.of("/var/lib/report-studio"), config.reportsDir());
-    }
-
-    @Test
-    void treatsAnEmptyBrowserPathAsNone() {
-        Config config = Config.from(Map.of("OR_CLIENT_ID", "id", "OR_CLIENT_SECRET", "secret", "CHROME_PATH", "")::get);
-
-        assertNull(config.chromePath());
     }
 
     @Test
