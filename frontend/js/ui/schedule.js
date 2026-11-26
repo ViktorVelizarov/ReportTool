@@ -28,6 +28,19 @@ const DEMO_NOTE = 'Demo only: nothing is made or sent.';
 const DISABLED_FREQUENCIES = ['HOURLY', 'MINUTELY'];
 const DISABLED_RRULE_PARTS = ['bymonth', 'byweekno', 'byyearday', 'byhour', 'byminute', 'bysecond'];
 
+/**
+ * The scheduler keeps its dialog in its own shadow root, out of reach of css/app.css, so that dialog is given here what
+ * the page's own dialogs get there: the grey of the design system behind it, the large shadow and 16 px spacing.
+ */
+const SCHEDULER_STYLES = new CSSStyleSheet();
+SCHEDULER_STYLES.replaceSync(`
+  or-vaadin-dialog::part(backdrop) { background-color: var(--or-color-contrast-20pct); }
+  or-vaadin-dialog::part(overlay) { box-shadow: 0 0 0 1px var(--lumo-shade-5pct), var(--lumo-box-shadow-l); }
+  or-vaadin-dialog::part(header), or-vaadin-dialog::part(footer) { padding: var(--lumo-space-m); }
+  or-vaadin-dialog::part(title) { margin-inline-start: 0; }
+  or-vaadin-dialog::part(content) { padding-inline: var(--lumo-space-m); }
+`);
+
 /** A card of the dialog: a section with its own title. */
 const card = (title, ...content) => h('section', { class: 'dialog-card' }, h('h4', null, title), content);
 
@@ -77,6 +90,7 @@ export function openSchedule(store) {
     else enabled.after(next);
     scheduler = next;
     next.updateComplete.then(() => {
+      next.shadowRoot.adoptedStyleSheets = [...next.shadowRoot.adoptedStyleSheets, SCHEDULER_STYLES];
       // The scheduler keeps what was chosen in its dialog when the dialog is closed without saving: it is made again
       next.shadowRoot.getElementById('scheduler').addEventListener('closed', () => {
         if (!objectsEqual(next.schedule, shown())) mountScheduler();
