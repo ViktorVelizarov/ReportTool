@@ -23,9 +23,8 @@ running OpenRemote manager; see its README for the settings.
 
 **The realm.** A report is about the assets of one realm of OpenRemote, which the page reads from its address. When the
 manager shows the service in its Services page, it opens `http://localhost:5000/manufacturer` for a super user and
-`http://localhost:5000/?realm=smartcity` for any other user, and the page then shows the data of that realm and its name
-in the header. An address without a realm shows the realm of the service's own service user, which the header does not
-name. The page asks the service for the asset model first; if that fails it says so, with a button to try again.
+`http://localhost:5000/?realm=smartcity` for any other user, and the page then shows the data of that realm. An address
+without a realm shows the realm of the service's own service user. The page asks the service for the asset model first; if that fails it says so, with a button to try again.
 
 `?asOf=2026-10-04T12:00:00Z` fixes the moment the report is made for, which makes the pages repeatable (for example
 for screenshots). Otherwise it is the current time.
@@ -58,7 +57,7 @@ The builder uses parts of OpenRemote's component library: form fields, tabs, dia
 translations and icons. The text field, number field, text area, select, toggle, checkbox, radio button, button,
 multi-select combo box, menu bar, badge, dialog and confirm dialog are OpenRemote's own `or-vaadin-*` components, and
 so are the scheduler (`or-scheduler`), `<or-translate>` and the `i18next` that it uses: all of them are bundled in
-`vendor/or-vaadin.js`. The settings of the builder, the top of the page and the dialogs are made of them, and the page
+`vendor/or-vaadin.js`. The settings of the builder, the review blocks and the dialogs are made of them, and the page
 takes its colours, font, radii and shadows from OpenRemote's theme, `vendor/or-theme.css`. The library has no component
 for a message, a card or a progress bar, which the design system of OpenRemote has: a message (saved, exported, failed)
 is a notification of Vaadin, a block of generated text and the page that cannot start are cards of Vaadin, and text
@@ -68,11 +67,9 @@ indicator and the colour input; it also gives `i18next` the texts of the page (`
 which the pickers of the builder use, draws an `or-vaadin-dialog`. The calls the widgets make to the manager are
 answered by `js/data/asset-service.js`, with the data of the realm from the report service.
 
-The top of the page is made after the header of an asset in OpenRemote's manager: the name of the report with the realm
-and a "Prototype" badge, and the buttons that save it and switch between editing and previewing it (in the manager,
-"Modify" and "view"). A bar below it has the time frame, the saved reports, the schedule, the text and the export. The
-page has no navigation bar or logo of its own, because the manager shows it in its Services page, under its own
-navigation.
+The top of the page is the page's own: one toolbar with the name of the report, the switch between editing and
+previewing, the time frame, the saved reports, and the buttons for saving, scheduling, writing text and exporting. Its
+buttons and menus are styled in `css/app.css`, not taken from the library.
 
 ### License
 
@@ -89,6 +86,7 @@ closed repository. The alternative is a builder of our own that is written witho
 | Part | In the prototype |
 |------|------------------|
 | Assets, attributes and values | The assets of the realm and their current values, from the service (`GET /assets`, `GET /assets/{id}`), in OpenRemote's format (`js/data/asset-service.js`) |
+| Look of the realm | The primary colour and the logo that the realm has in the manager's configuration (`GET /branding`, `js/data/branding.js`), read when the page starts. The colour goes on the whole theme, as the manager does for a realm; the logo is on the cover. A realm that sets none looks like OpenRemote, in green and without a logo |
 | Asset types and attributes | The asset model of the manager (`GET /model/assetInfos`): the types with their icons and colours, and the attributes with their value types and units. It is read once, when the page starts (`js/data/asset-model.js`) |
 | Data points | The stored history of an attribute, from the service. The service gives every point of a range, so the downsampling of a line chart and the average, minimum or maximum per interval are done in the browser |
 | Widgets | OpenRemote's, see above, with that data |
@@ -124,14 +122,14 @@ widget; a clean document is a job for the PDF export.
   get copies of the template, and their events change the state.
 - `js/data/` - what the page knows of OpenRemote: the realm of the address (`realm.js`), the calls to the report
   service (`service-client.js`), the assets and data points that the widgets ask for (`asset-service.js`), the asset
-  model (`asset-model.js`), the unit symbols, the time windows, and the context of the report (its realm, moment and
-  time frame) that the widgets read when they fetch data.
+  model (`asset-model.js`), the colour and logo of the realm (`branding.js`), the unit symbols, the time windows, and
+  the context of the report (its realm, moment and time frame) that the widgets read when they fetch data.
 - `js/model/` - the report apart from the page: time frames, statistics, the figures of the widgets for the text
   (`report.js`), the questions for the AI (`instructions.js`), the prompt they make (`prompt.js`), the text templates,
   the schedule (`schedule.js`, which finds the dates of a repeat with `vendor/rrule.js`), formatting and file names.
-- `js/ui/` - the page around the builder: the header and the toolbar, the paper (cover, text blocks, widget
-  descriptions), the review blocks, dialogs (a question, the schedule, and the instructions for the AI), messages and
-  icons, and the message for a page that cannot start. `js/dom.js` has the helpers they build the page with; nothing is
+- `js/ui/` - the page around the builder: the toolbar, the paper (cover, text blocks, widget descriptions), the review
+  blocks, menus, dialogs (a question, the schedule, and the instructions for the AI), messages and icons, and the
+  message for a page that cannot start. `js/dom.js` has the helpers they build the page with; nothing is
   built with `innerHTML`.
 - `js/kit/` - the stand-ins for the components of OpenRemote that are not bundled, see above, and the texts
   (`texts.js`) and icons (`mdi-icons.js`) of the page. An icon that the page does not have shows as the icon of an
@@ -148,8 +146,8 @@ Uses the built-in test runner of Node.js (developed with Node 24); there is noth
 state, the report model, the prompt and the text, the schedule, the data layer, and the parts of the builder that need
 no browser: time windows, bar chart intervals and methods, the map, the keys, and the widget types with their default
 configs.
-The data layer is tested against a fake of the service (`test/helpers/service.js`) that has the asset model and a few
-assets in the JSON that the service gives, with generated data points, and records every call; `test/helpers/` also
+The data layer is tested against a fake of the service (`test/helpers/service.js`) that has the asset model, the look of
+the realm and a few assets in the JSON that the service gives, with generated data points, and records every call; `test/helpers/` also
 has the report that the tests of the report and the state use. The modules that need a browser are checked for valid
 syntax.
 

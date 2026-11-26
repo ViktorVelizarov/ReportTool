@@ -1,7 +1,8 @@
 /**
- * A fake of the report service for the tests: the asset model and a few assets of a realm in the JSON that the service
- * gives, and data points that are generated from the time (one every full hour). Every call that the page makes is
- * recorded. It answers like the service does, also with the errors, but it checks nothing: the tests look at the calls.
+ * A fake of the report service for the tests: the asset model, the look and a few assets of a realm in the JSON that
+ * the service gives, and data points that are generated from the time (one every full hour). Every call that the page
+ * makes is recorded. It answers like the service does, also with the errors, but it checks nothing: the tests look at
+ * the calls.
  */
 
 import { ServiceClient } from '../../js/data/service-client.js';
@@ -53,6 +54,9 @@ const ASSET_INFOS = [
     attributeDescriptors: [{ name: 'agentStatus', type: 'connectionStatus' }],
   },
 ];
+
+/** The look of the realm of the report, as the service gives it: the logo is an address at the manager. */
+export const BRANDING = { primaryColour: '#29ABE2', logo: 'https://localhost/images/logo_manufacturer.svg' };
 
 const attribute = (name, type, value, meta = {}) => ({ name, type, value, timestamp: NOW - HOUR, meta });
 const stored = { storeDataPoints: true };
@@ -137,6 +141,7 @@ function respond(url) {
   const [, first, id, second, name, last] = pathname.split('/');
 
   if (pathname === '/model/assetInfos') return answer(200, ASSET_INFOS);
+  if (pathname === '/branding') return answer(200, BRANDING);
   if (pathname === '/assets') {
     const type = searchParams.get('type');
     const assets = ASSETS.filter(asset => !type || asset.type === type)

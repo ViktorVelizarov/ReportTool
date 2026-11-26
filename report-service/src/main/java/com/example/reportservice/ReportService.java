@@ -1,6 +1,7 @@
 package com.example.reportservice;
 
 import com.example.reportservice.asset.AssetEndpoints;
+import com.example.reportservice.branding.BrandingEndpoints;
 import com.example.reportservice.config.Config;
 import com.example.reportservice.datapoint.DatapointEndpoints;
 import com.example.reportservice.json.Json;
@@ -62,7 +63,7 @@ public final class ReportService {
         String homepage = "http://localhost:" + config.port() + (config.globalService() ? "/{realm}" : "/");
         return Json.object()
                 .put("serviceId", SERVICE_ID)
-                .put("label", "Reports")
+                .put("label", "Report Studio")
                 .put("icon", "file-chart")
                 .put("version", BuildInfo.version())
                 .put("homepageUrl", homepage)
@@ -73,6 +74,7 @@ public final class ReportService {
     static HttpServer startServer(int port, ManagerClient manager) throws IOException {
         Router router = new Router(new StaticHandler());
         new AssetEndpoints(manager).register(router);
+        new BrandingEndpoints(manager).register(router);
         new DatapointEndpoints(manager).register(router);
         new ModelEndpoints(manager).register(router);
 
