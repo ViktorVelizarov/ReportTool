@@ -1,0 +1,9 @@
+{
+  "name": "report-studio-frontend",
+  "private": true,
+  "type": "module",
+  "description": "Report Studio UI: static files, no build step. The tests run the logic without a browser.",
+  "scripts": {
+    "test": "node --test \"test/*.test.js\""
+  }
+}
