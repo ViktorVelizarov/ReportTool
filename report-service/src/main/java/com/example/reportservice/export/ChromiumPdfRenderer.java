@@ -55,6 +55,8 @@ public final class ChromiumPdfRenderer implements PdfRenderer {
      */
     private static final Map<String, String> PLAYWRIGHT_ENV = Map.of("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1");
 
+    private static final String MESSAGE_FIELD = "message='";
+
     private final String address;
     private final boolean insecureTls;
     private final Duration timeout;
@@ -91,7 +93,7 @@ public final class ChromiumPdfRenderer implements PdfRenderer {
             LOG.warn("Playwright's Chromium is not installed at {}: PDF export is off. "
                     + "Install it with ./gradlew installBrowser (see README.md, PDF export)", browser);
         } catch (PlaywrightException e) {
-            LOG.warn("Playwright cannot start, so PDF export is off: {}", e.getMessage());
+            LOG.warn("Playwright cannot start, so PDF export is off: {}", reason(e));
         }
         return false;
     }
@@ -143,7 +145,7 @@ public final class ChromiumPdfRenderer implements PdfRenderer {
                     .setPreferCSSPageSize(true)
                     .setScale(scale));
         } catch (PlaywrightException e) {
-            throw new IOException(e.getMessage(), e);
+            throw new IOException(reason(e), e);
         }
     }
 
@@ -186,4 +188,15 @@ public final class ChromiumPdfRenderer implements PdfRenderer {
         return Math.max(1, Duration.between(Instant.now(), deadline).toMillis());
     }
 
+    /**
+     * The first line of what Playwright says went wrong. An error of its driver comes as {@code Error { message='...'
+     * name='...' stack='...' }}, and its message goes on with advice and a log of the call.
+     */
+    private static String reason(PlaywrightException e) {
+        String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+        int start = message.indexOf(MESSAGE_FIELD);
+        String text = start < 0 ? message.strip() : message.substring(start + MESSAGE_FIELD.length());
+        int end = text.indexOf('\n');
+        return (end < 0 ? text : text.substring(0, end)).strip();
+    }
 }

@@ -1,6 +1,7 @@
 package com.example.reportservice.export;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -157,6 +158,8 @@ class ChromiumPdfRendererTest {
         ApiException e = assertThrows(ApiException.class, () -> renderer.render(null, 1280, REPORT));
 
         assertEquals(502, e.status());
-        assertTrue(e.getMessage().contains("Executable doesn't exist at "), e.getMessage());
+        assertTrue(e.getMessage().startsWith("The PDF could not be made: Executable doesn't exist at "),
+                e.getMessage());
+        assertFalse(e.getMessage().contains("\n"), "one line, without Playwright's advice and log: " + e.getMessage());
     }
 }
